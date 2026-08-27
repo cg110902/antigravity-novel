@@ -22,7 +22,7 @@ _tools_dir = Path(__file__).resolve().parent
 if str(_tools_dir) not in sys.path:
     sys.path.insert(0, str(_tools_dir))
 
-from novel_utils import resolve_workspace, reconfigure_utf8
+from novel_utils import resolve_workspace, reconfigure_utf8, has_placeholder, is_table_separator
 
 reconfigure_utf8()
 
@@ -75,13 +75,25 @@ def rollback_snapshot(workspace_dir: Path, snapshot_target: str):
     if not snapshots_dir.exists():
         print("[错误] 没有找到任何快照目录！")
         return False
-        
-    matched_dirs = [d for d in snapshots_dir.iterdir() if d.is_dir() and snapshot_target in d.name]
+
+    all_dirs = [d for d in snapshots_dir.iterdir() if d.is_dir()]
+    # 优先精确名匹配（去掉时间戳前缀后 == 目标名），避免 'ch_001' 误匹配 'ch_0010'；
+    # 精确名找不到时再退回子串包含匹配。
+    def _strip_timestamp(name: str) -> str:
+        m = re.match(r"^\d{8}_\d{6}_(.+)$", name)
+        return m.group(1) if m else name
+
+    exact = [d for d in all_dirs if _strip_timestamp(d.name) == snapshot_target]
+    matched_dirs = exact if exact else [d for d in all_dirs if snapshot_target in d.name]
     if not matched_dirs:
         print(f"[错误] 未找到匹配 '{snapshot_target}' 的快照！")
         list_snapshots(workspace_dir)
         return False
-        
+
+    if not exact and len(matched_dirs) > 1:
+        print(f"⚠️ [注意] 快照名 '{snapshot_target}' 非精确匹配到 {len(matched_dirs)} 个快照，"
+              f"已自动选择最新的一个: {sorted(matched_dirs, reverse=True)[0].name}")
+
     target_dir = sorted(matched_dirs, reverse=True)[0]
     
     # Backup current state before rollback
@@ -142,22 +154,30 @@ def inspect_state(workspace_path=None, as_json=False):
     guns_file = workspace_dir / "04_timeline_and_state" / "chekhov_guns.md"
     if guns_file.exists():
         content = guns_file.read_text(encoding="utf-8")
-        planted = len(re.findall(r"\|\s*(?:Planted|Pending|已埋下)\b", content, re.IGNORECASE))
-        reminded = len(re.findall(r"\|\s*(?:Reminded|Active|激化|已激化)\b", content, re.IGNORECASE))
-        resolved = len(re.findall(r"\|\s*(?:Resolved|Triggered|已回收|已触发)\b", content, re.IGNORECASE))
+        # 计数时排除母版示例占位行
+        valid_gun_lines = [
+            l for l in content.splitlines()
+            if l.startswith("|") and not has_placeholder(l)
+        ]
+        valid_gun_text = "\n".join(valid_gun_lines)
+        planted = len(re.findall(r"\|\s*(?:Planted|Pending|已埋下)\b", valid_gun_text, re.IGNORECASE))
+        reminded = len(re.findall(r"\|\s*(?:Reminded|Active|激化|已激化)\b", valid_gun_text, re.IGNORECASE))
+        resolved = len(re.findall(r"\|\s*(?:Resolved|Triggered|已回收|已触发)\b", valid_gun_text, re.IGNORECASE))
         state_report["guns"]["planted"] = planted
         state_report["guns"]["reminded"] = reminded
         state_report["guns"]["resolved"] = resolved
-        
+
         # Parse active guns with expected chapter
         for line in content.splitlines():
-            if line.startswith("|") and not line.startswith("| 伏笔 ID") and not line.startswith("|---") and not line.startswith("|:---"):
+            if line.startswith("|") and "伏笔 ID" not in line and not is_table_separator(line):
                 parts = [p.strip() for p in line.split("|") if p.strip()]
                 if len(parts) >= 5:
                     gun_id = parts[0]
                     gun_name = parts[1]
                     status = parts[3]
                     target_ch = parts[4]
+                    if has_placeholder(line):
+                        continue  # 母版示例占位行
                     if not any(k in status.lower() for k in ["resolved", "triggered", "已回收", "已触发"]):
                         state_report["guns"]["active_list"].append({"id": gun_id, "name": gun_name, "status": status, "target_ch": target_ch})
 
@@ -178,6 +198,8 @@ def inspect_state(workspace_path=None, as_json=False):
         content = mis_file.read_text(encoding="utf-8")
         for line in content.splitlines():
             if "MIS-" in line and not line.startswith("| ID") and not line.startswith("|---"):
+                if has_placeholder(line):
+                    continue  # 母版示例占位行
                 parts = [p.strip() for p in line.split("|") if p.strip()]
                 if len(parts) >= 6:
                     mis_id = parts[0]
@@ -190,7 +212,9 @@ def inspect_state(workspace_path=None, as_json=False):
     if growth_file.exists():
         g_content = growth_file.read_text(encoding="utf-8")
         for line in g_content.splitlines():
-            if line.startswith("|") and not line.startswith("| 角色姓名") and not line.startswith("|---") and not line.startswith("| :---"):
+            if line.startswith("|") and "角色姓名" not in line and not is_table_separator(line):
+                if has_placeholder(line):
+                    continue  # 母版示例占位行
                 parts = [p.strip() for p in line.split("|") if p.strip()]
                 if len(parts) >= 4:
                     cname = parts[0]
@@ -273,11 +297,15 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     ws = resolve_workspace(args.workspace)
+    exit_code = 0
     if args.list_snapshots:
         list_snapshots(ws)
     elif args.snapshot is not None:
-        create_snapshot(ws, args.snapshot)
+        exit_code = 0 if create_snapshot(ws, args.snapshot) else 1
     elif args.rollback is not None:
-        rollback_snapshot(ws, args.rollback)
+        exit_code = 0 if rollback_snapshot(ws, args.rollback) else 1
     else:
-        inspect_state(workspace_path=args.workspace, as_json=args.json)
+        report = inspect_state(workspace_path=args.workspace, as_json=args.json)
+        if isinstance(report, dict) and report.get("error"):
+            exit_code = 1
+    sys.exit(exit_code)

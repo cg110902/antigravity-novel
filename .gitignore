@@ -1,0 +1,21 @@
+# ── Python ──────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+*.egg-info/
+.venv/
+venv/
+
+# ── Novel workspace (per-book data; not part of the framework) ──
+novel_workspace/
+
+# ── Generated exports / scratch ─────────────────────────
+full_novel.md
+full_novel.txt
+*.tmp
+.DS_Store

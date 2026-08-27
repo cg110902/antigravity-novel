@@ -9,11 +9,12 @@ Usage:
     python studio.py lint [ch_004]          # 2. 一键运行反 AI 腔、句式骨架与断章 Linter (--voice 可选加测声纹)
     python studio.py diff ch_004            # 3. 一键初稿 vs 定稿脱水重铸质量对比
     python studio.py sync ch_004            # 4. 一键完成双台账校验、道具轨迹追踪并打下版本快照
-    python studio.py radar [ch_004]         # 5. 一键运行全书 11 大工程雷达总控仪表盘
+    python studio.py radar [ch_004]         # 5. 一键运行全书 12 大工程雷达总控仪表盘
     python studio.py test                   # 6. 一键运行 tests/ 自动化测试套件
     python studio.py export [--txt]         # 7. 一键编译导出全书手稿 (Markdown / TXT)
-    python studio.py clean [--drafts]       # 8. 一键清空手稿与临时草稿
+    python studio.py clean                  # 8. 一键清空手稿与临时草稿
     python studio.py snapshot <name>        # 9. 状态机一键创建快照
+    python studio.py snapshots              # 9.1 列出所有历史快照
     python studio.py rollback <name>        # 10. 状态机一键回滚快照 (--clean-drafts 可选清理孤立稿件)
 """
 
@@ -110,9 +111,26 @@ def cmd_pack(args):
     extra = ["-c", ch]
     if args.json:
         extra.append("--json")
+    if getattr(args, "budget", 0):
+        extra.extend(["--budget", str(args.budget)])
     if args.workspace:
         extra.extend(["-w", args.workspace])
     return run_script("package_context.py", extra)
+
+def cmd_memory(args):
+    """P1 memory engine: synopsis spine build / BM25 recall / cross-chapter repetition."""
+    # memory_core.py 全局参数（-w/--json）须位于子命令之前
+    extra = []
+    if args.workspace:
+        extra.extend(["-w", args.workspace])
+    if args.json:
+        extra.append("--json")
+    extra.append(args.sub)
+    if args.sub == "recall":
+        extra.append(args.query)
+        if args.top_k:
+            extra.extend(["-k", str(args.top_k)])
+    return run_script("memory_core.py", extra)
 
 def cmd_lint(args):
     """Stage 3: Lint chapter for consistency, generic skeletons, AI clichés & tag leaks, then reader confusion check."""
@@ -191,6 +209,72 @@ def cmd_facts(args):
         extra.extend(["-w", args.workspace])
     return run_script("extract_chapter_facts.py", extra)
 
+def cmd_draft(args):
+    """Stage 4: 0-LLM proposal skeleton generator (pre-fill deterministic fields)."""
+    ch = args.chapter if args.chapter.startswith("ch_") else f"ch_{int(args.chapter):03d}"
+    extra = ["-c", ch]
+    if args.json:
+        extra.append("--json")
+    if args.workspace:
+        extra.extend(["-w", args.workspace])
+    return run_script("proposal_draft.py", extra)
+
+def cmd_apply(args):
+    """Stage 4: Apply a structured state-mutation proposal (deterministic state engine)."""
+    extra = []
+    if getattr(args, "file", None):
+        extra.extend(["-f", args.file])
+    if getattr(args, "dry_run", False):
+        extra.append("--dry-run")
+    if args.workspace:
+        extra.extend(["-w", args.workspace])
+    return run_script("state_apply.py", extra)
+
+def cmd_doctor(args):
+    """Health check: validate workspace structure, ledgers, and state files."""
+    extra = []
+    if args.workspace:
+        extra.extend(["-w", args.workspace])
+    return run_script("validate_state.py", extra)
+
+def cmd_quality(args):
+    """P2 quality radar: stall detection / golden ratio gate / style distillation."""
+    sub = args.sub
+    extra = []
+    flag = {"stall": "--stall", "ratio": "--ratio", "distill": "--distill", "all": "--all"}[sub]
+    extra.append(flag)
+    if args.chapter:
+        ch = args.chapter if args.chapter.startswith("ch_") else f"ch_{int(args.chapter):03d}"
+        extra.extend(["-c", ch])
+    if args.json:
+        extra.append("--json")
+    if args.workspace:
+        extra.extend(["-w", args.workspace])
+    return run_script("quality_radar.py", extra)
+
+def cmd_schedule(args):
+    """P2 foreshadowing scheduler: proactive gun scheduling for beats-builder."""
+    ch = args.chapter if args.chapter.startswith("ch_") else f"ch_{int(args.chapter):03d}"
+    extra = ["-c", ch]
+    if args.json:
+        extra.append("--json")
+    if args.workspace:
+        extra.extend(["-w", args.workspace])
+    return run_script("foreshadow_scheduler.py", extra)
+
+def cmd_genre(args):
+    """P3-4 genre profile: view / list configured genre profile."""
+    extra = []
+    if args.list:
+        extra.append("--list")
+    if args.genre:
+        extra.extend(["--genre", args.genre])
+    if args.json:
+        extra.append("--json")
+    if args.workspace:
+        extra.extend(["-w", args.workspace])
+    return run_script("genre_profile.py", extra)
+
 def cmd_sync(args):
     """Stage 4: Verify ledgers, track continuity, and automatically snapshot."""
     ch = args.chapter if args.chapter.startswith("ch_") else f"ch_{int(args.chapter):03d}"
@@ -199,6 +283,13 @@ def cmd_sync(args):
     print("=" * 72)
     print(f" 🔄 [Stage 4 · 状态自同步流水线] 目标章节: {ch}")
     print("=" * 72)
+
+    # 0. Apply any pending structured state-mutation proposals (deterministic engine)
+    print("\n[0/3] 正在合并状态变更提案 (state_apply)...")
+    rc0 = run_script("state_apply.py", w_arg)
+    # rc0 == 0 表示无提案或全部成功；非 0（有失败提案）不中断快照，但给出提示
+    if rc0 != 0:
+        print("⚠️ 部分状态变更提案未通过校验，请检查 state_inbox/failed/ 后重试。")
 
     # 1. Verify Double Ledgers
     print("\n[1/3] 正在校验双台账平衡 (verify_double_ledgers)...")
@@ -225,7 +316,7 @@ def cmd_sync(args):
     return rc3
 
 def cmd_radar(args):
-    """Run all 11 studio radars."""
+    """Run all 12 studio radars."""
     extra = []
     if args.chapter:
         ch = args.chapter if args.chapter.startswith("ch_") else f"ch_{int(args.chapter):03d}"
@@ -264,9 +355,18 @@ def cmd_init(args):
     extra = ["--title", args.title, "--genre", args.genre, "--protagonist", args.protagonist]
     if args.clean:
         extra.append("--clean")
+    if getattr(args, "force", False):
+        extra.append("--force")
     if args.workspace:
         extra.extend(["-w", args.workspace])
     return run_script("init_new_novel.py", extra)
+
+def cmd_snapshots(args):
+    """List all state-machine snapshots."""
+    extra = ["--list-snapshots"]
+    if args.workspace:
+        extra.extend(["-w", args.workspace])
+    return run_script("state_inspector.py", extra)
 
 def cmd_clean(args):
     """Clean drafts or full manuscript."""
@@ -340,7 +440,7 @@ def main():
     python studio.py sync 6                  # 双台账核验、道具流转追踪并自动封存版本快照
     
  4. 全维工程雷达与安全网:
-    python studio.py radar                   # 一键运行全书 11 大工程雷达总控仪表盘
+    python studio.py radar                   # 一键运行全书 12 大工程雷达总控仪表盘
     python studio.py test                    # 运行自动化单元测试套件
     python studio.py export --txt            # 编译导出全书出版级手稿 (Markdown / TXT)
     python studio.py snapshot ch_006_done    # 手动创建状态机快照
@@ -360,7 +460,17 @@ def main():
     p_pack.add_argument("chapter", help="目标章节 (如 6 或 ch_006)")
     p_pack.add_argument("-w", "--workspace", help="指定工作区路径")
     p_pack.add_argument("--json", action="store_true", help="以结构化 JSON 格式输出 (Agent 首选用例)")
+    p_pack.add_argument("--budget", type=int, default=0, help="token 预算；>0 时按相关性裁剪并报告裁掉了什么 (0=全量)")
     p_pack.set_defaults(func=cmd_pack)
+
+    # memory (P1: synopsis spine / BM25 librarian / cross-chapter repetition)
+    p_mem = subparsers.add_parser("memory", help="[P1 记忆引擎] 梗概脊柱 / BM25 资料员召回 / 跨章重复检测")
+    p_mem.add_argument("sub", choices=["spine", "recall", "repeat"], help="spine=建梗概脊柱; recall=BM25召回; repeat=跨章重复检测")
+    p_mem.add_argument("query", nargs="?", help="recall 子命令的查询词")
+    p_mem.add_argument("-k", "--top-k", type=int, default=5, help="recall 返回条数")
+    p_mem.add_argument("-w", "--workspace", help="指定工作区路径")
+    p_mem.add_argument("--json", action="store_true", help="以结构化 JSON 格式输出")
+    p_mem.set_defaults(func=cmd_memory)
 
     # lint
     p_lint = subparsers.add_parser("lint", help="[Stage 3] 体验金字塔门禁: 读感·体验·造句·读者懵逼检测")
@@ -397,6 +507,50 @@ def main():
     p_facts.add_argument("--json", action="store_true", help="以结构化 JSON 格式输出")
     p_facts.set_defaults(func=cmd_facts)
 
+    # draft (0-LLM proposal skeleton)
+    p_draft = subparsers.add_parser("draft", help="[Stage 4] 零LLM提案骨架生成：扫定稿预填角色/候选流水/线索/梗概，产出待复核 .draft.json")
+    p_draft.add_argument("chapter", help="目标章节 (如 12 或 ch_012)")
+    p_draft.add_argument("-w", "--workspace", help="指定工作区路径")
+    p_draft.add_argument("--json", action="store_true", help="直接输出 JSON（不落盘）")
+    p_draft.set_defaults(func=cmd_draft)
+
+    # apply
+    p_apply = subparsers.add_parser("apply", help="[Stage 4] 确定性合并 state_inbox 中的结构化状态变更提案")
+    p_apply.add_argument("-f", "--file", help="指定单个提案 JSON 文件（默认处理整个 state_inbox/）")
+    p_apply.add_argument("--dry-run", action="store_true", help="只校验预演，不写入")
+    p_apply.add_argument("-w", "--workspace", help="指定工作区路径")
+    p_apply.set_defaults(func=cmd_apply)
+
+    # doctor
+    p_doc = subparsers.add_parser("doctor", help="工作区健康自检（结构/台账/占位符/快照）")
+    p_doc.add_argument("-w", "--workspace", help="指定工作区路径")
+    p_doc.set_defaults(func=cmd_doctor)
+
+    # quality (P2: stall / golden ratio / style distillation)
+    p_qual = subparsers.add_parser("quality", help="[P2 质检雷达] 塌中段检测 / 黄金配比量化门 / 文风蒸馏")
+    p_qual.add_argument("sub", nargs="?", default="all",
+                        choices=["stall", "ratio", "distill", "all"],
+                        help="stall=塌中段/注水; ratio=黄金配比门; distill=文风蒸馏; all=全部(默认)")
+    p_qual.add_argument("-c", "--chapter", help="指定章节（ratio 单章 / distill 单章对比用）")
+    p_qual.add_argument("-w", "--workspace", help="指定工作区路径")
+    p_qual.add_argument("--json", action="store_true", help="以结构化 JSON 格式输出")
+    p_qual.set_defaults(func=cmd_quality)
+
+    # schedule (P2: foreshadowing scheduler)
+    p_sched = subparsers.add_parser("schedule", help="[P2 伏笔调度器] 为指定章 Beats 主动排期待引爆/回唤/沉睡伏笔")
+    p_sched.add_argument("chapter", help="目标章节 (如 8 或 ch_008)")
+    p_sched.add_argument("-w", "--workspace", help="指定工作区路径")
+    p_sched.add_argument("--json", action="store_true", help="以结构化 JSON 格式输出")
+    p_sched.set_defaults(func=cmd_schedule)
+
+    # genre (P3-4: genre profile)
+    p_genre = subparsers.add_parser("genre", help="[P3-4 题材档案] 查看当前题材 profile（配比/口癖/调度窗口/导演指导）")
+    p_genre.add_argument("--list", action="store_true", help="列出所有内置题材档案")
+    p_genre.add_argument("--genre", help="按题材文本解析匹配（不读工作区）")
+    p_genre.add_argument("-w", "--workspace", help="指定工作区路径")
+    p_genre.add_argument("--json", action="store_true", help="以结构化 JSON 格式输出")
+    p_genre.set_defaults(func=cmd_genre)
+
     # sync
     p_sync = subparsers.add_parser("sync", help="[Stage 4] 双台账校验、道具流转核验与版本快照自同步")
     p_sync.add_argument("chapter", help="目标章节 (如 4 或 ch_004)")
@@ -404,7 +558,7 @@ def main():
     p_sync.set_defaults(func=cmd_sync)
 
     # radar
-    p_radar = subparsers.add_parser("radar", help="运行全维 11 大工程雷达总控仪表盘")
+    p_radar = subparsers.add_parser("radar", help="运行全维 12 大工程雷达总控仪表盘")
     p_radar.add_argument("chapter", nargs="?", help="指定章节 (可选)")
     p_radar.add_argument("-w", "--workspace", help="指定工作区路径")
     p_radar.add_argument("--json", action="store_true", help="输出 JSON 格式")
@@ -426,8 +580,14 @@ def main():
     p_init.add_argument("--genre", "-g", default="通用题材", help="小说题材分类")
     p_init.add_argument("--protagonist", "-p", default="主角名", help="主角姓名")
     p_init.add_argument("--clean", action="store_true", help="清空已有稿件与细纲，保留母版")
+    p_init.add_argument("--force", action="store_true", help="工作区已有手稿/细纲时仍强制重建（危险）")
     p_init.add_argument("-w", "--workspace", help="指定工作区路径")
     p_init.set_defaults(func=cmd_init)
+
+    # snapshots (list)
+    p_snaps = subparsers.add_parser("snapshots", help="列出状态机所有历史版本快照")
+    p_snaps.add_argument("-w", "--workspace", help="指定工作区路径")
+    p_snaps.set_defaults(func=cmd_snapshots)
 
     # clean
     p_clean = subparsers.add_parser("clean", help="清空已有稿件与单章细纲")

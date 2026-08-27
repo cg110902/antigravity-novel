@@ -218,4 +218,7 @@ if __name__ == "__main__":
     parser.add_argument("--json", action="store_true", help="以结构化 JSON 格式输出")
     args = parser.parse_args()
 
-    analyze_voice_fingerprints(target_chapter=args.chapter, workspace_path=args.workspace, as_json=args.json)
+    result = analyze_voice_fingerprints(target_chapter=args.chapter, workspace_path=args.workspace, as_json=args.json)
+    if isinstance(result, dict):
+        sys.exit(1 if result.get("error") else 0)
+    sys.exit(0 if result else 1)

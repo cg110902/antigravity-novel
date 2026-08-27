@@ -21,7 +21,7 @@ _tools_dir = Path(__file__).resolve().parent
 if str(_tools_dir) not in sys.path:
     sys.path.insert(0, str(_tools_dir))
 
-from novel_utils import resolve_workspace, find_manuscript_files, reconfigure_utf8
+from novel_utils import resolve_workspace, find_manuscript_files, reconfigure_utf8, latest_chapter_number, has_placeholder
 
 reconfigure_utf8()
 
@@ -40,13 +40,13 @@ def audit_plot_dag(workspace_path=None, as_json=False, print_output=True):
         return False
 
     manuscript_dir = workspace_dir / "05_manuscript"
-    finalized_files = find_manuscript_files(manuscript_dir)
-    current_ch = len(finalized_files)
+    current_ch = latest_chapter_number(manuscript_dir, require_finalized=True)
 
     guns = {}
     content = guns_file.read_text(encoding="utf-8")
     for line in content.splitlines():
-        if line.startswith("|") and not line.startswith("| 伏笔 ID") and not line.startswith("|---"):
+        if (line.startswith("|") and "伏笔 ID" not in line
+                and not re.match(r"^\|[\s:|-]+\|?\s*$", line)):
             parts = [p.strip() for p in line.split("|") if p.strip()]
             if len(parts) >= 5:
                 gun_id = parts[0]
@@ -54,12 +54,23 @@ def audit_plot_dag(workspace_path=None, as_json=False, print_output=True):
                 planted_ch = parts[2]
                 status = parts[3]
                 target_ch = parts[4]
+                # 跳过母版未替换占位符的示例行（如 [核心金手指]），不是真实伏笔
+                if has_placeholder(line) or has_placeholder(gun_name):
+                    continue
                 
                 p_matches = re.findall(r"\d+", planted_ch)
                 t_matches = re.findall(r"\d+", target_ch)
-                
+
                 p_num = int(p_matches[0]) if p_matches else 1
-                t_num = int(t_matches[-1]) if t_matches else current_ch + 10
+                # “全局贯穿/全书/长线”等无固定引爆章的伏笔不算超期，用一个很大的阈值；
+                # 仅当出现具体章号时才按章节判定。
+                if not t_matches:
+                    if any(k in target_ch for k in ["全局", "全书", "贯穿", "长线", "待定", "未定"]):
+                        t_num = 10 ** 6
+                    else:
+                        t_num = current_ch + 10
+                else:
+                    t_num = int(t_matches[-1])
                 
                 guns[gun_id] = {
                     "id": gun_id,
@@ -151,4 +162,8 @@ if __name__ == "__main__":
     parser.add_argument("--json", action="store_true", help="以结构化 JSON 格式输出")
     args = parser.parse_args()
 
-    audit_plot_dag(workspace_path=args.workspace, as_json=args.json)
+    report = audit_plot_dag(workspace_path=args.workspace, as_json=args.json)
+    if isinstance(report, dict):
+        # 超期未爆伏笔视为阻断级异常；缺台账文件也是错误。
+        sys.exit(1 if (report.get("error") or report.get("anomalies")) else 0)
+    sys.exit(0 if report else 1)

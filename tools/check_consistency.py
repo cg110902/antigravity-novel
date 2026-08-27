@@ -32,6 +32,7 @@ from novel_utils import (
     build_smart_whitelist,
     natural_chapter_sort_key,
     reconfigure_utf8,
+    load_studio_config,
     GENERIC_SKELETONS,
     CLIFFHANGER_KEYWORDS,
     OPPRESSIVE_KEYWORDS,
@@ -140,8 +141,11 @@ def check_smart_burstiness(text, smart_whitelist, window_size=500, min_repeat=5)
                 return max(1, idx)
         return len(lines)
 
-    # 常见叙事词/修仙专名/意象名词免检池
-    COMMON_EXEMPT = {"灵草", "丹药", "飞剑", "经脉", "真气", "灵石", "长生", "宗门", "师尊", "弟子", "水牢", "战船", "水师", "码头", "鬼市", "地胆", "玉髓", "洗髓", "暗渠", "钟乳", "石胆"}
+    # 免检池不再硬编码任何题材专名（旧版写死了上一本修仙小说的
+    # “灵草/丹药/水牢/地胆/玉髓…”等特定词汇，对科幻/悬疑/都市题材无效且误导）。
+    # 题材专名一律由 build_smart_whitelist() 从本书 01_world/、人物卡与
+    # current_state 动态提取，实现真正的全题材自适应。
+    COMMON_EXEMPT = set()
 
     clean_text = text
     for n in [2, 3]:
@@ -164,6 +168,12 @@ def check_smart_burstiness(text, smart_whitelist, window_size=500, min_repeat=5)
     return bursts
 
 def check_all_consistency(workspace_dir: Path, target_chapter: str = None, as_json: bool = False):
+    cfg = load_studio_config()
+    thresholds = cfg.get("linter_thresholds", {}) or {}
+    gen_wc = (cfg.get("generation", {}) or {}).get("target_word_count", {}) or {}
+    min_word_count = thresholds.get("hard_gate_min_word_count",
+                                     gen_wc.get("min", 2500))
+
     genre = detect_genre(workspace_dir)
     registered_chars = load_registered_characters(workspace_dir)
     smart_whitelist = build_smart_whitelist(workspace_dir)
@@ -176,12 +186,16 @@ def check_all_consistency(workspace_dir: Path, target_chapter: str = None, as_js
         all_drafts = find_manuscript_files(manuscript_dir, target_chapter)
 
     if not all_drafts:
+        err_msg = f"未在 {workspace_dir.name} 中找到待检查的稿件文件。"
         if as_json:
-            err = {"error": f"未在 {workspace_dir.name} 中找到待检查的稿件文件。"}
+            err = {"error": err_msg, "workspace": workspace_dir.name,
+                   "target_chapter": target_chapter, "total_files": 0}
             print(json.dumps(err, ensure_ascii=False, indent=2))
             return err
-        print(f"ℹ️ 未在 {workspace_dir} 中找到待检查的稿件文件。")
-        return True
+        print(f"ℹ️ {err_msg}")
+        # 指定章节却找不到 → 调用方用法错误，返回 False 以便 CLI 退出码非 0；
+        # 全书扫描且工作区尚无稿件 → 正常空态，返回 True。
+        return not bool(target_chapter)
 
     if not as_json:
         print("=" * 76)
@@ -211,13 +225,14 @@ def check_all_consistency(workspace_dir: Path, target_chapter: str = None, as_js
         # ----------------------------------------------------
         fatal_errors = []
 
-        # 0.1 字数硬性门禁 (当前卷及后续章节 < 2500 字直接判定致命硬伤)
-        is_legacy_archived = "vol_01" in str(draft_path)
-        if chinese_count < 2500:
-            if not is_legacy_archived or target_chapter:
-                fatal_errors.append(f"   🚨 [硬伤·篇幅熔断门禁] 单章中文字数仅 {chinese_count} 字 (低于 2500 字及格底线)！剧情展开不充分，严禁偷懒短章交差！")
-            else:
-                experience_issues.append(f"   💡 [早期已归档历史卷字数提示] 单章字数 {chinese_count} 字 (早期历史存档)")
+        # 0.1 字数硬性门禁 (所有章节 < 配置下限 直接判定致命硬伤)
+        # 注：第一卷同样是当前创作卷，不做任何豁免，确保 README/AGENTS 宣称的
+        # “低于下限即 Exit Code 1”在全书与单章模式下都真实生效。
+        if chinese_count < min_word_count:
+            fatal_errors.append(
+                f"   🚨 [硬伤·篇幅熔断门禁] 单章中文字数仅 {chinese_count} 字 "
+                f"(低于 {min_word_count} 字及格底线)！剧情展开不充分，严禁偷懒短章交差！"
+            )
 
         # 0.2 引号配对检查
         left_quotes = content.count("“")

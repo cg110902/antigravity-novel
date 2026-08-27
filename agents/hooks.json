@@ -7,8 +7,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python tools/verify_double_ledgers.py",
-            "timeout": 10
+            "command": "python -c \"import json,sys; sys.path.insert(0,'tools'); from verify_double_ledgers import verify_ledgers; r=verify_ledgers(as_json=True); sys.exit(1 if (isinstance(r,dict) and r.get('anomalies')) else 0)\"",
+            "timeout": 20
           }
         ]
       },
@@ -17,8 +17,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python tools/verify_double_ledgers.py",
-            "timeout": 10
+            "command": "python -c \"import json,sys; sys.path.insert(0,'tools'); from verify_double_ledgers import verify_ledgers; r=verify_ledgers(as_json=True); sys.exit(1 if (isinstance(r,dict) and r.get('anomalies')) else 0)\"",
+            "timeout": 20
           }
         ]
       }

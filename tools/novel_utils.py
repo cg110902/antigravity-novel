@@ -25,29 +25,255 @@ def reconfigure_utf8():
         except Exception:
             pass
 
+def project_root() -> Path:
+    """Returns the repository root (parent of the tools/ directory)."""
+    return Path(__file__).resolve().parent.parent
+
 def resolve_workspace(workspace_arg=None) -> Path:
-    """Resolves target workspace directory."""
-    base_dir = Path(__file__).resolve().parent.parent
+    """Resolves target workspace directory.
+
+    Resolution order:
+      1. Explicit --workspace argument (relative paths are anchored at repo root).
+      2. ``workspace_dir`` declared in novel_config.yaml (anchored at repo root).
+      3. Default ``<repo_root>/novel_workspace``.
+    """
+    base_dir = project_root()
     if workspace_arg:
         w_path = Path(workspace_arg)
         if not w_path.is_absolute():
             w_path = (base_dir / w_path).resolve()
         return w_path
+    cfg = load_studio_config()
+    declared = cfg.get("project", {}).get("workspace_dir")
+    if declared:
+        return (base_dir / declared).resolve()
     return (base_dir / "novel_workspace").resolve()
+
+# ---------------------------------------------------------------------------
+# Lightweight novel_config.yaml loader (zero third-party dependencies)
+# ---------------------------------------------------------------------------
+_CONFIG_CACHE = None
+
+def load_studio_config() -> dict:
+    """Parses the small subset of novel_config.yaml the toolchain actually needs.
+
+    Supports nested mappings via indentation and simple ``key: value`` scalars
+    (quoted strings, ints, floats, bools).  Returns defaults when the file is
+    absent or unparsable, so every tool keeps working out-of-the-box.
+    """
+    global _CONFIG_CACHE
+    if _CONFIG_CACHE is not None:
+        return _CONFIG_CACHE
+
+    cfg = {
+        "project": {"workspace_dir": "novel_workspace"},
+        "generation": {
+            "target_word_count": {"min": 2500, "max": 5000, "recommended": 3200}
+        },
+        "linter_thresholds": {
+            "hard_gate_min_word_count": 2500,
+            "max_consecutive_breathless_chars": 75,
+        },
+    }
+    cfg_path = project_root() / "novel_config.yaml"
+    try:
+        if cfg_path.exists():
+            stack = [(-1, cfg)]
+            for raw in cfg_path.read_text(encoding="utf-8").splitlines():
+                line = raw.split("#", 1)[0].rstrip() if "#" in raw else raw.rstrip()
+                if not line.strip() or ":" not in line:
+                    continue
+                indent = len(line) - len(line.lstrip(" "))
+                key, _, val = line.strip().partition(":")
+                key = key.strip()
+                val = val.strip()
+                while stack and indent <= stack[-1][0]:
+                    stack.pop()
+                parent = stack[-1][1]
+                if val == "":
+                    node = {}
+                    parent[key] = node
+                    stack.append((indent, node))
+                else:
+                    parent[key] = _parse_yaml_scalar(val)
+    except Exception:
+        pass
+
+    _CONFIG_CACHE = cfg
+    return cfg
+
+def _parse_yaml_scalar(val: str):
+    """Coerces a YAML scalar string into bool/int/float/str."""
+    if len(val) >= 2 and val[0] == val[-1] and val[0] in ("'", '"'):
+        return val[1:-1]
+    low = val.lower()
+    if low in ("true", "yes"):
+        return True
+    if low in ("false", "no"):
+        return False
+    if low in ("null", "~", ""):
+        return None
+    try:
+        return int(val)
+    except ValueError:
+        pass
+    try:
+        return float(val)
+    except ValueError:
+        pass
+    return val
+
+# ---------------------------------------------------------------------------
+# Chapter identity helpers (boundary-safe, works past chapter 100)
+# ---------------------------------------------------------------------------
+def chapter_token_to_num(token) -> int:
+    """Extracts the chapter number from a token like 'ch_004', 'ch-12', '4' or 4."""
+    if token is None:
+        return None
+    if isinstance(token, int):
+        return token
+    m = re.search(r"(\d+)", str(token))
+    return int(m.group(1)) if m else None
+
+def chapter_number_from_name(name: str):
+    """Extracts the chapter number embedded in a file/directory name (None if absent)."""
+    m = re.search(r"ch[_-]?0*(\d+)(?![0-9])", str(name), re.IGNORECASE)
+    if not m:
+        m = re.search(r"chapter[_-]?0*(\d+)(?![0-9])", str(name), re.IGNORECASE)
+    return int(m.group(1)) if m else None
+
+def file_matches_chapter(path: Path, target_chapter) -> bool:
+    """Boundary-safe chapter match.
+
+    ``ch_001`` / ``1`` only matches files whose chapter token is exactly 1,
+    so 'ch_001' no longer accidentally matches 'ch_010' or 'ch_0010'.
+    """
+    target_num = chapter_token_to_num(target_chapter)
+    if target_num is None:
+        # Non-numeric target: fall back to plain substring match.
+        return str(target_chapter) in str(path).replace("\\", "/")
+    return chapter_number_from_name(path.name) == target_num
+
+def latest_chapter_number(manuscript_dir: Path, require_finalized: bool = True):
+    """Highest chapter number present in the manuscript tree (0 if none)."""
+    if not manuscript_dir or not manuscript_dir.exists():
+        return 0
+    if require_finalized:
+        files = manuscript_dir.glob("**/finalized/ch_*.md")
+    else:
+        files = manuscript_dir.glob("**/ch_*.md")
+    nums = [chapter_number_from_name(f.name) for f in files
+            if not f.name.startswith(".") and chapter_number_from_name(f.name) is not None]
+    return max(nums) if nums else 0
+
+# ---------------------------------------------------------------------------
+# Template placeholder detection
+# ---------------------------------------------------------------------------
+# 未替换的母版占位符形如 [主角姓名]、[首卷对手]、[核心金手指 / 终极大机制]。
+# 所有解析“台账表格 / 实体名”的工具都必须跳过仍含占位符的行，否则会把
+# 母版里的填写示例误当成真实伏笔/角色/道具数据（新书第一天就误报）。
+PLACEHOLDER_RE = re.compile(r"\[[^\[\]]*[\u4e00-\u9fa5][^\[\]]*\]")
+
+def has_placeholder(text) -> bool:
+    """True if the text still contains an unfilled [中文] template placeholder."""
+    if text is None:
+        return False
+    return bool(PLACEHOLDER_RE.search(str(text)))
+
+_SEPARATOR_CELL_RE = re.compile(r"^:?-{2,}:?$")
+
+def is_table_separator(line: str) -> bool:
+    """True for markdown table separator rows like '|---|:---:|---|' (any spacing)."""
+    if not line or not line.strip().startswith("|"):
+        return False
+    cells = [c.strip() for c in line.strip().strip("|").split("|")]
+    return all(_SEPARATOR_CELL_RE.match(c) for c in cells if c != "") and any(cells)
+
+def is_table_header(line: str, keywords=()) -> bool:
+    """True for table header rows (contains a header keyword) or separator rows."""
+    if is_table_separator(line):
+        return True
+    return any(k in line for k in keywords)
+
+
+# ---------------------------------------------------------------------------
+# Atomic file writes (never leave a half-written state file on crash)
+# ---------------------------------------------------------------------------
+def atomic_write_text(path, text: str, encoding: str = "utf-8") -> None:
+    """Writes text to `path` atomically (temp file + os.replace).
+
+    Guarantees readers never see a truncated/half-written ledger or state file.
+    """
+    import os
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    with open(tmp, "w", encoding=encoding, newline="") as f:
+        f.write(text)
+        f.flush()
+        try:
+            os.fsync(f.fileno())
+        except OSError:
+            pass
+    os.replace(tmp, path)
+
+
+# ---------------------------------------------------------------------------
+# Markdown table helpers (deterministic parse / upsert / render)
+# ---------------------------------------------------------------------------
+def split_table_row(line: str) -> list:
+    """Splits a markdown table line into trimmed cell strings."""
+    return [c.strip() for c in line.strip().strip("|").split("|")]
+
+
+def render_table_row(cells: list) -> str:
+    """Renders a markdown table row from cell strings."""
+    return "| " + " | ".join(str(c) for c in cells) + " |"
+
+
+def find_table_block(lines: list, header_keyword: str):
+    """Locates a markdown table whose header contains `header_keyword`.
+
+    Returns dict with keys: header_idx, sep_idx, data_start, data_end,
+    headers (list), rows (list of cell-lists), or None if not found.
+    """
+    for i, line in enumerate(lines):
+        if line.strip().startswith("|") and header_keyword in line and i + 1 < len(lines):
+            if is_table_separator(lines[i + 1]):
+                headers = split_table_row(line)
+                rows = []
+                j = i + 2
+                while j < len(lines) and lines[j].strip().startswith("|"):
+                    if is_table_separator(lines[j]):
+                        j += 1
+                        continue
+                    rows.append(split_table_row(lines[j]))
+                    j += 1
+                return {
+                    "header_idx": i,
+                    "sep_idx": i + 1,
+                    "data_start": i + 2,
+                    "data_end": j,
+                    "headers": headers,
+                    "rows": rows,
+                }
+    return None
+
+def strip_placeholders(text: str) -> str:
+    """Removes all [中文] placeholder spans from a string."""
+    return PLACEHOLDER_RE.sub("", str(text or ""))
 
 def natural_chapter_sort_key(file_path: Path) -> tuple:
     """Generates natural sort key (volume_num, chapter_num, filename) for chapters."""
     path_str = str(file_path).replace("\\", "/")
     vol_match = re.search(r"vol[_-]?(\d+)", path_str, re.IGNORECASE)
     vol_num = int(vol_match.group(1)) if vol_match else 1
-    
-    ch_match = re.search(r"ch[_-]?(\d+)", file_path.name, re.IGNORECASE)
-    if not ch_match:
-        ch_match = re.search(r"chapter[_-]?(\d+)", file_path.name, re.IGNORECASE)
-    if not ch_match:
-        ch_match = re.search(r"(\d+)", file_path.name)
-        
-    ch_num = int(ch_match.group(1)) if ch_match else 9999
+
+    ch_num = chapter_number_from_name(file_path.name)
+    if ch_num is None:
+        # Last-resort: any leading number in the filename.
+        m = re.search(r"(\d+)", file_path.name)
+        ch_num = int(m.group(1)) if m else 9999
     return (vol_num, ch_num, file_path.name)
 
 def find_manuscript_files(manuscript_dir: Path, target_chapter: str = None, single_latest: bool = False) -> list:
@@ -55,12 +281,15 @@ def find_manuscript_files(manuscript_dir: Path, target_chapter: str = None, sing
     if not manuscript_dir.exists():
         return []
 
+    def _excluded(f: Path) -> bool:
+        norm = str(f).replace("\\", "/")
+        return ("prescriptions" in norm or "snapshots" in norm
+                or f.name.startswith("."))
+
     if target_chapter:
         matches = [
-            f for f in manuscript_dir.glob(f"**/*{target_chapter}*.md")
-            if "prescriptions" not in str(f).replace("\\", "/")
-            and "snapshots" not in str(f).replace("\\", "/")
-            and not f.name.startswith(".")
+            f for f in manuscript_dir.glob("**/ch_*.md")
+            if not _excluded(f) and file_matches_chapter(f, target_chapter)
         ]
         finalized = [f for f in matches if "finalized" in str(f).replace("\\", "/")]
         res = finalized if finalized else matches
@@ -111,7 +340,8 @@ def load_registered_characters(workspace_dir: Path) -> list:
                 if parts and not parts[0].startswith("[") and not parts[0].startswith(":") and not parts[0].startswith("-") and "角色" not in parts[0] and "姓名" not in parts[0]:
                     clean_name = re.sub(r"[*_`#]", "", parts[0]).strip()
                     clean_name = re.sub(r"\s*[（(].*?[）)]", "", clean_name).strip()
-                    if clean_name and len(clean_name) <= 10:
+                    # 跳过母版未替换占位符（如 [首卷对手]），它们不是真实角色
+                    if clean_name and len(clean_name) <= 10 and not has_placeholder(clean_name):
                         chars.add(clean_name)
 
     profiles_dir = workspace_dir / "02_characters" / "profiles"
@@ -123,7 +353,7 @@ def load_registered_characters(workspace_dir: Path) -> list:
                 if m:
                     cname = m.group(1).strip()
                     cname = re.sub(r"[*_`#]", "", cname).strip()
-                    if cname and len(cname) <= 10 and not cname.startswith("["):
+                    if cname and len(cname) <= 10 and not cname.startswith("[") and not has_placeholder(cname):
                         chars.add(cname)
 
     return sorted(list(chars))
@@ -245,7 +475,9 @@ def load_ground_truth(workspace_dir: Path):
     if growth_file.exists():
         content = growth_file.read_text(encoding="utf-8")
         for line in content.splitlines():
-            if line.startswith("|") and not line.startswith("| 角色") and not line.startswith("|:---") and not line.startswith("|---"):
+            if line.startswith("|") and "角色" not in line and not is_table_separator(line):
+                if has_placeholder(line):
+                    continue  # 母版示例占位行
                 parts = [p.strip() for p in line.split("|") if p.strip()]
                 if len(parts) >= 3:
                     raw_name = parts[0]
@@ -253,7 +485,7 @@ def load_ground_truth(workspace_dir: Path):
                     clean_name = re.sub(r"[*_`#]", "", raw_name).strip()
                     clean_name = re.sub(r"\s*[（(].*?[）)]", "", clean_name).strip()
                     clean_stage = re.sub(r"[*_`]", "", raw_stage).strip()
-                    if clean_name and "Stage" in clean_stage:
+                    if clean_name and "Stage" in clean_stage and not has_placeholder(clean_name):
                         mindset_arcs[clean_name] = clean_stage
 
         if not mindset_arcs:
@@ -269,7 +501,9 @@ def load_ground_truth(workspace_dir: Path):
     if guns_file.exists():
         content = guns_file.read_text(encoding="utf-8")
         for line in content.splitlines():
-            if line.startswith("|") and ("Planted" in line or "Reminded" in line or "Triggered" in line):
+            if line.startswith("|") and ("Planted" in line or "Reminded" in line or "Triggered" in line or "Active" in line):
+                if has_placeholder(line):
+                    continue  # 母版示例占位行
                 parts = [p.strip() for p in line.split("|") if p.strip()]
                 if len(parts) >= 2:
                     guns.append(f"{parts[0]} - {parts[1]}")

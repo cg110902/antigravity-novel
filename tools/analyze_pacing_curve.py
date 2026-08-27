@@ -24,8 +24,8 @@ reconfigure_utf8()
 
 # Conflict and Tension marker keywords
 CONFLICT_MARKERS = [
-    "杀", "死", "剑", "血", "痛", "剧毒", "暴退", "碎裂", "轰然", "斩", "破", "寒煞",
-    "欠", "灵石", "契约", "地契", "冷哼", "暴喝", "抽", "耳光", "掌风", "围起来", "打断",
+    "杀", "死", "剑", "血", "痛", "毒", "暴退", "碎裂", "轰然", "斩", "破",
+    "契约", "冷哼", "暴喝", "抽", "耳光", "掌风", "围", "打断",
     "逃", "惊骇", "震颤", "炸开", "危急", "死局", "绝境", "反扑", "倒飞", "枪声", "警报"
 ]
 
@@ -144,4 +144,7 @@ if __name__ == "__main__":
     parser.add_argument("--json", action="store_true", help="以结构化 JSON 格式输出")
     args = parser.parse_args()
 
-    analyze_pacing(target_chapter=args.chapter, workspace_path=args.workspace, as_json=args.json)
+    result = analyze_pacing(target_chapter=args.chapter, workspace_path=args.workspace, as_json=args.json)
+    if isinstance(result, dict):
+        sys.exit(1 if result.get("error") else 0)
+    sys.exit(0 if result else 1)

@@ -20,7 +20,7 @@ _tools_dir = Path(__file__).resolve().parent
 if str(_tools_dir) not in sys.path:
     sys.path.insert(0, str(_tools_dir))
 
-from novel_utils import resolve_workspace, find_manuscript_files, reconfigure_utf8
+from novel_utils import resolve_workspace, find_manuscript_files, reconfigure_utf8, has_placeholder, is_table_separator
 
 reconfigure_utf8()
 
@@ -32,12 +32,14 @@ def load_tracked_items(workspace_dir: Path):
     if guns_file.exists():
         content = guns_file.read_text(encoding="utf-8")
         for line in content.splitlines():
-            if line.startswith("|") and not line.startswith("| 伏笔 ID") and not line.startswith("|---"):
+            if line.startswith("|") and "伏笔 ID" not in line and not is_table_separator(line):
                 parts = [p.strip() for p in line.split("|") if p.strip()]
                 if len(parts) >= 2:
                     gun_id = parts[0]
                     raw_name = parts[1]
-                    clean_name = re.sub(r"^[《<]|>>|[》>]|[*_`]", "", raw_name).strip()
+                    if has_placeholder(line) or has_placeholder(raw_name):
+                        continue  # 母版示例占位行
+                    clean_name = re.sub(r"[《》<>【】\*_`]", "", raw_name).strip()
                     if clean_name:
                         items[clean_name] = {"source": gun_id, "type": "伏笔道具"}
 
@@ -58,13 +60,13 @@ def load_tracked_items(workspace_dir: Path):
 def extract_item_aliases(raw_item_name: str):
     """Extracts search aliases and core root words from verbose item descriptions."""
     aliases = [raw_item_name]
-    # Extract words inside quotes or brackets
-    brackets = re.findall(r"【(.*?)】|“([^”]+)”|《([^》]+)》|‘([^’]+)’", raw_item_name)
+    # Extract words inside brackets or quotes (【】、《》、“”、‘’)
+    brackets = re.findall(r"【(.*?)】|《([^》]+)》|“([^”]+)”|‘([^’]+)’", raw_item_name)
     for b in brackets:
         for term in b:
             if term and len(term) >= 2:
                 aliases.append(term)
-    
+
     # Split by colon or dash
     parts = re.split(r"[：:——\-\s]+", raw_item_name)
     for p in parts:
@@ -72,33 +74,59 @@ def extract_item_aliases(raw_item_name: str):
         if len(clean_p) >= 2 and len(clean_p) <= 8:
             aliases.append(clean_p)
 
-    return list(set(aliases))
+    # De-duplicate while preserving length-desc order (longest first = most specific)
+    seen = set()
+    uniq = []
+    for a in sorted(set(aliases), key=len, reverse=True):
+        if a not in seen:
+            seen.add(a)
+            uniq.append(a)
+    return uniq
 
 def track_items_across_chapters(target_chapter=None, workspace_path=None, as_json=False):
     workspace_dir = resolve_workspace(workspace_path)
     manuscript_dir = workspace_dir / "05_manuscript"
 
     if not manuscript_dir.exists():
+        msg = f"未找到稿件目录: {manuscript_dir}"
         if as_json:
-            err = {"error": f"未找到稿件目录: {manuscript_dir}"}
+            err = {"error": msg}
             print(json.dumps(err, ensure_ascii=False, indent=2))
             return err
-        print(f"[提示] 未找到稿件目录: {manuscript_dir}")
-        return True
+        print(f"[错误] {msg}")
+        return False
 
     files = find_manuscript_files(manuscript_dir, target_chapter)
 
     if not files:
+        msg = f"在 {workspace_dir.name} 中未找到匹配的正文稿件。"
         if as_json:
-            err = {"error": f"在 {workspace_dir.name} 中未找到匹配的正文稿件。"}
+            err = {"error": msg, "target_chapter": target_chapter}
             print(json.dumps(err, ensure_ascii=False, indent=2))
             return err
-        print(f"[提示] 在 {workspace_dir.name} 中未找到匹配的正文稿件。")
-        return True
+        print(f"[提示] {msg}")
+        return not bool(target_chapter)
 
     raw_items = load_tracked_items(workspace_dir)
+    # 不在台账中登记任何道具时，轨迹校验本就无对象可检；如实报告空态，
+    # 绝不硬编码玄幻道具兜底（那会在非玄幻题材下产生大量误报/假轨迹）。
     if not raw_items:
-        raw_items = {"断剑": {"source": "auto", "type": "关键物件"}, "飞剑": {"source": "auto", "type": "关键物件"}, "地契": {"source": "auto", "type": "资产凭证"}}
+        if as_json:
+            out = {
+                "workspace": workspace_dir.name,
+                "tracked_items": [],
+                "timelines": {},
+                "status": "SKIP",
+                "note": "chekhov_guns.md 与 current_state.md 中尚未登记任何关键道具/资产，轨迹校验跳过。"
+            }
+            print(json.dumps(out, ensure_ascii=False, indent=2))
+            return out
+        print("=" * 72)
+        print(f" 🛡️ [关键道具与资产时空轨迹巡检] 工作区: {workspace_dir.name}")
+        print("=" * 72)
+        print("ℹ️ 尚未在伏笔台账或状态机中登记任何关键道具/资产，轨迹校验跳过。")
+        print("=" * 72 + "\n")
+        return True
 
     item_timeline = defaultdict(list)
 
@@ -138,6 +166,9 @@ def track_items_across_chapters(target_chapter=None, workspace_path=None, as_jso
         print(json.dumps(out, ensure_ascii=False, indent=2))
         return out
 
+    # Informational note for items never seen on page (soft hint, not a hard error)
+    never_seen = [name for name in raw_items if not item_timeline.get(name)]
+
     print("=" * 72)
     print(f" 🛡️ [关键道具与资产时空轨迹巡检] 工作区: {workspace_dir.name}")
     print(f" 📦 登记追踪的核心道具/凭证: {', '.join(raw_items.keys())}")
@@ -149,7 +180,11 @@ def track_items_across_chapters(target_chapter=None, workspace_path=None, as_jso
         print(f"   - 时空流转路径: {' -> '.join(ch_list)}")
 
     print("-" * 72)
-    print("✨ [道具轨迹闭环巡检完成] 关键道具与资产流转清晰，未发现凭空失踪或时空断层！")
+    if never_seen:
+        print(f"💡 [提示] 以下 {len(never_seen)} 项登记道具/资产在已扫描章节中尚未登场（属正常，首次登场前忽略）:")
+        for name in never_seen:
+            print(f"   - {name}")
+    print("✨ [道具轨迹闭环巡检完成] 已登场道具与资产流转清晰，未发现凭空失踪或时空断层！")
     print("=" * 72 + "\n")
     return True
 
@@ -160,4 +195,7 @@ if __name__ == "__main__":
     parser.add_argument("--json", action="store_true", help="以结构化 JSON 格式输出")
     args = parser.parse_args()
 
-    track_items_across_chapters(target_chapter=args.chapter, workspace_path=args.workspace, as_json=args.json)
+    result = track_items_across_chapters(target_chapter=args.chapter, workspace_path=args.workspace, as_json=args.json)
+    if isinstance(result, dict):
+        sys.exit(1 if result.get("error") else 0)
+    sys.exit(0 if result else 1)

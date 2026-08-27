@@ -1,0 +1,14 @@
+{
+  "schema": "novel-studio.genre-profile/v1",
+  "id": "xuanhuan",
+  "label": "玄幻 / 仙侠 / 系统模拟器",
+  "word_count": {"min": 2500, "recommended": 3500, "max": 5500},
+  "ratio_baseline": {"dialogue": [28, 42], "action": [38, 58], "describe": [10, 28]},
+  "stall_window": 3,
+  "scheduler": {"remind_lead": 3, "dormant_gap": 5, "longline_interval": [8, 10]},
+  "dialogue_floor": 18,
+  "describe_ceiling": 38,
+  "extra_ticks": ["恐怖如斯", "倒吸一口凉气", "眸", "眸光", "瞳孔骤缩", "嘴角勾起一抹弧度",
+                   "气息暴涨", "不怒自威", "威压", "蝼蚁", "大能", "气运", "天地异象"],
+  "director_notes": "以境界/里程碑推进为爽点骨架：每章要有可量化的实力、资源或地位推进（突破、得宝、布局兑现），严禁单章暴涨境界；战斗干脆利落、结果反差强，拒绝慢动作拆招；系统/模拟器结算必须带真实波折与代价；长线金手指伏笔按 8~10 章周期回唤，保持期待不断线。"
+}

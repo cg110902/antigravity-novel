@@ -1,0 +1,14 @@
+{
+  "schema": "novel-studio.genre-profile/v1",
+  "id": "urban",
+  "label": "都市 / 异能 / 职场商战",
+  "word_count": {"min": 2500, "recommended": 3000, "max": 4800},
+  "ratio_baseline": {"dialogue": [38, 55], "action": [30, 48], "describe": [8, 22]},
+  "stall_window": 3,
+  "scheduler": {"remind_lead": 3, "dormant_gap": 5, "longline_interval": [8, 12]},
+  "dialogue_floor": 30,
+  "describe_ceiling": 30,
+  "extra_ticks": ["嘴角微勾", "似笑非笑", "玩味", "戏谑", "不动声色", "意味深长",
+                   "装逼", "打脸来得太快", "空气突然安静"],
+  "director_notes": "都市靠世情与机锋对白驱动，台词占比可自然上浮到 40%~55%，人物说话要有利益算盘与现实微机锋；爽点来自信息差翻盘、身份反差与现实博弈，少用超自然蛮力；场景贴近真实生活质感，环境描写点到为止；警惕悬浮与脸谱化反派。"
+}
