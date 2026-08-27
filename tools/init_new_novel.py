@@ -20,7 +20,7 @@ _tools_dir = Path(__file__).resolve().parent
 if str(_tools_dir) not in sys.path:
     sys.path.insert(0, str(_tools_dir))
 
-from novel_utils import resolve_workspace, reconfigure_utf8
+from novel_utils import resolve_workspace, reconfigure_utf8, project_root
 
 reconfigure_utf8()
 
@@ -85,16 +85,32 @@ def render_template_file(template_path: Path, replacements: dict) -> str:
         content = content.replace(k, v)
     return content
 
-def init_novel(title="未命名新书", genre="通用题材", protagonist="主角名", clean_only=False, workspace_path=None):
+def init_novel(title="未命名新书", genre="通用题材", protagonist="主角名", clean_only=False,
+               workspace_path=None, force=False):
     workspace = resolve_workspace(workspace_path)
-    root_dir = workspace.parent
+    # 模板母版始终来自仓库根目录（脚本所在 tools/ 的上一级），与工作区位置无关。
+    # 旧代码用 workspace.parent/templates，导致 -w 指向仓库外时静默退化为极简 fallback。
+    root_dir = project_root()
     templates_dir = root_dir / "templates"
+
+    if not templates_dir.exists():
+        print(f"❌ [致命错误] 未找到模板母版目录: {templates_dir}")
+        print("   请确认在 Universal Novel Studio 仓库根目录内运行，且 templates/ 目录完整。")
+        return False
 
     print("=" * 68)
     print(f" 🚀 Universal Novel Studio - 全题材项目初始化与母版创生引擎")
     print(f" 📂 目标工作区: {workspace.name} (绝对路径: {workspace})")
     print(f" 📖 新书标题: 《{title}》 | 题材: {genre} | 核心主角: {protagonist}")
     print("=" * 68)
+
+    # 防止误操作：工作区已存在定稿/细纲/状态机时，必须显式 --force 才会清空重建。
+    existing_manuscripts = list((workspace / "05_manuscript").glob("**/ch_*.md")) if (workspace / "05_manuscript").exists() else []
+    existing_beats = list((workspace / "03_outlines").glob("**/beats/ch_*_beats.md")) if (workspace / "03_outlines").exists() else []
+    if (existing_manuscripts or existing_beats) and not force:
+        print(f"⚠️ [中止] 工作区 {workspace} 已存在 {len(existing_manuscripts)} 份手稿 / {len(existing_beats)} 份细纲。")
+        print("   初始化会清空这些内容。如确认要重开，请追加 --force；仅清空稿件请使用 `studio.py clean`。")
+        return False
 
     # 1. Ensure Full Directory Topology Exists
     dirs = [
@@ -118,7 +134,7 @@ def init_novel(title="未命名新书", genre="通用题材", protagonist="主�
     
     if clean_only:
         print("✨ [清空完成] 已清空所有手稿、分章细纲与历史快照。")
-        return
+        return True
 
     # Clean old character profiles when initializing
     profiles_dir = workspace / "02_characters" / "profiles"
@@ -150,7 +166,9 @@ def init_novel(title="未命名新书", genre="通用题材", protagonist="主�
         "[章节核心看点标题]": "破局之始！初显锋芒",
     }
 
-    # Helper function to write from template or fallback
+    missing_templates = []
+
+    # Helper function to write from template (missing templates are reported, never silent)
     def write_from_template(rel_template_path: str, target_rel_path: str, fallback_content: str):
         t_file = templates_dir / rel_template_path
         target_file = workspace / target_rel_path
@@ -159,7 +177,9 @@ def init_novel(title="未命名新书", genre="通用题材", protagonist="主�
             content = render_template_file(t_file, replacements)
             target_file.write_text(content, encoding="utf-8")
         else:
+            # 母版缺失属于工程异常：写入 fallback 占位并记录，最终显式告警。
             target_file.write_text(fallback_content, encoding="utf-8")
+            missing_templates.append(rel_template_path)
 
     # 3. 00_meta/project_bible.md
     write_from_template(
@@ -191,8 +211,14 @@ def init_novel(title="未命名新书", genre="通用题材", protagonist="主�
     write_from_template("04_timeline_and_state/character_growth_arcs.template.md", "04_timeline_and_state/character_growth_arcs.md", "# 核心人物动态成长与心智演进总台账\n")
     write_from_template("04_timeline_and_state/economy_ledger.template.json", "04_timeline_and_state/economy_ledger.json", '{\n  "resource_pools": {}\n}\n')
 
-    # 8. Sync Root novel_config.yaml
-    synced = sync_novel_config(title, genre, root_dir)
+    # 8. Sync Root novel_config.yaml —— 仅当工作区位于本仓库内时才回写仓库配置，
+    # 避免 -w 指向仓库外（或测试临时目录）时污染仓库的 novel_config.yaml。
+    synced = False
+    try:
+        if workspace.parent.resolve() == root_dir.resolve():
+            synced = sync_novel_config(title, genre, root_dir)
+    except Exception:
+        synced = False
 
     print(f"✨ [初始化成功] 小说《{title}》全套标准化资产已从 templates/ 母版中心生成至: {workspace.name}/")
     print("   - 00_meta/project_bible.md (项目圣经)")
@@ -203,7 +229,12 @@ def init_novel(title="未命名新书", genre="通用题材", protagonist="主�
     print("   - 05_manuscript/vol_01/ (手稿目录与微创处方单目录)")
     if synced:
         print("   - novel_config.yaml (全局配置已自动同步更新书名与题材)")
+    if missing_templates:
+        print("\n⚠️ [警告] 以下母版文件缺失，已用极简占位内容代替，请补齐 templates/ 母版：")
+        for mt in missing_templates:
+            print(f"   - {mt}")
     print("=" * 68)
+    return True
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Universal Novel Studio 项目初始化与脚手架创生工具")
@@ -212,6 +243,9 @@ if __name__ == "__main__":
     parser.add_argument("--genre", "-g", type=str, default="通用题材", help="小说题材分类")
     parser.add_argument("--protagonist", "-p", type=str, default="主角名", help="主角姓名")
     parser.add_argument("--clean", action="store_true", help="清空已有稿件、细纲与快照，保留世界观母版")
+    parser.add_argument("--force", action="store_true", help="工作区已有手稿/细纲时仍强制重建（危险：会清空已有稿件）")
     args = parser.parse_args()
 
-    init_novel(title=args.title, genre=args.genre, protagonist=args.protagonist, clean_only=args.clean, workspace_path=args.workspace)
+    ok = init_novel(title=args.title, genre=args.genre, protagonist=args.protagonist,
+                    clean_only=args.clean, workspace_path=args.workspace, force=args.force)
+    sys.exit(0 if ok else 1)

@@ -39,14 +39,26 @@ def analyze_cadence(target_chapter=None, workspace_path=None, as_json=False):
     manuscript_dir = workspace_dir / "05_manuscript"
 
     if not manuscript_dir.exists():
-        print(f"[错误] 未找到稿件目录: {manuscript_dir}")
+        msg = f"未找到稿件目录: {manuscript_dir}"
+        if as_json:
+            out = {"error": msg, "workspace": workspace_dir.name, "reports": []}
+            print(json.dumps(out, ensure_ascii=False, indent=2))
+            return out
+        print(f"[错误] {msg}")
         return False
 
     files = find_manuscript_files(manuscript_dir, target_chapter)
 
     if not files:
-        print(f"[提示] 在 {workspace_dir.name} 中未找到匹配的正文稿件。")
-        return False
+        msg = f"在 {workspace_dir.name} 中未找到匹配的正文稿件。"
+        if as_json:
+            out = {"error": msg, "workspace": workspace_dir.name,
+                   "target_chapter": target_chapter, "reports": []}
+            print(json.dumps(out, ensure_ascii=False, indent=2))
+            return out
+        print(f"[提示] {msg}")
+        # 指定章节却找不到稿件属于调用错误，应返回非 0；全书空扫描属正常空态。
+        return not bool(target_chapter)
 
     reports = []
 
@@ -121,4 +133,7 @@ if __name__ == "__main__":
     parser.add_argument("--json", action="store_true", help="以结构化 JSON 格式输出")
     args = parser.parse_args()
 
-    analyze_cadence(target_chapter=args.chapter, workspace_path=args.workspace, as_json=args.json)
+    result = analyze_cadence(target_chapter=args.chapter, workspace_path=args.workspace, as_json=args.json)
+    if isinstance(result, dict):
+        sys.exit(1 if result.get("error") else 0)
+    sys.exit(0 if result else 1)

@@ -75,13 +75,25 @@ def rollback_snapshot(workspace_dir: Path, snapshot_target: str):
     if not snapshots_dir.exists():
         print("[错误] 没有找到任何快照目录！")
         return False
-        
-    matched_dirs = [d for d in snapshots_dir.iterdir() if d.is_dir() and snapshot_target in d.name]
+
+    all_dirs = [d for d in snapshots_dir.iterdir() if d.is_dir()]
+    # 优先精确名匹配（去掉时间戳前缀后 == 目标名），避免 'ch_001' 误匹配 'ch_0010'；
+    # 精确名找不到时再退回子串包含匹配。
+    def _strip_timestamp(name: str) -> str:
+        m = re.match(r"^\d{8}_\d{6}_(.+)$", name)
+        return m.group(1) if m else name
+
+    exact = [d for d in all_dirs if _strip_timestamp(d.name) == snapshot_target]
+    matched_dirs = exact if exact else [d for d in all_dirs if snapshot_target in d.name]
     if not matched_dirs:
         print(f"[错误] 未找到匹配 '{snapshot_target}' 的快照！")
         list_snapshots(workspace_dir)
         return False
-        
+
+    if not exact and len(matched_dirs) > 1:
+        print(f"⚠️ [注意] 快照名 '{snapshot_target}' 非精确匹配到 {len(matched_dirs)} 个快照，"
+              f"已自动选择最新的一个: {sorted(matched_dirs, reverse=True)[0].name}")
+
     target_dir = sorted(matched_dirs, reverse=True)[0]
     
     # Backup current state before rollback
@@ -273,11 +285,15 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     ws = resolve_workspace(args.workspace)
+    exit_code = 0
     if args.list_snapshots:
         list_snapshots(ws)
     elif args.snapshot is not None:
-        create_snapshot(ws, args.snapshot)
+        exit_code = 0 if create_snapshot(ws, args.snapshot) else 1
     elif args.rollback is not None:
-        rollback_snapshot(ws, args.rollback)
+        exit_code = 0 if rollback_snapshot(ws, args.rollback) else 1
     else:
-        inspect_state(workspace_path=args.workspace, as_json=args.json)
+        report = inspect_state(workspace_path=args.workspace, as_json=args.json)
+        if isinstance(report, dict) and report.get("error"):
+            exit_code = 1
+    sys.exit(exit_code)

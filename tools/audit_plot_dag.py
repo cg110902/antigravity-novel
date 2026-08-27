@@ -21,7 +21,7 @@ _tools_dir = Path(__file__).resolve().parent
 if str(_tools_dir) not in sys.path:
     sys.path.insert(0, str(_tools_dir))
 
-from novel_utils import resolve_workspace, find_manuscript_files, reconfigure_utf8
+from novel_utils import resolve_workspace, find_manuscript_files, reconfigure_utf8, latest_chapter_number
 
 reconfigure_utf8()
 
@@ -40,8 +40,7 @@ def audit_plot_dag(workspace_path=None, as_json=False, print_output=True):
         return False
 
     manuscript_dir = workspace_dir / "05_manuscript"
-    finalized_files = find_manuscript_files(manuscript_dir)
-    current_ch = len(finalized_files)
+    current_ch = latest_chapter_number(manuscript_dir, require_finalized=True)
 
     guns = {}
     content = guns_file.read_text(encoding="utf-8")
@@ -151,4 +150,8 @@ if __name__ == "__main__":
     parser.add_argument("--json", action="store_true", help="以结构化 JSON 格式输出")
     args = parser.parse_args()
 
-    audit_plot_dag(workspace_path=args.workspace, as_json=args.json)
+    report = audit_plot_dag(workspace_path=args.workspace, as_json=args.json)
+    if isinstance(report, dict):
+        # 超期未爆伏笔视为阻断级异常；缺台账文件也是错误。
+        sys.exit(1 if (report.get("error") or report.get("anomalies")) else 0)
+    sys.exit(0 if report else 1)

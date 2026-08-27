@@ -23,7 +23,10 @@ _tools_dir = Path(__file__).resolve().parent
 if str(_tools_dir) not in sys.path:
     sys.path.insert(0, str(_tools_dir))
 
-from novel_utils import resolve_workspace, natural_chapter_sort_key, find_manuscript_files, reconfigure_utf8
+from novel_utils import (
+    resolve_workspace, natural_chapter_sort_key, find_manuscript_files,
+    reconfigure_utf8, file_matches_chapter, chapter_token_to_num
+)
 
 reconfigure_utf8()
 
@@ -95,12 +98,10 @@ def package_context_for_chapter(target_chapter_str: str, workspace_path=None, as
             # If target_chapter is specified, find the one before it
             prev_file = None
             if target_chapter_str:
-                ch_num_match = re.search(r"\d+", target_chapter_str)
-                if ch_num_match:
-                    target_num = int(ch_num_match.group(0))
+                target_num = chapter_token_to_num(target_chapter_str)
+                if target_num is not None:
                     for f in finalized_files:
-                        f_num_match = re.search(r"\d+", f.name)
-                        if f_num_match and int(f_num_match.group(0)) == target_num - 1:
+                        if file_matches_chapter(f, target_num - 1):
                             prev_file = f
                             break
             if not prev_file:
@@ -111,12 +112,15 @@ def package_context_for_chapter(target_chapter_str: str, workspace_path=None, as
                 # Get last 1000 chars for continuity
                 package["previous_chapter_ending"] = f"【上一章（{prev_file.name}）末尾余温】:\n" + prev_text[-1000:].strip()
 
-    # 5. Load Target Chapter Beats
+    # 5. Load Target Chapter Beats (boundary-safe: ch_001 won't match ch_010)
     beats_dir = workspace_dir / "03_outlines"
     if beats_dir.exists() and target_chapter_str:
-        beat_files = list(beats_dir.glob(f"**/*{target_chapter_str}*.md"))
+        beat_files = [
+            f for f in beats_dir.glob("**/*.md")
+            if "beats" in str(f).replace("\\", "/") and file_matches_chapter(f, target_chapter_str)
+        ]
         if beat_files:
-            package["target_beats"] = beat_files[0].read_text(encoding="utf-8").strip()
+            package["target_beats"] = sorted(beat_files)[0].read_text(encoding="utf-8").strip()
 
     # 6. Load Relevant Character Cards
     profiles_dir = workspace_dir / "02_characters" / "profiles"

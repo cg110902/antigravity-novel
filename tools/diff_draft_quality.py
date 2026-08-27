@@ -20,7 +20,7 @@ _tools_dir = Path(__file__).resolve().parent
 if str(_tools_dir) not in sys.path:
     sys.path.insert(0, str(_tools_dir))
 
-from novel_utils import resolve_workspace, reconfigure_utf8
+from novel_utils import resolve_workspace, reconfigure_utf8, file_matches_chapter
 
 reconfigure_utf8()
 
@@ -32,11 +32,17 @@ def analyze_draft_diff(target_chapter_str: str, workspace_path=None, as_json=Fal
         print(f"[错误] 未找到 05_manuscript 目录: {manuscript_dir}")
         return {}
 
-    raw_files = list(manuscript_dir.glob(f"**/raw_drafts/*{target_chapter_str}*.md"))
-    final_files = list(manuscript_dir.glob(f"**/finalized/*{target_chapter_str}*.md"))
+    raw_files = [f for f in manuscript_dir.glob("**/raw_drafts/*.md")
+                 if file_matches_chapter(f, target_chapter_str)]
+    final_files = [f for f in manuscript_dir.glob("**/finalized/*.md")
+                   if file_matches_chapter(f, target_chapter_str)]
 
     if not raw_files or not final_files:
         print(f"[提示] 未能同时找到初稿与定稿文件 (初稿: {len(raw_files)} 个, 定稿: {len(final_files)} 个)")
+        if as_json:
+            err = {"error": "未能同时找到初稿与定稿文件", "target_chapter": target_chapter_str,
+                   "raw_found": len(raw_files), "final_found": len(final_files)}
+            print(json.dumps(err, ensure_ascii=False, indent=2))
         return {}
 
     raw_file = raw_files[0]

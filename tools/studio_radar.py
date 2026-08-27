@@ -26,20 +26,79 @@ from novel_utils import resolve_workspace, reconfigure_utf8
 reconfigure_utf8()
 
 def run_subtool_json(cmd: list) -> dict:
+    """Runs a subtool and parses its JSON payload.
+
+    A subtool that crashes, exits non-zero, emits non-JSON output in --json
+    mode, or returns an ``error`` field is surfaced as an anomaly instead of
+    being silently swallowed (the old code returned None / a fake all-green).
+    """
     try:
         res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
-        if res.returncode == 0 and res.stdout.strip():
-            text = res.stdout.strip()
+        text = (res.stdout or "").strip()
+        parsed = None
+        if text:
             idx_obj = text.find("{")
             idx_arr = text.find("[")
+            start = -1
             if idx_obj != -1 and (idx_arr == -1 or idx_obj < idx_arr):
-                return json.loads(text[idx_obj:])
+                start = idx_obj
             elif idx_arr != -1:
-                return json.loads(text[idx_arr:])
-            return {"raw_output": text}
-        return {"error": res.stderr.strip() or f"Process exited with code {res.returncode}"}
+                start = idx_arr
+            if start != -1:
+                try:
+                    parsed = json.loads(text[start:])
+                except json.JSONDecodeError as e:
+                    return {"error": f"子工具输出无法解析为 JSON: {e}",
+                            "raw_output": text[:300]}
+        if parsed is None:
+            if res.returncode != 0:
+                return {"error": (res.stderr.strip() or text or f"子工具退出码 {res.returncode}")[:300]}
+            # rc==0 但无 JSON 输出（如无稿件的提示型工具）→ 标记为 SKIP，不算崩溃
+            return {"status": "SKIP", "note": (text or "无输出")[:200]}
+        if res.returncode != 0 and isinstance(parsed, dict) and "error" not in parsed:
+            parsed["_exit_code"] = res.returncode
+        return parsed
     except Exception as e:
         return {"error": str(e)}
+
+def _is_blocking(report) -> bool:
+    """Determines whether a subtool report represents a blocking (gate) failure."""
+    if not isinstance(report, dict):
+        return True
+    if report.get("error"):
+        return True
+    if report.get("status") in ("FAIL",):
+        return True
+    if report.get("is_dag_valid") is False:
+        return True
+    if report.get("is_balanced") is False:
+        return True
+    if report.get("total_fatal_count", 0):
+        return True
+    if report.get("total_critical", 0):
+        return True
+    if report.get("critical_count", 0):
+        return True
+    if report.get("anomalies"):
+        return True
+    return False
+
+def _collect_anomalies(name: str, report) -> list:
+    """Extracts human-readable anomaly strings from a subtool report."""
+    out = []
+    if not isinstance(report, dict):
+        return [f"[{name}] 无结构化输出"]
+    if report.get("error"):
+        out.append(f"[{name}] {report['error']}")
+    for a in (report.get("anomalies") or []):
+        out.append(f"[{name}] {a}")
+    if report.get("status") == "FAIL":
+        out.append(f"[{name}] 质检状态 FAIL（致命硬伤 {report.get('total_fatal_count', '?')} 处）")
+    if report.get("is_balanced") is False:
+        out.append(f"[{name}] 复式账本不平衡")
+    if report.get("total_critical"):
+        out.append(f"[{name}] 读者懵逼 CRITICAL {report['total_critical']} 处")
+    return out
 
 def run_master_radar(target_chapter=None, workspace_path=None, as_json=False):
     workspace_dir = resolve_workspace(workspace_path)
@@ -50,6 +109,7 @@ def run_master_radar(target_chapter=None, workspace_path=None, as_json=False):
         # Collect real structured telemetry across all subtools
         scorecard = {}
         anomalies = []
+        blocking_tools = []
 
         subtools = [
             ("double_ledgers", [python_exe, str(tools_dir / "verify_double_ledgers.py"), "-w", str(workspace_dir), "--json"]),
@@ -70,25 +130,31 @@ def run_master_radar(target_chapter=None, workspace_path=None, as_json=False):
             ("reader_confusion", [python_exe, str(tools_dir / "audit_reader_confusion.py"), "-w", str(workspace_dir), "--json"]),
         ]
 
-        for name, cmd in subtools:
+        all_tools = subtools + ch_subtools
+        for name, cmd in all_tools:
+            if name in {n for n, _ in ch_subtools} and target_chapter:
+                cmd = cmd + ["-c", target_chapter]
             res = run_subtool_json(cmd)
             scorecard[name] = res
-            if isinstance(res, dict) and res.get("anomalies"):
-                anomalies.extend(res["anomalies"])
-
-        for name, cmd in ch_subtools:
-            if target_chapter:
-                cmd.extend(["-c", target_chapter])
-            res = run_subtool_json(cmd)
-            scorecard[name] = res
-            if isinstance(res, dict) and res.get("anomalies"):
-                anomalies.extend(res["anomalies"])
+            tool_anoms = _collect_anomalies(name, res)
+            # “无稿件”属于全新书的正常空态，不算阻断。
+            empty = isinstance(res, dict) and (
+                res.get("status") == "SKIP" or
+                (res.get("error") and ("未找到" in str(res.get("error")) or "未在" in str(res.get("error")) or "暂无" in str(res.get("error"))))
+            )
+            if tool_anoms and not empty:
+                anomalies.extend(tool_anoms)
+            if _is_blocking(res) and not empty:
+                blocking_tools.append(name)
 
         master_report = {
             "workspace": workspace_dir.name,
             "target_chapter": target_chapter or "latest",
             "overall_status": "ALL_GREEN" if not anomalies else "ATTENTION_REQUIRED",
+            "blocking": bool(blocking_tools),
+            "blocking_tools": blocking_tools,
             "critical_anomalies_count": len(anomalies),
+            "anomalies": anomalies,
             "scorecard": scorecard
         }
         print(json.dumps(master_report, ensure_ascii=False, indent=2))
@@ -201,7 +267,7 @@ def run_master_radar(target_chapter=None, workspace_path=None, as_json=False):
     subprocess.run(cmd_confusion)
 
     print("\n" + "═" * 76)
-    print(" ✨ [全维巡检完成] 12 大工程经典算法与诊断雷达执行完毕，全维度数据健康！")
+    print(" ✨ [全维巡检完成] 12 大工程经典算法与诊断雷达执行完毕。")
     print("═" * 76 + "\n")
 
 if __name__ == "__main__":
@@ -211,4 +277,7 @@ if __name__ == "__main__":
     parser.add_argument("--json", action="store_true", help="以结构化 JSON 格式输出")
     args = parser.parse_args()
 
-    run_master_radar(target_chapter=args.chapter, workspace_path=args.workspace, as_json=args.json)
+    report = run_master_radar(target_chapter=args.chapter, workspace_path=args.workspace, as_json=args.json)
+    if isinstance(report, dict) and report.get("blocking"):
+        sys.exit(1)
+    sys.exit(0)

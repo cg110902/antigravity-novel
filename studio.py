@@ -9,11 +9,12 @@ Usage:
     python studio.py lint [ch_004]          # 2. 一键运行反 AI 腔、句式骨架与断章 Linter (--voice 可选加测声纹)
     python studio.py diff ch_004            # 3. 一键初稿 vs 定稿脱水重铸质量对比
     python studio.py sync ch_004            # 4. 一键完成双台账校验、道具轨迹追踪并打下版本快照
-    python studio.py radar [ch_004]         # 5. 一键运行全书 11 大工程雷达总控仪表盘
+    python studio.py radar [ch_004]         # 5. 一键运行全书 12 大工程雷达总控仪表盘
     python studio.py test                   # 6. 一键运行 tests/ 自动化测试套件
     python studio.py export [--txt]         # 7. 一键编译导出全书手稿 (Markdown / TXT)
-    python studio.py clean [--drafts]       # 8. 一键清空手稿与临时草稿
+    python studio.py clean                  # 8. 一键清空手稿与临时草稿
     python studio.py snapshot <name>        # 9. 状态机一键创建快照
+    python studio.py snapshots              # 9.1 列出所有历史快照
     python studio.py rollback <name>        # 10. 状态机一键回滚快照 (--clean-drafts 可选清理孤立稿件)
 """
 
@@ -225,7 +226,7 @@ def cmd_sync(args):
     return rc3
 
 def cmd_radar(args):
-    """Run all 11 studio radars."""
+    """Run all 12 studio radars."""
     extra = []
     if args.chapter:
         ch = args.chapter if args.chapter.startswith("ch_") else f"ch_{int(args.chapter):03d}"
@@ -264,9 +265,18 @@ def cmd_init(args):
     extra = ["--title", args.title, "--genre", args.genre, "--protagonist", args.protagonist]
     if args.clean:
         extra.append("--clean")
+    if getattr(args, "force", False):
+        extra.append("--force")
     if args.workspace:
         extra.extend(["-w", args.workspace])
     return run_script("init_new_novel.py", extra)
+
+def cmd_snapshots(args):
+    """List all state-machine snapshots."""
+    extra = ["--list-snapshots"]
+    if args.workspace:
+        extra.extend(["-w", args.workspace])
+    return run_script("state_inspector.py", extra)
 
 def cmd_clean(args):
     """Clean drafts or full manuscript."""
@@ -340,7 +350,7 @@ def main():
     python studio.py sync 6                  # 双台账核验、道具流转追踪并自动封存版本快照
     
  4. 全维工程雷达与安全网:
-    python studio.py radar                   # 一键运行全书 11 大工程雷达总控仪表盘
+    python studio.py radar                   # 一键运行全书 12 大工程雷达总控仪表盘
     python studio.py test                    # 运行自动化单元测试套件
     python studio.py export --txt            # 编译导出全书出版级手稿 (Markdown / TXT)
     python studio.py snapshot ch_006_done    # 手动创建状态机快照
@@ -404,7 +414,7 @@ def main():
     p_sync.set_defaults(func=cmd_sync)
 
     # radar
-    p_radar = subparsers.add_parser("radar", help="运行全维 11 大工程雷达总控仪表盘")
+    p_radar = subparsers.add_parser("radar", help="运行全维 12 大工程雷达总控仪表盘")
     p_radar.add_argument("chapter", nargs="?", help="指定章节 (可选)")
     p_radar.add_argument("-w", "--workspace", help="指定工作区路径")
     p_radar.add_argument("--json", action="store_true", help="输出 JSON 格式")
@@ -426,8 +436,14 @@ def main():
     p_init.add_argument("--genre", "-g", default="通用题材", help="小说题材分类")
     p_init.add_argument("--protagonist", "-p", default="主角名", help="主角姓名")
     p_init.add_argument("--clean", action="store_true", help="清空已有稿件与细纲，保留母版")
+    p_init.add_argument("--force", action="store_true", help="工作区已有手稿/细纲时仍强制重建（危险）")
     p_init.add_argument("-w", "--workspace", help="指定工作区路径")
     p_init.set_defaults(func=cmd_init)
+
+    # snapshots (list)
+    p_snaps = subparsers.add_parser("snapshots", help="列出状态机所有历史版本快照")
+    p_snaps.add_argument("-w", "--workspace", help="指定工作区路径")
+    p_snaps.set_defaults(func=cmd_snapshots)
 
     # clean
     p_clean = subparsers.add_parser("clean", help="清空已有稿件与单章细纲")

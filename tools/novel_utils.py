@@ -25,29 +25,158 @@ def reconfigure_utf8():
         except Exception:
             pass
 
+def project_root() -> Path:
+    """Returns the repository root (parent of the tools/ directory)."""
+    return Path(__file__).resolve().parent.parent
+
 def resolve_workspace(workspace_arg=None) -> Path:
-    """Resolves target workspace directory."""
-    base_dir = Path(__file__).resolve().parent.parent
+    """Resolves target workspace directory.
+
+    Resolution order:
+      1. Explicit --workspace argument (relative paths are anchored at repo root).
+      2. ``workspace_dir`` declared in novel_config.yaml (anchored at repo root).
+      3. Default ``<repo_root>/novel_workspace``.
+    """
+    base_dir = project_root()
     if workspace_arg:
         w_path = Path(workspace_arg)
         if not w_path.is_absolute():
             w_path = (base_dir / w_path).resolve()
         return w_path
+    cfg = load_studio_config()
+    declared = cfg.get("project", {}).get("workspace_dir")
+    if declared:
+        return (base_dir / declared).resolve()
     return (base_dir / "novel_workspace").resolve()
+
+# ---------------------------------------------------------------------------
+# Lightweight novel_config.yaml loader (zero third-party dependencies)
+# ---------------------------------------------------------------------------
+_CONFIG_CACHE = None
+
+def load_studio_config() -> dict:
+    """Parses the small subset of novel_config.yaml the toolchain actually needs.
+
+    Supports nested mappings via indentation and simple ``key: value`` scalars
+    (quoted strings, ints, floats, bools).  Returns defaults when the file is
+    absent or unparsable, so every tool keeps working out-of-the-box.
+    """
+    global _CONFIG_CACHE
+    if _CONFIG_CACHE is not None:
+        return _CONFIG_CACHE
+
+    cfg = {
+        "project": {"workspace_dir": "novel_workspace"},
+        "generation": {
+            "target_word_count": {"min": 2500, "max": 5000, "recommended": 3200}
+        },
+        "linter_thresholds": {
+            "hard_gate_min_word_count": 2500,
+            "max_consecutive_breathless_chars": 75,
+        },
+    }
+    cfg_path = project_root() / "novel_config.yaml"
+    try:
+        if cfg_path.exists():
+            stack = [(-1, cfg)]
+            for raw in cfg_path.read_text(encoding="utf-8").splitlines():
+                line = raw.split("#", 1)[0].rstrip() if "#" in raw else raw.rstrip()
+                if not line.strip() or ":" not in line:
+                    continue
+                indent = len(line) - len(line.lstrip(" "))
+                key, _, val = line.strip().partition(":")
+                key = key.strip()
+                val = val.strip()
+                while stack and indent <= stack[-1][0]:
+                    stack.pop()
+                parent = stack[-1][1]
+                if val == "":
+                    node = {}
+                    parent[key] = node
+                    stack.append((indent, node))
+                else:
+                    parent[key] = _parse_yaml_scalar(val)
+    except Exception:
+        pass
+
+    _CONFIG_CACHE = cfg
+    return cfg
+
+def _parse_yaml_scalar(val: str):
+    """Coerces a YAML scalar string into bool/int/float/str."""
+    if len(val) >= 2 and val[0] == val[-1] and val[0] in ("'", '"'):
+        return val[1:-1]
+    low = val.lower()
+    if low in ("true", "yes"):
+        return True
+    if low in ("false", "no"):
+        return False
+    if low in ("null", "~", ""):
+        return None
+    try:
+        return int(val)
+    except ValueError:
+        pass
+    try:
+        return float(val)
+    except ValueError:
+        pass
+    return val
+
+# ---------------------------------------------------------------------------
+# Chapter identity helpers (boundary-safe, works past chapter 100)
+# ---------------------------------------------------------------------------
+def chapter_token_to_num(token) -> int:
+    """Extracts the chapter number from a token like 'ch_004', 'ch-12', '4' or 4."""
+    if token is None:
+        return None
+    if isinstance(token, int):
+        return token
+    m = re.search(r"(\d+)", str(token))
+    return int(m.group(1)) if m else None
+
+def chapter_number_from_name(name: str):
+    """Extracts the chapter number embedded in a file/directory name (None if absent)."""
+    m = re.search(r"ch[_-]?0*(\d+)(?![0-9])", str(name), re.IGNORECASE)
+    if not m:
+        m = re.search(r"chapter[_-]?0*(\d+)(?![0-9])", str(name), re.IGNORECASE)
+    return int(m.group(1)) if m else None
+
+def file_matches_chapter(path: Path, target_chapter) -> bool:
+    """Boundary-safe chapter match.
+
+    ``ch_001`` / ``1`` only matches files whose chapter token is exactly 1,
+    so 'ch_001' no longer accidentally matches 'ch_010' or 'ch_0010'.
+    """
+    target_num = chapter_token_to_num(target_chapter)
+    if target_num is None:
+        # Non-numeric target: fall back to plain substring match.
+        return str(target_chapter) in str(path).replace("\\", "/")
+    return chapter_number_from_name(path.name) == target_num
+
+def latest_chapter_number(manuscript_dir: Path, require_finalized: bool = True):
+    """Highest chapter number present in the manuscript tree (0 if none)."""
+    if not manuscript_dir or not manuscript_dir.exists():
+        return 0
+    if require_finalized:
+        files = manuscript_dir.glob("**/finalized/ch_*.md")
+    else:
+        files = manuscript_dir.glob("**/ch_*.md")
+    nums = [chapter_number_from_name(f.name) for f in files
+            if not f.name.startswith(".") and chapter_number_from_name(f.name) is not None]
+    return max(nums) if nums else 0
 
 def natural_chapter_sort_key(file_path: Path) -> tuple:
     """Generates natural sort key (volume_num, chapter_num, filename) for chapters."""
     path_str = str(file_path).replace("\\", "/")
     vol_match = re.search(r"vol[_-]?(\d+)", path_str, re.IGNORECASE)
     vol_num = int(vol_match.group(1)) if vol_match else 1
-    
-    ch_match = re.search(r"ch[_-]?(\d+)", file_path.name, re.IGNORECASE)
-    if not ch_match:
-        ch_match = re.search(r"chapter[_-]?(\d+)", file_path.name, re.IGNORECASE)
-    if not ch_match:
-        ch_match = re.search(r"(\d+)", file_path.name)
-        
-    ch_num = int(ch_match.group(1)) if ch_match else 9999
+
+    ch_num = chapter_number_from_name(file_path.name)
+    if ch_num is None:
+        # Last-resort: any leading number in the filename.
+        m = re.search(r"(\d+)", file_path.name)
+        ch_num = int(m.group(1)) if m else 9999
     return (vol_num, ch_num, file_path.name)
 
 def find_manuscript_files(manuscript_dir: Path, target_chapter: str = None, single_latest: bool = False) -> list:
@@ -55,12 +184,15 @@ def find_manuscript_files(manuscript_dir: Path, target_chapter: str = None, sing
     if not manuscript_dir.exists():
         return []
 
+    def _excluded(f: Path) -> bool:
+        norm = str(f).replace("\\", "/")
+        return ("prescriptions" in norm or "snapshots" in norm
+                or f.name.startswith("."))
+
     if target_chapter:
         matches = [
-            f for f in manuscript_dir.glob(f"**/*{target_chapter}*.md")
-            if "prescriptions" not in str(f).replace("\\", "/")
-            and "snapshots" not in str(f).replace("\\", "/")
-            and not f.name.startswith(".")
+            f for f in manuscript_dir.glob("**/ch_*.md")
+            if not _excluded(f) and file_matches_chapter(f, target_chapter)
         ]
         finalized = [f for f in matches if "finalized" in str(f).replace("\\", "/")]
         res = finalized if finalized else matches

@@ -21,7 +21,7 @@ _tools_dir = Path(__file__).resolve().parent
 if str(_tools_dir) not in sys.path:
     sys.path.insert(0, str(_tools_dir))
 
-from novel_utils import resolve_workspace, natural_chapter_sort_key, find_manuscript_files, reconfigure_utf8
+from novel_utils import resolve_workspace, natural_chapter_sort_key, find_manuscript_files, reconfigure_utf8, latest_chapter_number
 
 reconfigure_utf8()
 
@@ -39,7 +39,7 @@ def verify_ledgers(workspace_path=None, as_json=False):
 
     manuscript_dir = workspace_dir / "05_manuscript"
     finalized_files = find_manuscript_files(manuscript_dir)
-    latest_chapter_num = len(finalized_files)
+    latest_chapter_num = latest_chapter_number(manuscript_dir, require_finalized=True)
 
     audit_results = {
         "workspace": workspace_dir.name,
@@ -102,11 +102,20 @@ def verify_ledgers(workspace_path=None, as_json=False):
             transactions = econ_data.get("transactions", [])
             if pools:
                 pool_balances = {k: v.get("initial", 0) for k, v in pools.items()}
+                # 流水里引用了 resource_pools 未声明的资源池 → 台账结构错误，必须报错，
+                # 绝不能静默跳过（旧代码默认 key 写成了不存在的 'currency_sui'）。
                 for t in transactions:
-                    r_key = t.get("resource", "currency_sui")
+                    r_key = t.get("resource")
+                    if r_key is None:
+                        # 单币种账本：无 resource 字段时归入第一个资源池
+                        r_key = next(iter(pools))
                     delta = t.get("delta", t.get("inflow", 0) - t.get("outflow", 0))
-                    if r_key in pool_balances:
-                        pool_balances[r_key] += delta
+                    if r_key not in pool_balances:
+                        audit_results["anomalies"].append(
+                            f"❌ [资源池未声明] 第 {t.get('chapter', '?')} 章流水引用了 resource_pools 中不存在的资源池 '{r_key}'（请在台账中登记该资源池或修正 resource 字段）"
+                        )
+                        continue
+                    pool_balances[r_key] += delta
                 for k, v in pools.items():
                     declared = v.get("current", v.get("initial", 0))
                     if declared != pool_balances.get(k, 0):
@@ -166,5 +175,5 @@ if __name__ == "__main__":
 
     ok = verify_ledgers(workspace_path=args.workspace, as_json=args.json)
     if isinstance(ok, dict):
-        sys.exit(1 if ok.get("anomalies") else 0)
+        sys.exit(1 if (ok.get("anomalies") or ok.get("error")) else 0)
     sys.exit(0 if ok else 1)

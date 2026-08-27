@@ -271,7 +271,8 @@ def main():
     all_drafts = find_manuscript_files(manuscript_dir, args.chapter)
     if not all_drafts:
         print(f"ℹ️ 在 {w_dir} 中未找到待手术的稿件文件。")
-        return
+        # 指定章节却找不到 → 用法错误，返回 1；全书空扫描 → 正常空态返回 0。
+        return 1 if args.chapter else 0
 
     target_draft = all_drafts[-1]
     ch_id = args.chapter or target_draft.stem.replace("_v1", "")
@@ -280,6 +281,7 @@ def main():
     prescription_content = generate_prescription_markdown(ch_id, slices, mindset_arcs, guns, c_cnt, t_cnt, d_cnt)
     print(prescription_content)
     print(f"\n✨ [分层处方生成完成] 靶向切片数: {len(slices)} 处 (🌊读感:{c_cnt} / 🎭体验:{t_cnt} / ✍️造句:{d_cnt})")
+    return 0
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
