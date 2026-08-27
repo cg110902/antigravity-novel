@@ -31,10 +31,12 @@ from novel_utils import resolve_workspace, find_manuscript_files, load_registere
 reconfigure_utf8()
 
 CURRENCY_KEYWORDS = [
-    "文", "铜板", "铜钱", "两", "银", "白银", "雪花银", "金", "赤金", "黄金", "金币",
-    "灵石", "碎灵石", "极品灵石", "信用点", "星币", "元", "晶石", "筹码",
-    "花了", "花费", "买下", "购得", "付了", "赏了", "收到", "起获", "搜出", "分润", "盘算", "结余"
+    "铜钱", "铜板", "文钱", "白银", "雪花银", "银两", "碎银", "两银", "黄金", "金币", "金条", "赤金",
+    "灵石", "碎灵石", "极品灵石", "晶石", "信用点", "星币", "银子", "金子",
+    "花了", "花费", "买下", "购得", "付了", "赏了", "收到", "起获", "搜出", "分润", "结余", "入账", "进账", "缴获", "充能"
 ]
+
+NON_FINANCIAL_MEASURE_WORDS = r"(?:两人|两名|两柄|两队|两把|两次|两息|两步|两丈|两三|两截|两颗|两袋|两道|两倍|两侧|两旁|两边|两世|金铁|银丝|两尊|两重|两端|两手|双膝|双手)"
 
 INJURY_KEYWORDS = [
     "伤", "血", "吐血", "骨折", "毒", "反噬", "虚脱", "剧痛", "负荷", "过载",
@@ -69,7 +71,6 @@ def extract_facts(target_chapter_str: str, workspace_path=None, as_json=False):
     active_characters = []
     for c in registered_chars:
         if c in content:
-            # Count appearances
             count = len(re.findall(re.escape(c), content))
             active_characters.append({"name": c, "mentions": count})
     active_characters.sort(key=lambda x: x["mentions"], reverse=True)
@@ -80,8 +81,11 @@ def extract_facts(target_chapter_str: str, workspace_path=None, as_json=False):
         clean_l = line.strip()
         if not clean_l or clean_l.startswith("#"):
             continue
-        # Check if contains currency or numeric exchange keywords
-        if any(k in clean_l for k in CURRENCY_KEYWORDS) and re.search(r"[\d一二三四五六七八九十百千万]+", clean_l):
+        has_kw = any(k in clean_l for k in CURRENCY_KEYWORDS)
+        has_amount = bool(re.search(r"[\d一二三四五六七八九十百千万]+\s*(?:两白银|两银子|两碎银|两黄金|两金|两银|两|文|贯|吊|枚金币|枚铜钱|块灵石|点模拟|点数)", clean_l))
+        if has_kw or has_amount:
+            if not has_kw and re.search(NON_FINANCIAL_MEASURE_WORDS, clean_l):
+                continue
             financial_clues.append({
                 "line": idx,
                 "text": clean_l
@@ -115,7 +119,7 @@ def extract_facts(target_chapter_str: str, workspace_path=None, as_json=False):
     bracket_items = set()
     for m in re.findall(r"【(.*?)】|《(.*?)》", content):
         item = (m[0] or m[1]).strip()
-        if len(item) >= 2 and len(item) <= 12 and not any(k in item for k in ["第", "章", "卷", "节"]):
+        if len(item) >= 2 and len(item) <= 12 and not any(k in item for k in ["第", "章", "卷", "节", "岁", "年"]):
             bracket_items.add(item)
 
     report = {
