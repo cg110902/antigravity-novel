@@ -191,7 +191,8 @@ def _main():
 
     if args.json:
         print(json.dumps(sched, ensure_ascii=False, indent=2))
-        sys.exit(1 if sched["detonate_now"] else 0)
+        # 调度建议是咨询性输出（含超期提醒），不作为失败，始终 0；参数错误才 2
+        sys.exit(0)
 
     print("=" * 72)
     print(f" 🪶 伏笔主动调度器 · 为 {sched['target_chapter']} Beats 排期")
@@ -223,7 +224,8 @@ def _main():
         print("\n✅ 当前无急需调度的伏笔，可安心推进新情节。")
     print("=" * 72)
 
-    sys.exit(1 if sched["detonate_now"] else 0)
+    # 咨询性调度建议，不作为退出失败
+    sys.exit(0)
 
 
 if __name__ == "__main__":

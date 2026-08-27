@@ -219,7 +219,13 @@ def init_novel(title="未命名新书", genre="通用题材", protagonist="主�
     try:
         from genre_profile import install_profile_for_genre
         gp = install_profile_for_genre(workspace, genre)
-        print(f"   - 00_meta/genre_profile.json (题材档案：{gp.parent.name} 已按「{genre}」匹配)")
+        label = gp.read_text(encoding="utf-8")
+        try:
+            import json as _json
+            matched_label = _json.loads(label).get("label", "")
+        except Exception:
+            matched_label = ""
+        print(f"   - 00_meta/genre_profile.json (题材档案：已按「{genre}」匹配为 {matched_label})")
     except Exception as e:
         print(f"   ⚠️ 题材档案生成失败（不影响初始化）: {e}")
 
@@ -248,7 +254,11 @@ def init_novel(title="未命名新书", genre="通用题材", protagonist="主�
         "  pack 会自动注入「全书梗概脊柱」「BM25 资料员召回的相关旧段落」「跨章重复预警」。\n"
         "- `python studio.py memory spine`：扫描定稿章节，为缺失梗概的章节补自动梗概。\n"
         "- `python studio.py memory recall \"铁壁公司 芯片\"`：BM25 召回最相关的旧章节段落。\n"
-        "- `python studio.py memory repeat`：跨章重复检测（已登场角色被再次首次介绍 / n-gram 雷同 / 场景节拍相似）。\n",
+        "- `python studio.py memory repeat`：跨章重复检测（已登场角色被再次首次介绍 / n-gram 雷同 / 场景节拍相似）。\n"
+        "- `python studio.py schedule ch_xxx`：伏笔主动调度（本章该引爆/回唤/唤醒哪些枪）。\n"
+        "- `python studio.py quality stall|ratio|distill`：塌中段/黄金配比/文风蒸馏质检。\n"
+        "- `python studio.py genre`：查看本书题材档案（配比/口癖/调度窗口/导演指导）。\n"
+        "- `python studio.py doctor`：工作区结构与账本体检（有 ERROR 退出码 1）。\n",
         encoding="utf-8")
 
     # 8. Sync Root novel_config.yaml —— 仅当工作区位于本仓库内时才回写仓库配置，

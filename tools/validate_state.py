@@ -21,8 +21,7 @@ if str(_tools_dir) not in sys.path:
     sys.path.insert(0, str(_tools_dir))
 
 from novel_utils import (
-    resolve_workspace, reconfigure_utf8, has_placeholder,
-    find_table_block, is_table_separator, atomic_write_text,
+    resolve_workspace, reconfigure_utf8, has_placeholder, find_table_block,
 )
 
 reconfigure_utf8()
