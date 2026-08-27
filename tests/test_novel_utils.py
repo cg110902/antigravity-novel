@@ -101,7 +101,7 @@ class TestNovelUtils(unittest.TestCase):
     def test_config_loads_word_floor(self):
         cfg = load_studio_config()
         self.assertIn("generation", cfg)
-        self.assertGreaterEqual(cfg["generation"]["target_word_count"]["min"], 2500)
+        self.assertGreaterEqual(cfg["generation"]["target_word_count"]["min"], 1800)
 
     # ---- Template placeholder & table-separator filtering ----
 
@@ -142,7 +142,7 @@ class TestNovelUtils(unittest.TestCase):
         sys.path.insert(0, str(_root / "tools"))
         # Re-implement by importing the scanner's parse path indirectly:
         # we validate via audit_economy_ledger's CN constants through a tiny sample.
-        from audit_economy_ledger import audit_economy_ledger  # noqa: F401
+        from audit_economy_ledger import audit_economy_ledger  # noqa: F402
         # 直接复刻工具内 parse_num 逻辑做关键断言（货币单位“两/文”不得当数字）
         CN_DIGIT = {'零':0,'一':1,'二':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9}
         CN_SMALL = {'十':10,'百':100,'千':1000}

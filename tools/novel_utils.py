@@ -15,8 +15,12 @@ Centralizes common infrastructure and pattern libraries for diagnostic tools:
 
 import sys
 import re
+import logging
 from pathlib import Path
 from collections import defaultdict
+
+# 模块级 logger（统一走 log_core 的 novel_studio 日志树）
+logger = logging.getLogger("novel_studio.novel_utils")
 
 
 def reconfigure_utf8():
@@ -24,8 +28,8 @@ def reconfigure_utf8():
     if sys.platform == "win32":
         try:
             sys.stdout.reconfigure(encoding="utf-8")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("stdout 重配置为 UTF-8 失败（可忽略）: %s", e)
 
 
 def project_root() -> Path:
@@ -55,80 +59,31 @@ def resolve_workspace(workspace_arg=None) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# Lightweight novel_config.yaml loader (zero third-party dependencies)
+# 配置加载（v3：委托统一配置层 config_core，支持完整 YAML 子集与优先级合并）
 # ---------------------------------------------------------------------------
-_CONFIG_CACHE = None
-
-
 def load_studio_config() -> dict:
-    """Parses the small subset of novel_config.yaml the toolchain actually needs.
+    """加载全局 studio 配置（向后兼容入口）。
 
-    Supports nested mappings via indentation and simple ``key: value`` scalars
-    (quoted strings, ints, floats, bools).  Returns defaults when the file is
-    absent or unparsable, so every tool keeps working out-of-the-box.
+    .. deprecated::
+        新代码请使用 ``config_core.load_effective_config(workspace)`` 或
+        ``config_core.get_config("dotted.key")``，它们支持工作区题材档案覆盖与
+        完整 YAML 语法（列表/块标量/行内注释等）。本函数保留原签名，内部委托
+        ``config_core.load_studio_config()``。
+
+    文件不存在时返回内置默认值；文件存在但语法错误时抛出异常（不再静默吞掉）。
     """
-    global _CONFIG_CACHE
-    if _CONFIG_CACHE is not None:
-        return _CONFIG_CACHE
-
-    cfg = {
-        "project": {"workspace_dir": "novel_workspace"},
-        "generation": {
-            "target_word_count": {"min": 2500, "max": 5000, "recommended": 3200}
-        },
-        "linter_thresholds": {
-            "hard_gate_min_word_count": 2500,
-            "max_consecutive_breathless_chars": 75,
-        },
-    }
-    cfg_path = project_root() / "novel_config.yaml"
-    try:
-        if cfg_path.exists():
-            stack = [(-1, cfg)]
-            for raw in cfg_path.read_text(encoding="utf-8").splitlines():
-                line = raw.split("#", 1)[0].rstrip() if "#" in raw else raw.rstrip()
-                if not line.strip() or ":" not in line:
-                    continue
-                indent = len(line) - len(line.lstrip(" "))
-                key, _, val = line.strip().partition(":")
-                key = key.strip()
-                val = val.strip()
-                while stack and indent <= stack[-1][0]:
-                    stack.pop()
-                parent = stack[-1][1]
-                if val == "":
-                    node = {}
-                    parent[key] = node
-                    stack.append((indent, node))
-                else:
-                    parent[key] = _parse_yaml_scalar(val)
-    except Exception:
-        pass
-
-    _CONFIG_CACHE = cfg
-    return cfg
+    from config_core import load_studio_config as _core_load
+    return _core_load()
 
 
 def _parse_yaml_scalar(val: str):
-    """Coerces a YAML scalar string into bool/int/float/str."""
-    if len(val) >= 2 and val[0] == val[-1] and val[0] in ("'", '"'):
-        return val[1:-1]
-    low = val.lower()
-    if low in ("true", "yes"):
-        return True
-    if low in ("false", "no"):
-        return False
-    if low in ("null", "~", ""):
-        return None
-    try:
-        return int(val)
-    except ValueError:
-        pass
-    try:
-        return float(val)
-    except ValueError:
-        pass
-    return val
+    """Coerces a YAML scalar string into bool/int/float/str.
+
+    .. deprecated::
+        保留以兼容旧调用；新代码请使用 ``config_core._parse_yaml_scalar``。
+    """
+    from config_core import _parse_yaml_scalar as _core_scalar
+    return _core_scalar(val)
 
 
 # ---------------------------------------------------------------------------
@@ -382,11 +337,16 @@ def load_registered_characters(workspace_dir: Path) -> list:
 # ===========================================================================
 
 def get_genre_profile(workspace=None) -> dict:
-    """延迟加载题材档案（避免循环引用）。失败时返回空 dict。"""
+    """延迟加载题材档案（避免循环引用）。失败时记录警告并返回空 dict。"""
     try:
         from genre_profile import resolve_genre_profile
         return resolve_genre_profile(workspace)
-    except Exception:
+    except ImportError as e:
+        from log_core import degrade
+        degrade(logger, "genre_profile", e)
+        return {}
+    except Exception as e:
+        logger.warning("题材档案加载失败，已回退空配置: %s", e)
         return {}
 
 
