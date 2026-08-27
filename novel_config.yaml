@@ -5,10 +5,13 @@ project:
   name: "一年抽取一词条，模拟的也可以？" # 当前项目书名 (开新书时自定义)
   version: "3.5.0"
   workspace_dir: "novel_workspace" # 唯一事实真值源目录 (SSOT)
-  default_genre: "玄幻脑洞 / 系统 / 模拟器 / 仙武穿越" # 当前题材 (支持全题材配置)
+  default_genre: "玄幻脑洞" # 当前题材 (支持全题材配置)
 
 workflow:
-  mode: "autonomous_creation" # 自动创作流水线模式 (自主决断细纲最优张力走向 -> 直通起草审校与状态自同步 -> 终审交付)
+  mode: "autonomous_creation" # 自动创作流水线模式 (自主决断细纲最优走向 -> 直通起草审校与状态自同步 -> 终审交付)
+  self_healing_pipeline: true # Stage 2-4 全自动自愈回炉重试闭环 (门禁未过自动打回精修，直至 100% 达标)
+  max_auto_retry_attempts: 3 # 单章质量门禁与台账校验自愈重试最大保护上限
+  human_in_the_loop_mode: "final_review_only" # 人类仅负责 finalized 终稿终审，全流程零打扰
   auto_recycle_subagents: true # Sub-Agent 瞬态即焚与 100% 自动生命周期回收
   long_arc_safeguards:
     max_realm_jump_per_chapter: 0 # 单章严禁跨越多个大境界
