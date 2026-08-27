@@ -32,6 +32,9 @@ if str(_tools_dir) not in sys.path:
     sys.path.insert(0, str(_tools_dir))
 
 from novel_utils import resolve_workspace, reconfigure_utf8, find_manuscript_files
+from log_core import get_logger
+
+logger = get_logger("studio")
 
 reconfigure_utf8()
 
@@ -83,8 +86,8 @@ def cmd_status(args):
                     pools_summary.append(f"{v.get('name', k)}: {v.get('current', 0)} {v.get('unit', '')}")
             elif "current_balance" in ldata:
                 pools_summary.append(f"基础货币: {ldata.get('current_balance', 0)}")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("economy_ledger.json 解析失败，资产池信息不可用: %s", e)
 
     # 4. Active Guns & Misunderstandings
     guns_file = state_dir / "chekhov_guns.md"
