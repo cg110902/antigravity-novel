@@ -21,7 +21,7 @@ _tools_dir = Path(__file__).resolve().parent
 if str(_tools_dir) not in sys.path:
     sys.path.insert(0, str(_tools_dir))
 
-from novel_utils import resolve_workspace, natural_chapter_sort_key, find_manuscript_files, reconfigure_utf8, latest_chapter_number
+from novel_utils import resolve_workspace, natural_chapter_sort_key, find_manuscript_files, reconfigure_utf8, latest_chapter_number, has_placeholder, is_table_separator
 
 reconfigure_utf8()
 
@@ -56,10 +56,12 @@ def verify_ledgers(workspace_path=None, as_json=False):
     if guns_file.exists():
         content = guns_file.read_text(encoding="utf-8")
         for line in content.splitlines():
-            if line.startswith("|") and not line.startswith("| 伏笔 ID") and not line.startswith("|---") and not line.startswith("|:---"):
+            if line.startswith("|") and "伏笔 ID" not in line and not is_table_separator(line):
                 parts = [p.strip() for p in line.split("|") if p.strip()]
                 if len(parts) >= 5:
                     gun_id, gun_name, planted_ch, status, target_ch = parts[0], parts[1], parts[2], parts[3], parts[4]
+                    if has_placeholder(line) or has_placeholder(gun_name):
+                        continue  # 母版示例占位行，不是真实伏笔
                     
                     is_resolved = any(k in status.lower() for k in ["resolved", "triggered", "已回收", "已触发"])
                     # Check if target chapter has passed (taking upper bound of ranges like 第 4~6 章)
@@ -76,6 +78,8 @@ def verify_ledgers(workspace_path=None, as_json=False):
         active_mis_count = 0
         for line in content.splitlines():
             if "MIS-" in line and not line.startswith("| ID") and not line.startswith("|---"):
+                if has_placeholder(line):
+                    continue  # 母版示例占位行
                 active_mis_count += 1
         if active_mis_count == 0 and latest_chapter_num >= 5:
             audit_results["warnings"].append("💡 [戏剧张力偏弱] 当前误会与信息差台账为空，建议补充 1~2 处核心人物认知错位，提升喜剧与反差爽感！")

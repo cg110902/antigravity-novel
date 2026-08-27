@@ -20,7 +20,7 @@ _tools_dir = Path(__file__).resolve().parent
 if str(_tools_dir) not in sys.path:
     sys.path.insert(0, str(_tools_dir))
 
-from novel_utils import resolve_workspace, find_manuscript_files, reconfigure_utf8
+from novel_utils import resolve_workspace, find_manuscript_files, reconfigure_utf8, has_placeholder, is_table_separator
 
 reconfigure_utf8()
 
@@ -32,11 +32,13 @@ def load_tracked_items(workspace_dir: Path):
     if guns_file.exists():
         content = guns_file.read_text(encoding="utf-8")
         for line in content.splitlines():
-            if line.startswith("|") and not line.startswith("| 伏笔 ID") and not line.startswith("|---"):
+            if line.startswith("|") and "伏笔 ID" not in line and not is_table_separator(line):
                 parts = [p.strip() for p in line.split("|") if p.strip()]
                 if len(parts) >= 2:
                     gun_id = parts[0]
                     raw_name = parts[1]
+                    if has_placeholder(line) or has_placeholder(raw_name):
+                        continue  # 母版示例占位行
                     clean_name = re.sub(r"[《》<>【】\*_`]", "", raw_name).strip()
                     if clean_name:
                         items[clean_name] = {"source": gun_id, "type": "伏笔道具"}

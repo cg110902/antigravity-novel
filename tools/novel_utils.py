@@ -166,6 +166,39 @@ def latest_chapter_number(manuscript_dir: Path, require_finalized: bool = True):
             if not f.name.startswith(".") and chapter_number_from_name(f.name) is not None]
     return max(nums) if nums else 0
 
+# ---------------------------------------------------------------------------
+# Template placeholder detection
+# ---------------------------------------------------------------------------
+# 未替换的母版占位符形如 [主角姓名]、[首卷对手]、[核心金手指 / 终极大机制]。
+# 所有解析“台账表格 / 实体名”的工具都必须跳过仍含占位符的行，否则会把
+# 母版里的填写示例误当成真实伏笔/角色/道具数据（新书第一天就误报）。
+PLACEHOLDER_RE = re.compile(r"\[[^\[\]]*[\u4e00-\u9fa5][^\[\]]*\]")
+
+def has_placeholder(text) -> bool:
+    """True if the text still contains an unfilled [中文] template placeholder."""
+    if text is None:
+        return False
+    return bool(PLACEHOLDER_RE.search(str(text)))
+
+_SEPARATOR_CELL_RE = re.compile(r"^:?-{2,}:?$")
+
+def is_table_separator(line: str) -> bool:
+    """True for markdown table separator rows like '|---|:---:|---|' (any spacing)."""
+    if not line or not line.strip().startswith("|"):
+        return False
+    cells = [c.strip() for c in line.strip().strip("|").split("|")]
+    return all(_SEPARATOR_CELL_RE.match(c) for c in cells if c != "") and any(cells)
+
+def is_table_header(line: str, keywords=()) -> bool:
+    """True for table header rows (contains a header keyword) or separator rows."""
+    if is_table_separator(line):
+        return True
+    return any(k in line for k in keywords)
+
+def strip_placeholders(text: str) -> str:
+    """Removes all [中文] placeholder spans from a string."""
+    return PLACEHOLDER_RE.sub("", str(text or ""))
+
 def natural_chapter_sort_key(file_path: Path) -> tuple:
     """Generates natural sort key (volume_num, chapter_num, filename) for chapters."""
     path_str = str(file_path).replace("\\", "/")
@@ -243,7 +276,8 @@ def load_registered_characters(workspace_dir: Path) -> list:
                 if parts and not parts[0].startswith("[") and not parts[0].startswith(":") and not parts[0].startswith("-") and "角色" not in parts[0] and "姓名" not in parts[0]:
                     clean_name = re.sub(r"[*_`#]", "", parts[0]).strip()
                     clean_name = re.sub(r"\s*[（(].*?[）)]", "", clean_name).strip()
-                    if clean_name and len(clean_name) <= 10:
+                    # 跳过母版未替换占位符（如 [首卷对手]），它们不是真实角色
+                    if clean_name and len(clean_name) <= 10 and not has_placeholder(clean_name):
                         chars.add(clean_name)
 
     profiles_dir = workspace_dir / "02_characters" / "profiles"
@@ -255,7 +289,7 @@ def load_registered_characters(workspace_dir: Path) -> list:
                 if m:
                     cname = m.group(1).strip()
                     cname = re.sub(r"[*_`#]", "", cname).strip()
-                    if cname and len(cname) <= 10 and not cname.startswith("["):
+                    if cname and len(cname) <= 10 and not cname.startswith("[") and not has_placeholder(cname):
                         chars.add(cname)
 
     return sorted(list(chars))
@@ -377,7 +411,9 @@ def load_ground_truth(workspace_dir: Path):
     if growth_file.exists():
         content = growth_file.read_text(encoding="utf-8")
         for line in content.splitlines():
-            if line.startswith("|") and not line.startswith("| 角色") and not line.startswith("|:---") and not line.startswith("|---"):
+            if line.startswith("|") and "角色" not in line and not is_table_separator(line):
+                if has_placeholder(line):
+                    continue  # 母版示例占位行
                 parts = [p.strip() for p in line.split("|") if p.strip()]
                 if len(parts) >= 3:
                     raw_name = parts[0]
@@ -385,7 +421,7 @@ def load_ground_truth(workspace_dir: Path):
                     clean_name = re.sub(r"[*_`#]", "", raw_name).strip()
                     clean_name = re.sub(r"\s*[（(].*?[）)]", "", clean_name).strip()
                     clean_stage = re.sub(r"[*_`]", "", raw_stage).strip()
-                    if clean_name and "Stage" in clean_stage:
+                    if clean_name and "Stage" in clean_stage and not has_placeholder(clean_name):
                         mindset_arcs[clean_name] = clean_stage
 
         if not mindset_arcs:
@@ -401,7 +437,9 @@ def load_ground_truth(workspace_dir: Path):
     if guns_file.exists():
         content = guns_file.read_text(encoding="utf-8")
         for line in content.splitlines():
-            if line.startswith("|") and ("Planted" in line or "Reminded" in line or "Triggered" in line):
+            if line.startswith("|") and ("Planted" in line or "Reminded" in line or "Triggered" in line or "Active" in line):
+                if has_placeholder(line):
+                    continue  # 母版示例占位行
                 parts = [p.strip() for p in line.split("|") if p.strip()]
                 if len(parts) >= 2:
                     guns.append(f"{parts[0]} - {parts[1]}")

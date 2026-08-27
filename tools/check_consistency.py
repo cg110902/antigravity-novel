@@ -141,8 +141,11 @@ def check_smart_burstiness(text, smart_whitelist, window_size=500, min_repeat=5)
                 return max(1, idx)
         return len(lines)
 
-    # 常见叙事词/修仙专名/意象名词免检池
-    COMMON_EXEMPT = {"灵草", "丹药", "飞剑", "经脉", "真气", "灵石", "长生", "宗门", "师尊", "弟子", "水牢", "战船", "水师", "码头", "鬼市", "地胆", "玉髓", "洗髓", "暗渠", "钟乳", "石胆"}
+    # 免检池不再硬编码任何题材专名（旧版写死了上一本修仙小说的
+    # “灵草/丹药/水牢/地胆/玉髓…”等特定词汇，对科幻/悬疑/都市题材无效且误导）。
+    # 题材专名一律由 build_smart_whitelist() 从本书 01_world/、人物卡与
+    # current_state 动态提取，实现真正的全题材自适应。
+    COMMON_EXEMPT = set()
 
     clean_text = text
     for n in [2, 3]:

@@ -36,14 +36,17 @@ def extract_world_currencies(workspace_dir: Path) -> list:
     world_rules = workspace_dir / "01_world" / "world_rules.md"
     if world_rules.exists():
         content = world_rules.read_text(encoding="utf-8")
-        # Extract bold currency tokens in tables or lists
-        matches = re.findall(r"\*\*([^\n*`#|]+?(?:币|石|两|钱|金|银|铜|点|元|晶))\*\*", content)
+        # 提取货币单位：支持 币/石/两/钱/金/银/铜/点/元/晶/铢/贯/钞/券/贝 等跨题材后缀
+        matches = re.findall(r"\*\*([^\n*`#|/]+?(?:币|石|两|钱|金|银|铜|点|元|晶|铢|贯|钞|券|贝))\*\*", content)
         for m in matches:
             c = m.strip()
-            if 1 <= len(c) <= 6 and not any(k in c for k in ["类型", "锚定", "比例", "单位"]):
-                currencies.add(c)
+            # 剔除母版占位符与字段说明（如“基础货币”“主结算货币”是列名而非币种）
+            if 1 <= len(c) <= 6 and not any(k in c for k in ["类型", "锚定", "比例", "单位", "货币级别", "基础货币", "主结算", "高阶货币", "顶级货币"]):
+                if "[" not in c and "]" not in c:
+                    currencies.add(c)
     if not currencies:
-        currencies = {"货币", "金币", "银两", "灵石", "碎灵石", "信用点", "元"}
+        # 题材中性兜底：优先依赖从 world_rules 动态提取，兜底用跨题材常见货币词
+        currencies = {"货币", "金币", "银币", "铜币", "信用点", "星币", "元", "灵石", "晶石"}
     return list(currencies)
 
 def audit_economy_ledger(workspace_path=None, as_json=False):
@@ -198,25 +201,49 @@ def audit_economy_ledger(workspace_path=None, as_json=False):
     income_pattern = re.compile(rf"(?:赚取|获得|作价|进账|净赚|售出|当得|暴击获得|回收得到|价值)[^\d零一二两三四五六七八九十百千万]{{0,8}}([0-9零一二两三四五六七八九十百千万]+)\s*(?:{curr_regex})")
     expense_pattern = re.compile(rf"(?:花费|支出|赔偿|折算|进价|买下|支付|消耗)[^\d零一二两三四五六七八九十百千万]{{0,8}}([0-9零一二两三四五六七八九十百千万]+)\s*(?:{curr_regex})")
 
-    CN_NUM = {'零':0, '一':1, '二':2, '两':2, '三':3, '四':4, '五':5, '六':6, '七':7, '八':8, '九':9, '十':10, '百':100, '千':1000, '万':10000}
+    # 注意：货币单位字（两/文/钱/铢/贯）绝不能当数字。旧表把“两”当 2，
+    # 导致“十两”被算成 12。这里“两”仅在作为数字“2”的语境极罕见且紧接量词时
+    # 才会混入——正则捕获组只取数字，单位在组外，因此无需把“两”当数字。
+    # 处理“两”的歧义：数量词“两万/两千/两百/两人”里“两”=2；
+    # 但货币单位“X 两”（十两、百两、三两银子）里“两”是单位。
+    # 规则：仅当“两”后紧跟 千/百/万/亿 等倍率字时，才当作数字 2。
+    CN_DIGIT = {'零':0, '一':1, '二':2, '三':3, '四':4, '五':5, '六':6, '七':7, '八':8, '九':9}
+    CN_SMALL = {'十':10, '百':100, '千':1000}
+    CN_BIG = {'万':10000, '亿':100000000}
     def parse_num(s: str) -> int:
+        s = str(s).strip()
         try:
             return int(s)
         except ValueError:
             pass
-        val, temp = 0, 0
-        for char in s:
-            if char in CN_NUM:
-                n = CN_NUM[char]
-                if n in [10, 100, 1000, 10000]:
-                    if temp == 0: temp = 1
-                    val += temp * n
-                    temp = 0
-                else: temp = n
+        total, section, digit = 0, 0, 0
+        has_any = False
+        for idx, char in enumerate(s):
+            if char == "两":
+                nxt = s[idx + 1] if idx + 1 < len(s) else ""
+                if nxt in CN_SMALL or nxt in CN_BIG:
+                    digit = 2  # “两万/两千/两百”表数字 2
+                    has_any = True
+                # 否则视为货币单位“两”，忽略
+                continue
+            if char in CN_DIGIT:
+                digit = CN_DIGIT[char]
+                has_any = True
+            elif char in CN_SMALL:
+                section += (digit if digit else 1) * CN_SMALL[char]
+                digit = 0
+                has_any = True
+            elif char in CN_BIG:
+                section += digit  # 如“两万”里万位前的 2
+                total = (total + section) * CN_BIG[char]
+                section, digit = 0, 0
+                has_any = True
             elif char.isdigit():
-                temp = temp * 10 + int(char)
-        val += temp
-        return val if val > 0 else 1
+                digit = digit * 10 + int(char)
+                has_any = True
+            # 其它字符（两/文/钱等单位字或普通汉字）一律忽略，不参与计数
+        total += section + digit
+        return total if has_any and total > 0 else 1
 
     transactions = []
     current_balance = 0

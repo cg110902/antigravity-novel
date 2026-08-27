@@ -35,6 +35,7 @@ from novel_utils import (
     load_registered_characters,
     natural_chapter_sort_key,
     reconfigure_utf8,
+    has_placeholder,
 )
 
 reconfigure_utf8()
@@ -47,6 +48,31 @@ def _extract_chapter_number(filepath: Path) -> int:
     """Extract numeric chapter ID from filename like ch_013.md -> 13."""
     m = re.search(r"ch[_-]?(\d+)", filepath.name, re.IGNORECASE)
     return int(m.group(1)) if m else 9999
+
+
+# 结构标签/字段名等“看起来像专名、其实是母版说明文字”的噪声词，不应作为实体。
+_ENTITY_NOISE = {
+    "地位", "核心掌权人物", "利益算盘与底层动机", "核心人物", "利益算盘", "长线阴谋",
+    "核心基本盘", "协同纽带", "地理特征", "空间尺度", "与外界距离", "烟火气息",
+    "步行/马车", "特殊载具/飞舟", "第一阶", "第二阶", "第三阶", "第四阶", "第五阶",
+    "第六阶", "第七阶", "第八阶", "第九阶", "终极极境", "基础阶梯", "中阶进阶",
+    "高阶绝顶", "运作逻辑", "升级与进化路径", "负荷与消耗", "防滥用边界",
+    "货币级别", "兑换基准", "对应消费场景",
+}
+
+def _is_proper_entity_name(name: str) -> bool:
+    """Rejects template labels/field names and unclosed placeholders."""
+    if not name:
+        return False
+    name = name.strip()
+    if "[" in name or "]" in name or "：" in name or ":" in name:
+        return False
+    if name in _ENTITY_NOISE:
+        return False
+    # 纯字段说明（含斜杠分隔的模板提示语）不视为实体
+    if "/" in name and len(name) <= 8:
+        return False
+    return True
 
 
 def _load_entity_registry(workspace_dir: Path) -> dict:
@@ -68,7 +94,7 @@ def _load_entity_registry(workspace_dir: Path) -> dict:
                 if parts:
                     name = re.sub(r"[*_`#]", "", parts[0]).strip()
                     name = re.sub(r"\s*[（(].*?[）)]", "", name).strip()
-                    if name and 2 <= len(name) <= 10:
+                    if name and 2 <= len(name) <= 10 and not has_placeholder(name):
                         registry[name] = "character"
 
     # 2. Characters from profiles/
@@ -81,7 +107,7 @@ def _load_entity_registry(workspace_dir: Path) -> dict:
             m = re.search(r"#+\s*(?:角色(?:姓名)?[：:]\s*)?([^\n(（\s#*]+)", content)
             if m:
                 cname = re.sub(r"[*_`#]", "", m.group(1)).strip()
-                if cname and 2 <= len(cname) <= 10:
+                if cname and 2 <= len(cname) <= 10 and not has_placeholder(cname):
                     registry[cname] = "character"
 
     # 3. Factions from factions.md
@@ -91,11 +117,11 @@ def _load_entity_registry(workspace_dir: Path) -> dict:
         # Extract bold names and heading names
         for m in re.finditer(r"\*\*([^\*]{2,12})\*\*", content):
             name = m.group(1).strip()
-            if len(name) >= 2:
+            if len(name) >= 2 and _is_proper_entity_name(name):
                 registry.setdefault(name, "faction")
         for m in re.finditer(r"###\s*阵营\s*\w+[：:．·]\s*(.+?)[\s(（]", content):
             name = m.group(1).strip()
-            if len(name) >= 2:
+            if len(name) >= 2 and _is_proper_entity_name(name):
                 registry.setdefault(name, "faction")
 
     # 4. Locations from geography.md
@@ -104,7 +130,7 @@ def _load_entity_registry(workspace_dir: Path) -> dict:
         content = geo_file.read_text(encoding="utf-8")
         for m in re.finditer(r"[*#【]+\s*([^\n*#】]{2,10})\s*[】*#]", content):
             name = m.group(1).strip()
-            if len(name) >= 2:
+            if len(name) >= 2 and _is_proper_entity_name(name):
                 registry.setdefault(name, "location")
 
     # 5. Items and concepts from world_rules.md + current_state.md
@@ -116,7 +142,8 @@ def _load_entity_registry(workspace_dir: Path) -> dict:
             content = src_file.read_text(encoding="utf-8")
             for m in re.finditer(r"【([^\u3011]{2,12})】", content):
                 name = m.group(1).strip()
-                registry.setdefault(name, "concept")
+                if _is_proper_entity_name(name) and not has_placeholder(name):
+                    registry.setdefault(name, "concept")
 
     # 6. Items from chekhov_guns.md
     guns_file = workspace_dir / "04_timeline_and_state" / "chekhov_guns.md"
@@ -124,7 +151,8 @@ def _load_entity_registry(workspace_dir: Path) -> dict:
         content = guns_file.read_text(encoding="utf-8")
         for m in re.finditer(r"《([^》]{2,20})》", content):
             name = m.group(1).strip()
-            registry.setdefault(name, "item")
+            if _is_proper_entity_name(name) and not has_placeholder(name):
+                registry.setdefault(name, "item")
 
     return registry
 
@@ -140,6 +168,8 @@ def _load_chekhov_guns(workspace_dir: Path) -> list:
     for line in content.splitlines():
         if not line.startswith("|") or "伏笔 ID" in line or ":---" in line:
             continue
+        if has_placeholder(line):
+            continue  # 母版示例占位行，不是真实伏笔
         parts = [p.strip() for p in line.split("|") if p.strip()]
         if len(parts) >= 4:
             gun_id = re.sub(r"[*_`]", "", parts[0]).strip()

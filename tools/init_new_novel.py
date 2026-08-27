@@ -157,6 +157,8 @@ def init_novel(title="未命名新书", genre="通用题材", protagonist="主�
         "[主角姓名]": protagonist,
         "[主角名]": protagonist,
         "[角色名]": protagonist,
+        "[角色姓名]": protagonist,
+        "[身份定位]": "核心主角",
         "[本卷卷名]": "破局立足与名动一方",
         "《[首卷卷名]》": "破局立足与名动一方",
         "[首卷卷名]": "破局立足与名动一方",

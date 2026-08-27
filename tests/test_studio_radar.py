@@ -57,6 +57,22 @@ class TestStudioRadar(unittest.TestCase):
         self.assertIsInstance(res, dict)
         self.assertIn("error", res)
 
+    def test_fresh_workspace_plot_dag_has_no_phantom_guns(self):
+        """Template example guns ([...] placeholders) must NOT be parsed as real guns."""
+        from audit_plot_dag import audit_plot_dag
+        report = audit_plot_dag(workspace_path=str(self.workspace), as_json=True, print_output=False)
+        self.assertEqual(report.get("total_guns"), 0,
+                         msg=f"新书不应解析出示例伏笔: {[g['id'] for g in report.get('guns_details', [])]}")
+        self.assertEqual(report.get("anomalies"), [])
+
+    def test_fresh_workspace_guns_state_machine_clean(self):
+        """State inspector must report zero active guns for a fresh templated workspace."""
+        from state_inspector import inspect_state
+        report = inspect_state(workspace_path=str(self.workspace), as_json=True)
+        self.assertEqual(report["guns"]["active_list"], [])
+        self.assertEqual(report["guns"]["planted"], 0)
+        self.assertEqual(report["misunderstandings"], [])
+
 
 if __name__ == "__main__":
     unittest.main()

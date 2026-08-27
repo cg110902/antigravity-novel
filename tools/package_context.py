@@ -25,7 +25,7 @@ if str(_tools_dir) not in sys.path:
 
 from novel_utils import (
     resolve_workspace, natural_chapter_sort_key, find_manuscript_files,
-    reconfigure_utf8, file_matches_chapter, chapter_token_to_num
+    reconfigure_utf8, file_matches_chapter, chapter_token_to_num, has_placeholder
 )
 
 reconfigure_utf8()
@@ -79,7 +79,9 @@ def package_context_for_chapter(target_chapter_str: str, workspace_path=None, as
     if guns_file.exists():
         content = guns_file.read_text(encoding="utf-8")
         for line in content.splitlines():
-            if ("Planted" in line or "Reminded" in line) and not line.startswith("| 伏笔 ID") and not line.startswith("|---"):
+            if ("Planted" in line or "Reminded" in line or "Active" in line) and not line.startswith("| 伏笔 ID") and not line.startswith("|---"):
+                if has_placeholder(line):
+                    continue  # 母版示例占位行
                 package["active_chekhov_guns"].append(line.strip())
 
     # 3. Load Active Misunderstandings
@@ -88,6 +90,8 @@ def package_context_for_chapter(target_chapter_str: str, workspace_path=None, as
         content = mis_file.read_text(encoding="utf-8")
         for line in content.splitlines():
             if "MIS-" in line and not line.startswith("| ID") and not line.startswith("|---"):
+                if has_placeholder(line):
+                    continue  # 母版示例占位行
                 package["active_misunderstandings"].append(line.strip())
 
     # 4. Find Previous Chapter Ending

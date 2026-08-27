@@ -22,7 +22,7 @@ _tools_dir = Path(__file__).resolve().parent
 if str(_tools_dir) not in sys.path:
     sys.path.insert(0, str(_tools_dir))
 
-from novel_utils import resolve_workspace, reconfigure_utf8
+from novel_utils import resolve_workspace, reconfigure_utf8, has_placeholder, is_table_separator
 
 reconfigure_utf8()
 
@@ -154,22 +154,30 @@ def inspect_state(workspace_path=None, as_json=False):
     guns_file = workspace_dir / "04_timeline_and_state" / "chekhov_guns.md"
     if guns_file.exists():
         content = guns_file.read_text(encoding="utf-8")
-        planted = len(re.findall(r"\|\s*(?:Planted|Pending|已埋下)\b", content, re.IGNORECASE))
-        reminded = len(re.findall(r"\|\s*(?:Reminded|Active|激化|已激化)\b", content, re.IGNORECASE))
-        resolved = len(re.findall(r"\|\s*(?:Resolved|Triggered|已回收|已触发)\b", content, re.IGNORECASE))
+        # 计数时排除母版示例占位行
+        valid_gun_lines = [
+            l for l in content.splitlines()
+            if l.startswith("|") and not has_placeholder(l)
+        ]
+        valid_gun_text = "\n".join(valid_gun_lines)
+        planted = len(re.findall(r"\|\s*(?:Planted|Pending|已埋下)\b", valid_gun_text, re.IGNORECASE))
+        reminded = len(re.findall(r"\|\s*(?:Reminded|Active|激化|已激化)\b", valid_gun_text, re.IGNORECASE))
+        resolved = len(re.findall(r"\|\s*(?:Resolved|Triggered|已回收|已触发)\b", valid_gun_text, re.IGNORECASE))
         state_report["guns"]["planted"] = planted
         state_report["guns"]["reminded"] = reminded
         state_report["guns"]["resolved"] = resolved
-        
+
         # Parse active guns with expected chapter
         for line in content.splitlines():
-            if line.startswith("|") and not line.startswith("| 伏笔 ID") and not line.startswith("|---") and not line.startswith("|:---"):
+            if line.startswith("|") and "伏笔 ID" not in line and not is_table_separator(line):
                 parts = [p.strip() for p in line.split("|") if p.strip()]
                 if len(parts) >= 5:
                     gun_id = parts[0]
                     gun_name = parts[1]
                     status = parts[3]
                     target_ch = parts[4]
+                    if has_placeholder(line):
+                        continue  # 母版示例占位行
                     if not any(k in status.lower() for k in ["resolved", "triggered", "已回收", "已触发"]):
                         state_report["guns"]["active_list"].append({"id": gun_id, "name": gun_name, "status": status, "target_ch": target_ch})
 
@@ -190,6 +198,8 @@ def inspect_state(workspace_path=None, as_json=False):
         content = mis_file.read_text(encoding="utf-8")
         for line in content.splitlines():
             if "MIS-" in line and not line.startswith("| ID") and not line.startswith("|---"):
+                if has_placeholder(line):
+                    continue  # 母版示例占位行
                 parts = [p.strip() for p in line.split("|") if p.strip()]
                 if len(parts) >= 6:
                     mis_id = parts[0]
@@ -202,7 +212,9 @@ def inspect_state(workspace_path=None, as_json=False):
     if growth_file.exists():
         g_content = growth_file.read_text(encoding="utf-8")
         for line in g_content.splitlines():
-            if line.startswith("|") and not line.startswith("| 角色姓名") and not line.startswith("|---") and not line.startswith("| :---"):
+            if line.startswith("|") and "角色姓名" not in line and not is_table_separator(line):
+                if has_placeholder(line):
+                    continue  # 母版示例占位行
                 parts = [p.strip() for p in line.split("|") if p.strip()]
                 if len(parts) >= 4:
                     cname = parts[0]
