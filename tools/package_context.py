@@ -411,6 +411,21 @@ def package_context_for_chapter(target_chapter_str: str, workspace_path=None, as
     except Exception as e:
         package["memory_engine_error"] = str(e)
 
+    # 8d. P2 伏笔主动调度（为 beats-builder 排期：本章该引爆/回唤/唤醒哪些伏笔）
+    try:
+        import foreshadow_scheduler as fs
+        if target_num is not None:
+            package["foreshadow_schedule"] = fs.schedule(workspace_dir, target_num)
+            sched = package["foreshadow_schedule"]
+            for g in sched.get("detonate_now", []):
+                tag = "🚨超期" if g.get("overdue") else "⏰到期"
+                story_alerts.append(
+                    f"💥 [伏笔调度] {tag} {g['id']}《{g['name']}》{g['target']}：{g['note']}")
+            for g in sched.get("remind_soon", [])[:3]:
+                story_alerts.append(f"🔔 [伏笔回唤] {g['id']}《{g['name']}》：{g['note']}")
+    except Exception as e:
+        package["scheduler_error"] = str(e)
+
     # 9. Token 预算模式：按相关性裁剪（在所有内容装配完成后）
     if budget and budget > 0:
         package = _apply_budget(package, budget)
@@ -444,6 +459,19 @@ def package_context_for_chapter(target_chapter_str: str, workspace_path=None, as
         print("\n## 🔁 跨章重复预警 (写新章务必规避):")
         for w in package["cross_chapter_warnings"]:
             print(f"   {w}")
+        print("─" * 72)
+
+    sched = package.get("foreshadow_schedule")
+    if sched and (sched.get("detonate_now") or sched.get("remind_soon")
+                  or sched.get("dormant_wakeup")):
+        print("\n## 🪶 伏笔主动调度 (本章 Beats 排期建议):")
+        for g in sched.get("detonate_now", []):
+            tag = "🚨 超期" if g.get("overdue") else "⏰ 到期"
+            print(f"   💥 {tag} {g['id']}《{g['name']}》（{g['target']}）：{g['note']}")
+        for g in sched.get("remind_soon", []):
+            print(f"   🔔 回唤 {g['id']}《{g['name']}》：{g['note']}")
+        for g in sched.get("dormant_wakeup", [])[:4]:
+            print(f"   😴 沉睡 {g['id']}《{g['name']}》：{g['note']}")
         print("─" * 72)
 
     if package["target_beats"]:

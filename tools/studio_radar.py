@@ -75,6 +75,9 @@ def _is_blocking(report) -> bool:
         return True
     if report.get("status") == "ERRORS" or report.get("error_count", 0):
         return True
+    # P2 塌中段/注水：stalled=True 视为硬问题（雷达 JSON 模式下该子工具 exit 1）
+    if isinstance(report.get("stall"), dict) and report["stall"].get("stalled"):
+        return True
     if report.get("total_fatal_count", 0):
         return True
     if report.get("total_critical", 0):
@@ -99,6 +102,16 @@ def _collect_anomalies(name: str, report) -> list:
     if name == "cross_chapter_repetition":
         for w in (report.get("warnings") or []):
             out.append(f"[{name}] {w}")
+    # P2 塌中段检测
+    stall = report.get("stall")
+    if isinstance(stall, dict) and stall.get("stalled"):
+        for run in stall.get("stall_runs", []):
+            out.append(f"[{name}] 🪤 第 {run['from']}~{run['to']} 章连续 {run['count']} 章无状态变更，疑似塌中段/注水")
+    # P2 黄金配比：汇总失衡章节 WARNING
+    if name == "golden_ratio":
+        for ch in (report.get("golden_ratio", {}) or {}).get("chapters", []):
+            for w in ch.get("warnings", []):
+                out.append(f"[{name}] {ch.get('chapter')}: {w}")
     for e in (report.get("errors") or []):
         out.append(f"[{name}] ❌ {e}")
     for w in (report.get("warnings") or []):
@@ -138,6 +151,8 @@ def run_master_radar(target_chapter=None, workspace_path=None, as_json=False):
             ("memory_decay", [python_exe, str(tools_dir / "track_character_decay.py"), "-w", str(workspace_dir), "--json"]),
             ("character_network", [python_exe, str(tools_dir / "map_character_network.py"), "-w", str(workspace_dir), "--json"]),
             ("cross_chapter_repetition", [python_exe, str(tools_dir / "memory_core.py"), "-w", str(workspace_dir), "--json", "repeat"]),
+            ("stall_detector", [python_exe, str(tools_dir / "quality_radar.py"), "-w", str(workspace_dir), "--json", "--stall"]),
+            ("golden_ratio", [python_exe, str(tools_dir / "quality_radar.py"), "-w", str(workspace_dir), "--json", "--ratio"]),
         ]
 
         ch_subtools = [

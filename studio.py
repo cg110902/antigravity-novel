@@ -227,6 +227,31 @@ def cmd_doctor(args):
         extra.extend(["-w", args.workspace])
     return run_script("validate_state.py", extra)
 
+def cmd_quality(args):
+    """P2 quality radar: stall detection / golden ratio gate / style distillation."""
+    sub = args.sub
+    extra = []
+    flag = {"stall": "--stall", "ratio": "--ratio", "distill": "--distill", "all": "--all"}[sub]
+    extra.append(flag)
+    if args.chapter:
+        ch = args.chapter if args.chapter.startswith("ch_") else f"ch_{int(args.chapter):03d}"
+        extra.extend(["-c", ch])
+    if args.json:
+        extra.append("--json")
+    if args.workspace:
+        extra.extend(["-w", args.workspace])
+    return run_script("quality_radar.py", extra)
+
+def cmd_schedule(args):
+    """P2 foreshadowing scheduler: proactive gun scheduling for beats-builder."""
+    ch = args.chapter if args.chapter.startswith("ch_") else f"ch_{int(args.chapter):03d}"
+    extra = ["-c", ch]
+    if args.json:
+        extra.append("--json")
+    if args.workspace:
+        extra.extend(["-w", args.workspace])
+    return run_script("foreshadow_scheduler.py", extra)
+
 def cmd_sync(args):
     """Stage 4: Verify ledgers, track continuity, and automatically snapshot."""
     ch = args.chapter if args.chapter.startswith("ch_") else f"ch_{int(args.chapter):03d}"
@@ -470,6 +495,23 @@ def main():
     p_doc = subparsers.add_parser("doctor", help="工作区健康自检（结构/台账/占位符/快照）")
     p_doc.add_argument("-w", "--workspace", help="指定工作区路径")
     p_doc.set_defaults(func=cmd_doctor)
+
+    # quality (P2: stall / golden ratio / style distillation)
+    p_qual = subparsers.add_parser("quality", help="[P2 质检雷达] 塌中段检测 / 黄金配比量化门 / 文风蒸馏")
+    p_qual.add_argument("sub", nargs="?", default="all",
+                        choices=["stall", "ratio", "distill", "all"],
+                        help="stall=塌中段/注水; ratio=黄金配比门; distill=文风蒸馏; all=全部(默认)")
+    p_qual.add_argument("-c", "--chapter", help="指定章节（ratio 单章 / distill 单章对比用）")
+    p_qual.add_argument("-w", "--workspace", help="指定工作区路径")
+    p_qual.add_argument("--json", action="store_true", help="以结构化 JSON 格式输出")
+    p_qual.set_defaults(func=cmd_quality)
+
+    # schedule (P2: foreshadowing scheduler)
+    p_sched = subparsers.add_parser("schedule", help="[P2 伏笔调度器] 为指定章 Beats 主动排期待引爆/回唤/沉睡伏笔")
+    p_sched.add_argument("chapter", help="目标章节 (如 8 或 ch_008)")
+    p_sched.add_argument("-w", "--workspace", help="指定工作区路径")
+    p_sched.add_argument("--json", action="store_true", help="以结构化 JSON 格式输出")
+    p_sched.set_defaults(func=cmd_schedule)
 
     # sync
     p_sync = subparsers.add_parser("sync", help="[Stage 4] 双台账校验、道具流转核验与版本快照自同步")

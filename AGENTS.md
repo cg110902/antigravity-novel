@@ -105,11 +105,12 @@
      - 📚 **全书梗概脊柱**（`chapter_synopsis.json`）：每章一句话梗概，避免重复已写过的场景/桥段；定稿后由 state-syncer 在提案里带 `synopsis` 字段登记精炼梗概（`studio.py memory spine` 可为漏登记章节补自动梗概占位）；
      - 🔎 **RAG 资料员 BM25 召回**：按本章细纲/上章结尾召回最相关的旧伏笔、人物、设定段落（`studio.py memory recall "关键词"` 可手动查询；无 jieba 时自动降级为字 bi-gram，零依赖可用）；
      - 🔁 **跨章重复预警**：已登场角色被"再次首次介绍"、n-gram 雷同、场景节拍相似（`studio.py memory repeat`），写新章时必须换桥段、勿重新介绍老角色；
-  3. 调用 `novel-beats-builder` 推演单章分场景细纲，运用 4 维正交积木拼装体系（镜头/引擎/折叶/余韵）；
-  4. 🎣 **高级叙事驱动与推拉术**：在核心冲突篇章中运用三层期待感模型（显性目标 + 隐性危机 + 倒计时紧迫感），在日常过渡篇章中张弛有度；
-  5. 🛡️ **长线数值与阶梯锁**：严禁单章极速暴涨；机制与金手指必须具备真实波折、代价与未竟之憾；
-  6. 🏛️ **社会生态深度**：高位势力拥有体制威严与利益算盘，严禁安排低智反派无脑叫嚣；
-  7. 推演 3 个走向选项，由 Lead Director 自主评估选定最优选项，直通起草。
+  3. 🪶 **P2 伏笔主动调度（pack 自动注入，也可 `studio.py schedule ch_xxx` 单独跑）**：beats-builder 动笔前先看排期建议——本章应**引爆/回收**哪些到期或超期伏笔、应**回唤**哪些临近引爆（3 章窗口内）的伏笔、哪些**沉睡伏笔**（5 章未提及）需要自然唤醒、长线伏笔的保温节奏；beats 必须为"应引爆"伏笔安排兑现节拍；
+  4. 调用 `novel-beats-builder` 推演单章分场景细纲，运用 4 维正交积木拼装体系（镜头/引擎/折叶/余韵）；
+  5. 🎣 **高级叙事驱动与推拉术**：在核心冲突篇章中运用三层期待感模型（显性目标 + 隐性危机 + 倒计时紧迫感），在日常过渡篇章中张弛有度；
+  6. 🛡️ **长线数值与阶梯锁**：严禁单章极速暴涨；机制与金手指必须具备真实波折、代价与未竟之憾；
+  7. 🏛️ **社会生态深度**：高位势力拥有体制威严与利益算盘，严禁安排低智反派无脑叫嚣；
+  8. 推演 3 个走向选项，由 Lead Director 自主评估选定最优选项，直通起草。
 
 ---
 
@@ -190,6 +191,11 @@
      - WARNING 级别提示供审校特工参考修正，INFO 级别仅供人工审阅；
      - 必须修正全部 CRITICAL 项通过后，方可触发 Stage 4 状态同步。
 
+  5. 📊 **【P2 高级量化质检雷达（确定性，零 Token，WARNING 不硬阻断）】**：
+     - 🪤 **塌中段/注水检测** `python studio.py quality stall`：连续 3 章定稿却无任何状态变更（提案/流水/编年史无痕迹）即判"中段塌陷/注水"（借鉴 Novel-OS stall_detector）；在 `radar` 中作为硬问题上报；
+     - ⚖️ **黄金配比量化门** `python studio.py quality ratio [-c ch_xxx]`：逐章统计 对白/推进动作/静态描写 三维占比（引号内为对白，其余按描写/动作信号词投票），对照黄金基线打分并对失衡（通篇风景、零对白、动作停滞）出 WARNING；只提示不阻断，对话章可自然上浮；
+     - 🎨 **文风蒸馏** `python studio.py quality distill`（全书建指纹，存 `style_fingerprint.json`）/ `quality distill -c ch_xxx`（单章对比）：以全部定稿为正样本统计句长分布、对白密度、短句占比、段长、口癖词频（笑了笑/似笑非笑/瞳孔骤缩等），单章显著偏离全书指纹或口癖超标即提示，作为去 AI 味/防 OOC 的客观参照。
+
 ---
 
 ### 阶段四：交付与状态自同步 (Stage 4: Delivery & State Sync)
@@ -201,7 +207,8 @@
      - `misunderstandings[]`：`{action: plant|update|resolve, id?, parties, content, truth?, level?, target_ch?}`，自动编号 `MIS-00x`；
      - `growth_arcs[]`：`{name, action: insert|update, stage, baseline?, inciting_event?, strategy?, ultimate?}`（按角色名 upsert）；
      - `timeline[]`：`{time, event}`（按时间锚点幂等去重）；
-     - `transactions[]`：复式记账流水 `{resource, delta(正收负支), type, subject, counterparty?, note?}`，余额由流水重算，**严禁手填余额**；资源池不存在时报错（先在台账登记）。
+     - `transactions[]`：复式记账流水 `{resource, delta(正收负支), type, subject, counterparty?, note?}`，余额由流水重算，**严禁手填余额**；资源池不存在时报错（先在台账登记）；
+     - `synopsis`（可选）+ `chapter_title`（可选）：本章 2~3 句精炼梗概，登记进梗概脊柱（source=manual，优先于自动梗概）。
   2. 运行 `python studio.py sync ch_xxx`：流程 `[0/3]` 先由确定性合并器 `tools/state_apply.py` 校验并幂等合并提案（成功归档 `state_inbox/processed/`、失败归档 `state_inbox/failed/` 并报错），随后核验双台账平衡、道具时空轨迹并打下版本快照；
   3. 可随时运行 `python studio.py doctor`（`tools/validate_state.py`）做工作区体检：结构完整性、复式账本平衡、GUN/MIS 编号冲突、正文占位符残留；有 ERROR 时退出码为 1；
   4. 向人类导演交付定稿，并提供下一章剧情引子。
