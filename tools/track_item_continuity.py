@@ -24,6 +24,15 @@ from novel_utils import resolve_workspace, find_manuscript_files, reconfigure_ut
 
 reconfigure_utf8()
 
+SYSTEM_RESERVED_LABELS = {
+    "当前", "地点", "时间", "角色", "状态", "境界", "战力", "阶层", "特殊", "机制",
+    "词条", "能力", "博弈", "局势", "引子", "随身", "核心", "关键", "装备", "信物",
+    "道具", "资产", "资金", "流动", "基本盘", "生理", "负荷", "暗伤", "社会阶层",
+    "持有核心资产与道具", "随身核心信物/关键装备", "后方基本盘资产", "随身流动资金",
+    "生理负荷/暗伤", "特殊机制/词条/能力", "当前境界/战力/社会阶层", "当前时间节点",
+    "当前故事地点", "在场核心角色", "当前博弈局势与下一章引子"
+}
+
 def load_tracked_items(workspace_dir: Path):
     items = {}
     
@@ -40,19 +49,19 @@ def load_tracked_items(workspace_dir: Path):
                     if has_placeholder(line) or has_placeholder(raw_name):
                         continue  # 母版示例占位行
                     clean_name = re.sub(r"[《》<>【】\*_`]", "", raw_name).strip()
-                    if clean_name:
+                    if clean_name and clean_name not in SYSTEM_RESERVED_LABELS:
                         items[clean_name] = {"source": gun_id, "type": "伏笔道具"}
 
-    # 2. Read from current_state.md
+    # 2. Read from current_state.md (Focus on items/equipment/tokens)
     state_file = workspace_dir / "04_timeline_and_state" / "current_state.md"
     if state_file.exists():
         content = state_file.read_text(encoding="utf-8")
-        # Extract items in bold or bracket
-        matches = re.findall(r"【(.*?)】|\*\*(.*?)\*\*", content)
-        for m1, m2 in matches:
-            name = (m1 or m2).strip()
-            if len(name) >= 2 and len(name) <= 12 and not any(k in name for k in ["当前", "地点", "时间", "角色", "状态"]):
-                if name not in items:
+        # Extract items specifically in 【...】 or from items/equipment lines
+        matches = re.findall(r"【(.*?)】", content)
+        for m in matches:
+            name = re.sub(r"[《》<>【】\*_`]", "", m).strip()
+            if len(name) >= 2 and len(name) <= 15 and not any(k in name for k in ["当前", "地点", "时间", "角色", "状态"]):
+                if name not in items and name not in SYSTEM_RESERVED_LABELS:
                     items[name] = {"source": "current_state", "type": "当前状态道具"}
 
     return items
@@ -108,8 +117,6 @@ def track_items_across_chapters(target_chapter=None, workspace_path=None, as_jso
         return not bool(target_chapter)
 
     raw_items = load_tracked_items(workspace_dir)
-    # 不在台账中登记任何道具时，轨迹校验本就无对象可检；如实报告空态，
-    # 绝不硬编码玄幻道具兜底（那会在非玄幻题材下产生大量误报/假轨迹）。
     if not raw_items:
         if as_json:
             out = {
@@ -141,7 +148,6 @@ def track_items_across_chapters(target_chapter=None, workspace_path=None, as_jso
 
         for raw_name in raw_items.keys():
             aliases = extract_item_aliases(raw_name)
-            # Match any alias
             found_matches = []
             for alias in aliases:
                 matches = list(re.finditer(re.escape(alias), content))
@@ -166,7 +172,6 @@ def track_items_across_chapters(target_chapter=None, workspace_path=None, as_jso
         print(json.dumps(out, ensure_ascii=False, indent=2))
         return out
 
-    # Informational note for items never seen on page (soft hint, not a hard error)
     never_seen = [name for name in raw_items if not item_timeline.get(name)]
 
     print("=" * 72)
