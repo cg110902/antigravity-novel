@@ -7,6 +7,7 @@ Centralizes common infrastructure and pattern libraries for diagnostic tools:
 - Clean manuscript file discovery
 - Registered character extraction from index and profiles
 - Generic Syntactic Skeletons, Semantic Redundancy Clusters & AI Cliché Rules
+  (v2: 通用兜底 + 题材特定词表动态叠加，不再硬编码玄幻偏见)
 - Ground Truth loader for State Machine (Character Arcs & Chekhov Guns)
 - Unsupervised N-gram burstiness & semantic redundancy analyzers
 - UTF-8 console reconfiguration
@@ -17,6 +18,7 @@ import re
 from pathlib import Path
 from collections import defaultdict
 
+
 def reconfigure_utf8():
     """Ensure UTF-8 encoding on Windows consoles."""
     if sys.platform == "win32":
@@ -25,9 +27,11 @@ def reconfigure_utf8():
         except Exception:
             pass
 
+
 def project_root() -> Path:
     """Returns the repository root (parent of the tools/ directory)."""
     return Path(__file__).resolve().parent.parent
+
 
 def resolve_workspace(workspace_arg=None) -> Path:
     """Resolves target workspace directory.
@@ -49,10 +53,12 @@ def resolve_workspace(workspace_arg=None) -> Path:
         return (base_dir / declared).resolve()
     return (base_dir / "novel_workspace").resolve()
 
+
 # ---------------------------------------------------------------------------
 # Lightweight novel_config.yaml loader (zero third-party dependencies)
 # ---------------------------------------------------------------------------
 _CONFIG_CACHE = None
+
 
 def load_studio_config() -> dict:
     """Parses the small subset of novel_config.yaml the toolchain actually needs.
@@ -102,6 +108,7 @@ def load_studio_config() -> dict:
     _CONFIG_CACHE = cfg
     return cfg
 
+
 def _parse_yaml_scalar(val: str):
     """Coerces a YAML scalar string into bool/int/float/str."""
     if len(val) >= 2 and val[0] == val[-1] and val[0] in ("'", '"'):
@@ -123,6 +130,7 @@ def _parse_yaml_scalar(val: str):
         pass
     return val
 
+
 # ---------------------------------------------------------------------------
 # Chapter identity helpers (boundary-safe, works past chapter 100)
 # ---------------------------------------------------------------------------
@@ -135,12 +143,14 @@ def chapter_token_to_num(token) -> int:
     m = re.search(r"(\d+)", str(token))
     return int(m.group(1)) if m else None
 
+
 def chapter_number_from_name(name: str):
     """Extracts the chapter number embedded in a file/directory name (None if absent)."""
     m = re.search(r"ch[_-]?0*(\d+)(?![0-9])", str(name), re.IGNORECASE)
     if not m:
         m = re.search(r"chapter[_-]?0*(\d+)(?![0-9])", str(name), re.IGNORECASE)
     return int(m.group(1)) if m else None
+
 
 def file_matches_chapter(path: Path, target_chapter) -> bool:
     """Boundary-safe chapter match.
@@ -150,9 +160,9 @@ def file_matches_chapter(path: Path, target_chapter) -> bool:
     """
     target_num = chapter_token_to_num(target_chapter)
     if target_num is None:
-        # Non-numeric target: fall back to plain substring match.
         return str(target_chapter) in str(path).replace("\\", "/")
     return chapter_number_from_name(path.name) == target_num
+
 
 def latest_chapter_number(manuscript_dir: Path, require_finalized: bool = True):
     """Highest chapter number present in the manuscript tree (0 if none)."""
@@ -166,13 +176,12 @@ def latest_chapter_number(manuscript_dir: Path, require_finalized: bool = True):
             if not f.name.startswith(".") and chapter_number_from_name(f.name) is not None]
     return max(nums) if nums else 0
 
+
 # ---------------------------------------------------------------------------
 # Template placeholder detection
 # ---------------------------------------------------------------------------
-# 未替换的母版占位符形如 [主角姓名]、[首卷对手]、[核心金手指 / 终极大机制]。
-# 所有解析“台账表格 / 实体名”的工具都必须跳过仍含占位符的行，否则会把
-# 母版里的填写示例误当成真实伏笔/角色/道具数据（新书第一天就误报）。
 PLACEHOLDER_RE = re.compile(r"\[[^\[\]]*[\u4e00-\u9fa5][^\[\]]*\]")
+
 
 def has_placeholder(text) -> bool:
     """True if the text still contains an unfilled [中文] template placeholder."""
@@ -180,7 +189,9 @@ def has_placeholder(text) -> bool:
         return False
     return bool(PLACEHOLDER_RE.search(str(text)))
 
+
 _SEPARATOR_CELL_RE = re.compile(r"^:?-{2,}:?$")
+
 
 def is_table_separator(line: str) -> bool:
     """True for markdown table separator rows like '|---|:---:|---|' (any spacing)."""
@@ -188,6 +199,7 @@ def is_table_separator(line: str) -> bool:
         return False
     cells = [c.strip() for c in line.strip().strip("|").split("|")]
     return all(_SEPARATOR_CELL_RE.match(c) for c in cells if c != "") and any(cells)
+
 
 def is_table_header(line: str, keywords=()) -> bool:
     """True for table header rows (contains a header keyword) or separator rows."""
@@ -259,9 +271,11 @@ def find_table_block(lines: list, header_keyword: str):
                 }
     return None
 
+
 def strip_placeholders(text: str) -> str:
     """Removes all [中文] placeholder spans from a string."""
     return PLACEHOLDER_RE.sub("", str(text or ""))
+
 
 def natural_chapter_sort_key(file_path: Path) -> tuple:
     """Generates natural sort key (volume_num, chapter_num, filename) for chapters."""
@@ -271,10 +285,10 @@ def natural_chapter_sort_key(file_path: Path) -> tuple:
 
     ch_num = chapter_number_from_name(file_path.name)
     if ch_num is None:
-        # Last-resort: any leading number in the filename.
         m = re.search(r"(\d+)", file_path.name)
         ch_num = int(m.group(1)) if m else 9999
     return (vol_num, ch_num, file_path.name)
+
 
 def find_manuscript_files(manuscript_dir: Path, target_chapter: str = None, single_latest: bool = False) -> list:
     """Finds valid novel chapter manuscript files (finalized or raw_drafts)."""
@@ -328,6 +342,7 @@ def find_manuscript_files(manuscript_dir: Path, target_chapter: str = None, sing
         return [all_md[-1]] if single_latest else all_md
     return []
 
+
 def load_registered_characters(workspace_dir: Path) -> list:
     """Extracts all registered character names (Chinese names)."""
     chars = set()
@@ -340,7 +355,6 @@ def load_registered_characters(workspace_dir: Path) -> list:
                 if parts and not parts[0].startswith("[") and not parts[0].startswith(":") and not parts[0].startswith("-") and "角色" not in parts[0] and "姓名" not in parts[0]:
                     clean_name = re.sub(r"[*_`#]", "", parts[0]).strip()
                     clean_name = re.sub(r"\s*[（(].*?[）)]", "", clean_name).strip()
-                    # 跳过母版未替换占位符（如 [首卷对手]），它们不是真实角色
                     if clean_name and len(clean_name) <= 10 and not has_placeholder(clean_name):
                         chars.add(clean_name)
 
@@ -358,8 +372,112 @@ def load_registered_characters(workspace_dir: Path) -> list:
 
     return sorted(list(chars))
 
+
+# ===========================================================================
+# v2: 题材自适应词表加载层（Genre-Adaptive Lexicon Layer）
+# ---------------------------------------------------------------------------
+# 所有题材特定词表（断章关键词/语义聚类/数量词白名单/陈词模式）
+# 均从 genre_profile.json 动态加载，通用代码不再硬编码玄幻偏见。
+# 延迟导入 genre_profile 以避免循环引用。
+# ===========================================================================
+
+def get_genre_profile(workspace=None) -> dict:
+    """延迟加载题材档案（避免循环引用）。失败时返回空 dict。"""
+    try:
+        from genre_profile import resolve_genre_profile
+        return resolve_genre_profile(workspace)
+    except Exception:
+        return {}
+
+
+def is_combat_genre(workspace=None) -> bool:
+    """判断当前题材是否为战斗密集型（影响战斗套路检测是否启用）。"""
+    prof = get_genre_profile(workspace)
+    return bool(prof.get("combat_heavy", False))
+
+
+def get_cliffhanger_keywords(workspace=None) -> list:
+    """返回断章关键词：通用兜底 + 题材特定叠加。"""
+    keywords = list(CLIFFHANGER_KEYWORDS_GENERIC)
+    prof = get_genre_profile(workspace)
+    extra = prof.get("cliffhanger_keywords", [])
+    if extra:
+        keywords.extend(extra)
+    return list(dict.fromkeys(keywords))  # 去重保序
+
+
+def get_semantic_clusters(workspace=None) -> list:
+    """返回语义冗余聚类：通用兜底 + 题材特定叠加。"""
+    clusters = list(SEMANTIC_CLUSTERS_GENERIC)
+    prof = get_genre_profile(workspace)
+    extra = prof.get("semantic_clusters", [])
+    if extra:
+        clusters.extend(extra)
+    return clusters
+
+
+def get_quantity_whitelist(workspace=None) -> set:
+    """返回数量词白名单：通用兜底 + 题材特定叠加。"""
+    whitelist = set(QUANTITY_WHITELIST_GENERIC)
+    prof = get_genre_profile(workspace)
+    extra = prof.get("quantity_whitelist", [])
+    if extra:
+        whitelist.update(extra)
+    return whitelist
+
+
+def get_cliche_patterns(workspace=None) -> list:
+    """返回陈词滥调模式：通用兜底 + 题材特定叠加。
+    战斗套路仅在 combat_heavy 题材中启用。"""
+    patterns = []
+    for p in GENERIC_SKELETONS:
+        if p.get("combat_genre_only") and not is_combat_genre(workspace):
+            continue
+        patterns.append(p)
+    prof = get_genre_profile(workspace)
+    extra = prof.get("cliche_patterns", [])
+    if extra:
+        patterns.extend(extra)
+    return patterns
+
+
+# ---------------------------------------------------------------------------
+# 通用兜底词表（Generic Fallback Lexicons）
+# v2: 仅保留真正跨题材通用的内容，题材特定内容移至 genre_profile
+# ---------------------------------------------------------------------------
+
+# 通用数量词白名单（跨题材通用，题材特定在 genre_profile.quantity_whitelist 叠加）
+QUANTITY_WHITELIST_GENERIC = {
+    "一个", "两个", "三个", "四个", "五个", "六个", "七个", "八个", "九个", "十个",
+    "十二", "十三", "十四", "十五", "二十", "三十", "五十", "一百", "数百", "数千",
+    "数万", "三年", "三日", "一日", "两日", "半步", "一寸", "三寸", "一息", "数息",
+    "十息", "一汪", "一尊", "一枚", "一抹", "一丝", "一柄", "一具", "一道", "一轮",
+    "一团", "一口", "半截", "半天", "一夜", "半晌", "片刻", "须臾", "转瞬", "顷刻",
+}
+
+# 通用断章关键词（跨题材通用，题材特定在 genre_profile.cliffhanger_keywords 叠加）
+# v2: 移除了灵鹤/玉简/飞舟/剑鸣/神芒/神轮/大世/出山等玄幻专属词
+CLIFFHANGER_KEYWORDS_GENERIC = [
+    "脚步声", "突如其来", "敲门声", "传讯", "杀气", "暗流", "异动", "死寂",
+    "冷笑", "破空声", "警钟", "急促", "变故", "暴涨", "入局", "急报",
+    "波澜", "落子", "风暴", "警报", "震动", "轰鸣", "碎裂", "崩塌",
+    "沉默", "对峙", "逼近", "降临", "觉醒", "逆转", "真相", "秘密",
+]
+
+# 通用压抑氛围词（跨题材通用，题材特定在 genre_profile 叠加）
+OPPRESSIVE_KEYWORDS = [
+    "死寂", "阴冷", "森然", "逼仄", "沉郁", "如坠冰窟", "暗黑", "森冷", "死气沉沉",
+    "压抑", "窒息", "彻骨", "冰冷死寂", "绝望", "阴沉", "灰败",
+]
+
+STOP_CHARS = set("的一是在了不有和人这中大上个国为以我时要他就出于也得着到说后自会那多可家去下地生心而便与向之但如所微此")
+
+
 def build_smart_whitelist(workspace_dir: Path) -> set:
-    """Dynamically builds comprehensive whitelist of character names, locations, factions, items, and numerals from workspace."""
+    """Dynamically builds comprehensive whitelist of character names, locations, factions, items, and numerals from workspace.
+
+    v2: 数量词白名单从题材档案动态加载，不再硬编码古风量词。
+    """
     registered_chars = load_registered_characters(workspace_dir)
     whitelist = set()
     for name in registered_chars:
@@ -370,14 +488,8 @@ def build_smart_whitelist(workspace_dir: Path) -> set:
             for i in range(len(name) - 2):
                 whitelist.add(name[i:i+3])
 
-    numerals = {
-        "一个", "两个", "三个", "四个", "五个", "六个", "七个", "八个", "九个", "十个",
-        "十二", "十三", "十四", "十五", "二十", "三十", "五十", "一百", "数百", "数千",
-        "数万", "万载", "万年", "三载", "三年", "三日", "一日", "两日", "半步", "一寸",
-        "三寸", "一息", "数息", "十息", "百丈", "千丈", "万丈", "一汪", "一尊", "一枚",
-        "一抹", "一丝", "一柄", "一具", "一道", "一轮", "一团", "一口", "半截", "一文"
-    }
-    whitelist.update(numerals)
+    # v2: 数量词白名单从题材档案动态加载（通用兜底 + 题材特定）
+    whitelist.update(get_quantity_whitelist(workspace_dir))
 
     # 动态扫描世界观、势力、地理与状态机中的专有词汇 (100% 全题材动态自适应)
     world_dir = workspace_dir / "01_world"
@@ -385,7 +497,6 @@ def build_smart_whitelist(workspace_dir: Path) -> set:
         for wfile in world_dir.glob("*.md"):
             if not wfile.name.startswith("."):
                 content = wfile.read_text(encoding="utf-8")
-                # 提取标题和粗体专有名词
                 matches = re.findall(r"(?:#+\s*|【|\*\*|`)([\u4e00-\u9fa5]{2,8})(?:】|\*\*|`|\s)", content)
                 for term in matches:
                     if len(term) <= 6:
@@ -401,7 +512,9 @@ def build_smart_whitelist(workspace_dir: Path) -> set:
 
     return whitelist
 
+
 # 🏛️ 高阶抽象句式骨架与 AI 味诊断正则 (Single Source of Truth)
+# v2: 战斗套路标记 combat_genre_only=True，非战斗题材自动跳过
 GENERIC_SKELETONS = [
     {
         "name": "虚词化修饰与状态垫片 (State Particle Abstraction)",
@@ -411,12 +524,12 @@ GENERIC_SKELETONS = [
     {
         "name": "脸谱化神态与微表情模板 (Sensory & Facial Template)",
         "pattern": r"(?:眼底|眸中|双眸|眸底|眉宇间|眉心|心底|心头|唇角|嘴角|指尖)(?:深处)?(?:悄然|隐隐|微不可察地|极快地)?(?:掠过|闪过|浮现|泛起|升腾起|透着|多出)(?:了)?(?:一抹|一丝|几分|些许|一道)[\u4e00-\u9fa5]{1,4}",
-        "suggestion": "避免‘眼底掠过一丝/唇角泛起一抹’等机械化脸谱模板。可灵活选用切合当前具体情境的人物专属动作、生理本能反应、现场环境借景或纯对白；但若此处描写确属点睛之笔，可灵活保留。角色表情需多样化且符合逻辑，该是什么反应就得是什么反应。"
+        "suggestion": "避免'眼底掠过一丝/唇角泛起一抹'等机械化脸谱模板。可灵活选用切合当前具体情境的人物专属动作、生理本能反应、现场环境借景或纯对白；但若此处描写确属点睛之笔，可灵活保留。角色表情需多样化且符合逻辑，该是什么反应就得是什么反应。"
     },
     {
         "name": "机械比喻与套路修辞 (Mechanical Metaphor Skeleton)",
         "pattern": r"(?:宛若|仿佛|好似|恰似|犹如)[\u4e00-\u9fa5]{2,10}(?:一般|似的|模样|般的存在)",
-        "suggestion": "精简‘宛若XX一般/仿佛XX似的’等套路比喻，保持行文简练利落与张力；但若比喻新颖贴切，不必教条全删，依情节需要灵活取舍。"
+        "suggestion": "精简'宛若XX一般/仿佛XX似的'等套路比喻，保持行文简练利落与张力；但若比喻新颖贴切，不必教条全删，依情节需要灵活取舍。"
     },
     {
         "name": "高频偷懒副词与极值修饰 (Intensifier & Adverb Overuse)",
@@ -431,7 +544,7 @@ GENERIC_SKELETONS = [
     {
         "name": "辩证反差骨架泛型 (Dialectical Antithesis Skeleton)",
         "pattern": r"(?:看似|表面[上来看]*|看似寻常的?|看似漫不经心的?)[\u4e00-\u9fa5]{1,8}[，,]?(?:实则|暗地里|暗中却|骨子里却|实际上)[\u4e00-\u9fa5]{1,8}",
-        "suggestion": "避免说教式‘看似XX实则XX’生硬对比，直接呈现角色行动与实际影响，让戏剧反差自然浮现。"
+        "suggestion": "避免说教式'看似XX实则XX'生硬对比，直接呈现角色行动与实际影响，让戏剧反差自然浮现。"
     },
     {
         "name": "系统工程标记外泄 (Internal Engineering Tag Leak)",
@@ -440,33 +553,39 @@ GENERIC_SKELETONS = [
     },
     {
         "name": "战斗套路与脸谱反派口癖 (Battle & Antagonist Cliché Skeleton)",
-        "pattern": r"(?:目光如刀|神色未变|神情未变|不知死活的[小杂畜东西]|死到临头.*?还敢|留你不得|眼中闪过一抹杀[气意]|嘴角勾起一抹[冷残狞]笑|冷笑连连|去势不减|连眼皮都未曾眨一下)",
-        "suggestion": "避免‘目光如刀/神色未变/不知死活/嘴角勾起一抹冷笑’等模式化爽文词汇堆砌。建议置换为真实的生理反应（如喉头耸动、汗毛倒竖、呼吸暂止）、微动作（如指节扣紧、重心微沉）或现场物理阻力描写。"
-    }
+        "combat_genre_only": True,
+        "pattern": r"(?:目光如刀|神色未变|不知死活的[小杂畜东西]|死到临头.*?还敢|留你不得|眼中闪过一抹杀[气意]|嘴角勾起一抹[冷残狞]笑|冷笑连连|去势不减|连眼皮都未曾眨一下)",
+        "suggestion": "避免'目光如刀/神色未变/不知死活/嘴角勾起一抹冷笑'等模式化爽文词汇堆砌。建议置换为真实的生理反应（如喉头耸动、汗毛倒竖、呼吸暂止）、微动作（如指节扣紧、重心微沉）或现场物理阻力描写。非战斗题材此规则自动禁用。"
+    },
 ]
 
-# 🌊 冗余与同义反复特征词群
-SEMANTIC_CLUSTERS = [
+# 🌊 通用语义冗余聚类（Generic Fallback）
+# v2: 仅保留跨题材通用的聚类，题材特定在 genre_profile.semantic_clusters 叠加
+SEMANTIC_CLUSTERS_GENERIC = [
     {
         "cluster_name": "恐惧与瘫软同义堆砌",
         "keywords": ["吓瘫", "抖若筛糠", "面无人色", "牙关打战", "魂飞魄散", "涕泗横流", "冷汗涔涔", "惊恐万状"],
         "min_hits": 3,
-        "suggestion": "当前段落密集出现多次‘恐惧/惊骇’同义表达，存在情节与情绪冗余。建议合并或删减 1处，用一记利落动作直接推进，避免反复自嗨。"
-    }
+        "suggestion": "当前段落密集出现多次'恐惧/惊骇'同义表达，存在情节与情绪冗余。建议合并或删减 1处，用一记利落动作直接推进，避免反复自嗨。"
+    },
+    {
+        "cluster_name": "愤怒与暴怒同义堆砌",
+        "keywords": ["勃然大怒", "怒不可遏", "怒火中烧", "火冒三丈", "暴跳如雷", "咬牙切齿", "目眦欲裂", "青筋暴起"],
+        "min_hits": 3,
+        "suggestion": "当前段落密集出现多次'愤怒'同义表达，存在情绪冗余。建议合并或删减，用具体动作或后果呈现愤怒，避免反复描写情绪本身。"
+    },
+    {
+        "cluster_name": "震惊与不可思议同义堆砌",
+        "keywords": ["难以置信", "不可思议", "瞠目结舌", "目瞪口呆", "大惊失色", "震惊", "骇然", "惊愕"],
+        "min_hits": 3,
+        "suggestion": "当前段落密集出现多次'震惊'同义表达，存在情绪冗余。建议删减重复，用配角视角或具体后果呈现震撼，避免反复自嗨。"
+    },
 ]
 
-CLIFFHANGER_KEYWORDS = [
-    "脚步声", "突如其来", "敲门声", "传讯", "灵鹤", "玉简", "杀气", "暗流", "飞舟",
-    "异动", "死寂", "冷笑", "破空声", "警钟", "急促", "变故", "剑鸣", "暴涨", "入局",
-    "神芒", "神轮", "大变", "出山", "急报", "波澜", "大世", "落子", "风暴"
-]
+# 向后兼容别名（旧代码引用 SEMANTIC_CLUSTERS 时仍可用）
+SEMANTIC_CLUSTERS = SEMANTIC_CLUSTERS_GENERIC
+CLIFFHANGER_KEYWORDS = CLIFFHANGER_KEYWORDS_GENERIC
 
-OPPRESSIVE_KEYWORDS = [
-    "死寂", "阴冷", "森然", "逼仄", "沉郁", "如坠冰窟", "暗黑", "森冷", "死气沉沉",
-    "压抑", "窒息", "彻骨", "冰冷死寂", "绝望", "阴沉", "灰败"
-]
-
-STOP_CHARS = set("的一是在了不有和人这中大上个国为以我时要他就出于也得着到说后自会那多可家去下地生心而便与向之但如所微此")
 
 def load_ground_truth(workspace_dir: Path):
     """Loads Character growth mindset arcs and Chekhov guns from state machine."""
@@ -477,7 +596,7 @@ def load_ground_truth(workspace_dir: Path):
         for line in content.splitlines():
             if line.startswith("|") and "角色" not in line and not is_table_separator(line):
                 if has_placeholder(line):
-                    continue  # 母版示例占位行
+                    continue
                 parts = [p.strip() for p in line.split("|") if p.strip()]
                 if len(parts) >= 3:
                     raw_name = parts[0]
@@ -503,19 +622,24 @@ def load_ground_truth(workspace_dir: Path):
         for line in content.splitlines():
             if line.startswith("|") and ("Planted" in line or "Reminded" in line or "Triggered" in line or "Active" in line):
                 if has_placeholder(line):
-                    continue  # 母版示例占位行
+                    continue
                 parts = [p.strip() for p in line.split("|") if p.strip()]
                 if len(parts) >= 2:
                     guns.append(f"{parts[0]} - {parts[1]}")
     return mindset_arcs, guns
 
-def detect_semantic_redundancy(lines, window_lines=4):
-    """Detects paragraph-level semantic redundancy and emotional clutter."""
+
+def detect_semantic_redundancy(lines, window_lines=4, workspace=None):
+    """Detects paragraph-level semantic redundancy and emotional clutter.
+
+    v2: 聚类从题材档案动态加载（通用兜底 + 题材特定）。
+    """
     redundancy_slices = []
+    clusters = get_semantic_clusters(workspace)
     for idx in range(len(lines)):
         window = lines[idx:min(len(lines), idx + window_lines)]
         window_text = " ".join(window)
-        for cluster in SEMANTIC_CLUSTERS:
+        for cluster in clusters:
             matched_words = [kw for kw in cluster["keywords"] if kw in window_text]
             if len(matched_words) >= cluster["min_hits"]:
                 redundancy_slices.append({
@@ -526,6 +650,7 @@ def detect_semantic_redundancy(lines, window_lines=4):
                 })
                 break
     return redundancy_slices
+
 
 def unsupervised_burstiness_slices(lines, window_size=400, min_repeat=3):
     """Unsupervised N-gram burstiness slice extractor."""
