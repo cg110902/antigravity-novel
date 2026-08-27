@@ -253,7 +253,10 @@ def detect_phantom_entities(
 
     # Build intro patterns (indicating first mention with explanation)
     intro_patterns = [
-        r"名叫|名为|叫做|名号|是.*?的|自称|人称|唤作|绰号",
+        r"名叫|名为|叫做|名号|是.*?的|自称|人称|唤作|绰号|乃是|正是|本是|原是|时任|现任",
+        r"(?:此人|那人|对方|这人)[正是乃是为系]",
+        r"(?:巡检|副使|主官|执事|管事|堂主|掌柜|朝奉|刺客|死士|孤儿|老汉|老者|少年|女子|男子|少主|长老|宗主|统领|差役|打手|帮众|捕头|知县|将军|武师|首领)[，,、\s——\-]+",
+        r"[，,]\s*(?:乃是|正是|是|本是|原是|时任|现任|作为|属于|时任)",
     ]
 
     for line_idx, line in enumerate(lines):
@@ -546,9 +549,17 @@ def detect_hard_scene_cuts(text: str, lines: list) -> list:
             continue
         after_text = "\n".join(after_lines)
 
-        # Check if there's a time/location shift
-        has_time_shift = any(re.search(p, after_text) for p in time_markers)
-        has_loc_shift = any(re.search(p, after_text) for p in location_markers)
+        # Skip dialogue lines as scene cuts (characters discussing time/place in dialogue is normal conversation)
+        first_line = after_lines[0].strip()
+        if first_line.startswith(("“", "\"", "‘", "'")):
+            continue
+
+        # Strip quoted dialogue to avoid dialogue time markers triggering narrative cut alerts
+        narrative_after = re.sub(r'[“"][^”"]*[”"]', '', after_text)
+
+        # Check if there's a time/location shift in narrative
+        has_time_shift = any(re.search(p, narrative_after) for p in time_markers)
+        has_loc_shift = any(re.search(p, narrative_after) for p in location_markers)
 
         if not (has_time_shift or has_loc_shift):
             continue
