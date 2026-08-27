@@ -15,9 +15,14 @@ description: >-
 
 ## 执行步骤
 
-### 1. 0-Token 事实线索预扫描与 10 大突变提炼 (Pre-Scan & State Mutation Extraction)
-1. **预提取高敏线索**：先运行 `python studio.py facts ch_xxx` 获取正文中出现的货币交易句、出场角色、伤势负荷、重点道具与协议；
-2. **结合上下文提炼清单**：精准提炼以下事实突变（10 个常用维度 + 1 个开放式自定义，按题材自由增删）：
+### 1. 0-Token 事实线索预扫描与提案骨架生成 (Pre-Scan & Draft Skeleton)
+1. **先生成提案骨架（推荐，最省 Token）**：运行 `python studio.py draft ch_xxx`。工具 0-Token 扫描定稿，在 `state_inbox/ch_xxx.draft.json` 里**已预填**：本章在场角色（高置信）、候选资金流水 `transactions_draft`（含收支方向/金额/资源池/证据句，逐条标 `_needs_review`）、伤势/协议/伏笔线索句、自动梗概，以及一份 `_review_checklist`。
+2. **打开草稿逐项复核**（你的核心工作）：
+   - 核对每条 `transactions_draft`：金额、收支方向、资源池（玄幻灵石/属性点、科幻信用点）、事由 `subject`、对手方 `counterparty` 是否正确；确认后移入正式 `transactions[]`（删掉 `_needs_review`/`evidence`/`_*` 字段）；方向/金额不确定的整条删除，不要猜；
+   - 润色 `synopsis` 为 2~3 句精炼梗概；
+   - 按 `_review_checklist` 与下方 10 大维度，补全本地无法确定的语义字段（时空/境界/伤势/局势、伏笔/误会/心智/编年史）。
+   - ⚠️ `.draft.json` 与带 `_draft:true` 的提案**绝不会被合并**；复核完成后**另存为正式** `state_inbox/ch_xxx.json`，删除所有 `_draft`/`_instructions`/`_evidence`/`_review_checklist`/`transactions_draft`/`*_clues` 字段。
+3. **结合上下文提炼清单**（草稿未覆盖的语义突变，10 个常用维度 + 1 个开放式自定义，按题材自由增删）：
 
 1. 📍 **[时空位移与环境迁移]**：更新故事发生时间点、具体物理地点、周遭环境阻力与地貌特征；
 2. ⚔️ **[能力 / 战力 / 状态变化]**：新突破或能力升级、技能/装备获取、出手后的身心负荷、暗伤、装备或弹药/能源消耗（按题材：修炼境界、异能评级、义体损耗、舰战损伤等）；

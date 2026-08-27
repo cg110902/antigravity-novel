@@ -40,7 +40,8 @@
 | Stage 2 | `python studio.py memory recall "关键词"` | BM25 资料员手动回捞旧伏笔/人物/设定 |
 | Stage 3 | `python studio.py lint ch_xxx [--voice]` | 定稿质量门禁（字数/AI腔/读者懵逼，CRITICAL 阻断） |
 | Stage 3 | `python studio.py quality ratio -c ch_xxx` | 黄金配比三维量化（WARNING 参考，不阻断） |
-| Stage 4 | 写 `state_inbox/ch_xxx.json` 提案 → `python studio.py sync ch_xxx` | 提交结构化状态变更→引擎合并→校验→快照 |
+| Stage 4 | `python studio.py draft ch_xxx` | 0-LLM 预填提案骨架（角色/候选流水/线索/梗概）→ `.draft.json` |
+| Stage 4 | LLM 复核草稿另存为 `state_inbox/ch_xxx.json` → `python studio.py sync ch_xxx` | 提交结构化状态变更→引擎合并→校验→快照 |
 | 任意 | `python studio.py radar [--json]` | 全维雷达总控（doctor/账本/DAG/塌中段/配比/重复…） |
 
 > 💡 **职责分工铁律**：确定性的事（记账、编号、查重、配比统计、BM25 召回、伏笔排期、快照回滚）**全部由本地 Python 完成，零 Token**；需要语义理解的事（提炼事实突变、写梗概、写正文、判断戏腔与张力）才交给 LLM。LLM 产出**结构化提案/正文**，Python 引擎负责**校验、合并、记账、守门**。
@@ -240,8 +241,10 @@
 ---
 
 ### 阶段四：交付与状态自同步 (Stage 4: Delivery & State Sync)
-- **执行（AI 提议 → 确定性引擎合并，AI 不直接手改台账）**：
-  1. 调用 `novel-state-syncer`，提炼本章全部事实突变，但**不再手写 6 大状态文件**；改为产出**一份**结构化变更提案 JSON（schema `novel-studio.state-mutation/v1`），写入 `04_timeline_and_state/state_inbox/ch_xxx.json`。提案字段见 `state_inbox/README.md`：
+- **执行（本地先定骨架 → LLM 复核补全 → 确定性引擎合并，AI 不直接手改台账）**：
+  1. **零 LLM 预填骨架**：先运行 `python studio.py draft ch_xxx`。工具 0-Token 扫描定稿，把确定性高的字段预填进 `state_inbox/ch_xxx.draft.json`：在场角色（高置信）、候选资金流水（含方向/金额/资源池/证据句）、伤势/协议/伏笔线索句、自动梗概，并附 `_review_checklist`。
+  2. 调用 `novel-state-syncer`，**打开该草稿逐项复核**：确认/修正每条 `transactions_draft`（方向、金额、资源池、事由、对手方）后移入 `transactions`；润色 `synopsis`；按正文语义补全本地无法确定的字段（时空/境界/伤势/局势、`guns`/`misunderstandings`/`growth_arcs`/`timeline`）。核对 `_review_checklist` 后，**另存为正式** `state_inbox/ch_xxx.json`（删除 `_draft`/`_instructions`/`_evidence`/`_review_checklist`/`*_draft` 等草稿字段）。
+     > ⚠️ 草稿 `.draft.json` 与带 `_draft:true` 的提案**绝不会被合并**（state_apply 双重拦截），只有复核后的正式 `ch_xxx.json` 才会生效。提案字段见 `state_inbox/README.md`：
      - `chapter`（如 `"ch_012"`）；
      - `current_state`：`time / location / present_characters[] / realm / abilities / injury / assets / equipment / situation`（只写有变化的字段）；
      - `guns[]`：`{action: plant|update|resolve, id?, name, target_ch?, plant_ch?, plan?, status?}`，id 省略时引擎自动编号 `GUN-00x`；
@@ -250,8 +253,8 @@
      - `timeline[]`：`{time, event}`（按时间锚点幂等去重）；
      - `transactions[]`：复式记账流水 `{resource, delta(正收负支), type, subject, counterparty?, note?}`，余额由流水重算，**严禁手填余额**；资源池不存在时报错（先在台账登记）；
      - `synopsis`（可选）+ `chapter_title`（可选）：本章 2~3 句精炼梗概，登记进梗概脊柱（source=manual，优先于自动梗概）。
-  2. 运行 `python studio.py sync ch_xxx`：流程 `[0/3]` 先由确定性合并器 `tools/state_apply.py` 校验并幂等合并提案（成功归档 `state_inbox/processed/`、失败归档 `state_inbox/failed/` 并报错），随后核验双台账平衡、道具时空轨迹并打下版本快照；
-  3. 可随时运行 `python studio.py doctor`（`tools/validate_state.py`）做工作区体检：结构完整性、复式账本平衡、GUN/MIS 编号冲突、正文占位符残留；有 ERROR 时退出码为 1；
-  4. 向人类导演交付定稿，并提供下一章剧情引子。
+  3. 运行 `python studio.py sync ch_xxx`：流程 `[0/3]` 先由确定性合并器 `tools/state_apply.py` 校验并幂等合并提案（成功归档 `state_inbox/processed/`、失败归档 `state_inbox/failed/` 并报错），随后核验双台账平衡、道具时空轨迹并打下版本快照；
+  4. 可随时运行 `python studio.py doctor`（`tools/validate_state.py`）做工作区体检：结构完整性、复式账本平衡、GUN/MIS 编号冲突、正文占位符残留；有 ERROR 时退出码为 1；
+  5. 向人类导演交付定稿，并提供下一章剧情引子。
 
 > 📌 **设计原则**：MD/JSON 台账仍是唯一真值源且对人可读；LLM 只产出结构化提案，所有校验、编号、记账、去重由零依赖 Python 引擎确定性完成（不花 Token、可重放、可审计）。合并为幂等操作，重复提交同一提案不会重复记账。

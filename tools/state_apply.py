@@ -417,6 +417,13 @@ def apply_proposal(workspace: Path, proposal: dict, dry_run: bool = False) -> di
 
     chapter = proposal.get("chapter", "")
 
+    # 安全闸：草稿提案（_draft:true）绝不合并——它只供 LLM 复核后另存为正式提案
+    if proposal.get("_draft"):
+        report["errors"].append(
+            "这是 proposal_draft 生成的草稿（_draft:true），不能直接合并；"
+            "请 LLM 复核补全后另存为去掉 _draft 的正式提案。")
+        return report
+
     def _read(name):
         p = state_dir / name
         return p.read_text(encoding="utf-8") if p.exists() else ""
@@ -494,7 +501,8 @@ def _merge_synopsis(workspace: Path, chapter: str, synopsis: str, title: str, re
 def _gather_proposals(inbox: Path):
     if not inbox.exists():
         return []
-    return sorted(inbox.glob("*.json"))
+    # 草稿提案（*.draft.json，由 proposal_draft.py 生成、待 LLM 复核）绝不参与合并
+    return sorted(p for p in inbox.glob("*.json") if not p.name.endswith(".draft.json"))
 
 
 def main():

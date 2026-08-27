@@ -234,7 +234,11 @@ def init_novel(title="未命名新书", genre="通用题材", protagonist="主�
     inbox.mkdir(parents=True, exist_ok=True)
     (inbox / "README.md").write_text(
         "# 状态变更提案投递箱 (State Inbox)\n\n"
-        "章节定稿后，把结构化的状态变更提案（JSON）放入本目录，再运行：\n\n"
+        "章节定稿后的推荐流程：先运行 `python studio.py draft ch_xxx` 生成 0-LLM 预填骨架\n"
+        "（`ch_xxx.draft.json`：已填在场角色/候选流水/线索/梗概）；state-syncer(LLM) 打开草稿逐项\n"
+        "复核补全后，另存为正式 `ch_xxx.json`（去掉 _draft/_evidence 等字段）。\n"
+        "注意：`*.draft.json` 与带 _draft:true 的提案不会被合并，只有复核后的正式 JSON 才生效。\n\n"
+        "把结构化的状态变更提案（正式 JSON）放入本目录后，运行：\n\n"
         "```\n"
         "python studio.py apply        # 确定性地合并进 6 大状态文件并自动记账\n"
         "python studio.py sync ch_xxx  # 也会自动先合并本目录提案，再校验并打快照\n"

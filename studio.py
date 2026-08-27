@@ -209,6 +209,16 @@ def cmd_facts(args):
         extra.extend(["-w", args.workspace])
     return run_script("extract_chapter_facts.py", extra)
 
+def cmd_draft(args):
+    """Stage 4: 0-LLM proposal skeleton generator (pre-fill deterministic fields)."""
+    ch = args.chapter if args.chapter.startswith("ch_") else f"ch_{int(args.chapter):03d}"
+    extra = ["-c", ch]
+    if args.json:
+        extra.append("--json")
+    if args.workspace:
+        extra.extend(["-w", args.workspace])
+    return run_script("proposal_draft.py", extra)
+
 def cmd_apply(args):
     """Stage 4: Apply a structured state-mutation proposal (deterministic state engine)."""
     extra = []
@@ -496,6 +506,13 @@ def main():
     p_facts.add_argument("-w", "--workspace", help="指定工作区路径")
     p_facts.add_argument("--json", action="store_true", help="以结构化 JSON 格式输出")
     p_facts.set_defaults(func=cmd_facts)
+
+    # draft (0-LLM proposal skeleton)
+    p_draft = subparsers.add_parser("draft", help="[Stage 4] 零LLM提案骨架生成：扫定稿预填角色/候选流水/线索/梗概，产出待复核 .draft.json")
+    p_draft.add_argument("chapter", help="目标章节 (如 12 或 ch_012)")
+    p_draft.add_argument("-w", "--workspace", help="指定工作区路径")
+    p_draft.add_argument("--json", action="store_true", help="直接输出 JSON（不落盘）")
+    p_draft.set_defaults(func=cmd_draft)
 
     # apply
     p_apply = subparsers.add_parser("apply", help="[Stage 4] 确定性合并 state_inbox 中的结构化状态变更提案")
