@@ -1,9 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-Deterministic State-Mutation Applier (state_apply.py)
+Deterministic State-Mutation Applier (state_apply.py) v2
 =====================================================
 P0 状态引擎：LLM 只产出“结构化变更提案”，由本工具**确定性地**校验并合并进
 6 大状态真值文件，而不是让模型手写一堆 Markdown 表格（易漏/易错/费 Token）。
+
+v2 变更：
+- current_state 字段 realm（境界）通用化为 power_level（能力层级），适用于全题材
+- 同时保留 realm 作为向后兼容（玄幻题材仍可使用）
+- 文档示例更新为 v2 通用字段
 
 设计原则（与 Novel-OS / ABook 等成熟方案一致）：
 - Markdown/JSON 文件仍是面向人/LLM 的唯一真值源（SSOT），本工具在其上做
@@ -17,7 +22,7 @@ P0 状态引擎：LLM 只产出“结构化变更提案”，由本工具**确�
   "schema": "novel-studio.state-mutation/v1",
   "chapter": "ch_012",
   "current_state": {"time":..., "location":..., "present_characters":[...],
-                    "realm":..., "abilities":..., "injury":..., "assets":..., "situation":...},
+                    "power_level":..., "realm":...(向后兼容), "abilities":..., "injury":..., "assets":..., "situation":...},
   "guns": [{"id":"GUN-004","action":"plant","name":"...","target_ch":18,"plan":"..."},
            {"id":"GUN-001","action":"update","status":"Reminded"},
            {"id":"GUN-002","action":"resolve"}],
@@ -332,9 +337,11 @@ def _merge_current_state(content: str, cs: dict, report: dict) -> str:
         return content
     lines = content.splitlines()
 
+    # v2: power_level 为通用字段（能力层级），realm 保留为向后兼容（玄幻境界）
     label_map = {
         "time": "当前时间节点",
         "location": "当前故事地点",
+        "power_level": "当前能力层级",
         "realm": "当前境界",
         "abilities": "特殊机制/词条/能力",
         "injury": "生理负荷/暗伤",
@@ -509,7 +516,7 @@ def _gather_proposals(inbox: Path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="确定性状态变更合并器（State Mutation Applier）")
+    parser = argparse.ArgumentParser(description="确定性状态变更合并器（State Mutation Applier）v2")
     parser.add_argument("--workspace", "-w", type=str, default=None, help="工作区路径")
     parser.add_argument("--file", "-f", type=str, default=None, help="指定单个提案 JSON 文件")
     parser.add_argument("--dry-run", action="store_true", help="只校验与预演，不写入")
@@ -565,7 +572,7 @@ def main():
         print(json.dumps(overall, ensure_ascii=False, indent=2))
     else:
         print("=" * 72)
-        print(f" 🔀 [状态变更合并器] 工作区: {workspace.name}{'  [DRY-RUN]' if args.dry_run else ''}")
+        print(f" 🔀 [状态变更合并器 v2] 工作区: {workspace.name}{'  [DRY-RUN]' if args.dry_run else ''}")
         print("=" * 72)
         for r in overall["results"]:
             print(f"\n📄 {r['file']}（章节 {r.get('chapter','-')}）")
