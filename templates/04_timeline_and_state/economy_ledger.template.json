@@ -1,0 +1,31 @@
+{
+  "currency_name": "多资源池复式记账台账",
+  "base_unit": "标准最小单位",
+  "resource_pools": {
+    "standard_currency": {
+      "name": "主法定货币",
+      "unit": "两/点",
+      "initial": 0,
+      "current": 0
+    },
+    "vital_points": {
+      "name": "特殊点数/能量/贡献分",
+      "unit": "点/分",
+      "initial": 0,
+      "current": 0
+    }
+  },
+  "transactions": [
+    {
+      "chapter": "ch_001",
+      "resource": "standard_currency",
+      "type": "opening_balance",
+      "inflow": 0,
+      "outflow": 0,
+      "subject": "初始随身资产",
+      "counterparty": "初始基线",
+      "balance_after": 0,
+      "note": "开局主角初始资产"
+    }
+  ]
+}

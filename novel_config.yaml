@@ -1,0 +1,44 @@
+# -*- coding: utf-8 -*-
+# Universal Novel Studio - 全局声明式配置文件 (novel_config.yaml)
+
+project:
+  name: "一年抽取一词条，模拟的也可以？" # 当前项目书名 (开新书时自定义)
+  version: "3.5.0"
+  workspace_dir: "novel_workspace" # 唯一事实真值源目录 (SSOT)
+  default_genre: "玄幻脑洞 / 系统 / 模拟器 / 仙武穿越" # 当前题材 (支持全题材配置)
+
+workflow:
+  mode: "autonomous_creation" # 自动创作流水线模式 (自主决断细纲最优张力走向 -> 直通起草审校与状态自同步 -> 终审交付)
+  auto_recycle_subagents: true # Sub-Agent 瞬态即焚与 100% 自动生命周期回收
+  long_arc_safeguards:
+    max_realm_jump_per_chapter: 0 # 单章严禁跨越多个大境界
+    require_simulation_friction: true # 模拟推演必须包含真实波折、瓶颈或未竟之憾
+    anti_plot_homogenization: true # 严禁模式化套路复读与脸谱化反派
+    three_tier_anticipation_model: true # 强制实施显性目标+隐性危机+倒计时炸弹
+
+generation:
+  target_word_count:
+    min: 2500 # 篇幅及格底线 (低于此阈值 Linter 强制 Exit Code 1 报错阻断)
+    max: 5000
+    recommended: 3200 # 字数自适应：情节饱满、意群完整即自然收尾，不注水也不机械卡死
+  allow_hybrid_pacing_modes: true # 支持 16 大变奏形态自由复合拼接 (如 Mode F+A, Mode I+H, Mode M+D 等)
+  structure_adjacent_repeat_forbidden: false # 变奏矩阵作为启发式参考工具箱，支持依大事件连贯跨章推进
+
+linter_thresholds:
+  allow_natural_dialogue_variance: true # 对白比例依场景自然自适应 (闭关章可无对白，辩论章可多对白)
+  max_consecutive_breathless_chars: 75 # 仅对超长无标点极端病句做基础兜底
+  prohibit_battle_cliche_stacking: true # 禁止战斗脸谱化词汇堆砌
+  hard_gate_min_word_count: 2500 # 核心硬伤断言门禁字数阈值
+
+subagent:
+  editor_role: "novel_editor (金牌长篇网文责编与定稿总笔)"
+  auto_kill_after_delivery: true # 交付定稿后单轮内物理销毁 Sub-Agent
+  tool_scope:
+    allowed_tools:
+      - "view_file"
+      - "write_to_file"
+      - "run_command (仅限 python studio.py lint)"
+    forbidden_tools:
+      - "PowerShell inline python"
+      - "Source code browsing"
+      - "State sync & snapshot tools"

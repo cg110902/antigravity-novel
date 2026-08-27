@@ -1,0 +1,27 @@
+{
+  "novel-studio-guard": {
+    "enabled": true,
+    "PostToolUse": [
+      {
+        "matcher": "write_to_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python tools/verify_double_ledgers.py",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "replace_file_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python tools/verify_double_ledgers.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
