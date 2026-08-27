@@ -1,0 +1,31 @@
+{
+  "schema": "novel-studio.genre-profile/v2",
+  "id": "romance",
+  "label": "言情 / 纯爱 / 甜宠 / 婚恋 / 古言现言",
+  "creation_goal": "commercial",
+  "word_count": {"min": 2000, "recommended": 3000, "max": 4500},
+  "ratio_baseline": {"dialogue": [40, 65], "action": [10, 30], "describe": [15, 35]},
+  "tone_policy": {
+    "mode": "adaptive",
+    "bright_allowed": true,
+    "dark_allowed": true,
+    "note": "言情基调随子类型灵活：甜宠明快温暖，虐恋压抑揪心，破镜重圆有张有弛。无通用基调禁令。"
+  },
+  "state_components": ["current_state", "chekhov_guns", "timeline", "character_growth_arcs", "misunderstandings"],
+  "stall_window": 3,
+  "scheduler": {"remind_lead": 3, "dormant_gap": 5, "longline_interval": [8, 12]},
+  "dialogue_floor": 30,
+  "describe_ceiling": 40,
+  "combat_heavy": false,
+  "economy_required": false,
+  "ending_style": "emotional_resonance",
+  "pov_default": "multiple_pov",
+  "extra_ticks": ["心跳", "脸红", "耳尖发烫", "小鹿乱撞", "怦然心动", "心口一紧", "酸涩", "哽咽", "眼眶泛红", "湿润"],
+  "cliffhanger_keywords": ["告白", "亲吻", "拥抱", "分手", "误会", "真相", "秘密", "前任", "情敌", "求婚", "婚礼", "怀孕", "孩子", "家", "承诺", "等待", "重逢"],
+  "quantity_whitelist": ["分钟", "小时", "天", "周", "月", "年", "岁", "米", "厘米", "步", "次", "顿", "杯", "件"],
+  "semantic_clusters": [
+    {"cluster_name": "心动生理反应同义堆砌", "keywords": ["心跳", "脸红", "耳尖", "小鹿", "怦然", "心口"], "min_hits": 3, "suggestion": "心动场景密集出现生理反应词，建议删减重复，用一个最贴切的细节+角色具体行为呈现心动感。"},
+    {"cluster_name": "虐心情感同义堆砌", "keywords": ["心痛", "酸涩", "哽咽", "眼眶", "湿润", "心碎"], "min_hits": 3, "suggestion": "虐心场景密集出现情感词，建议用具体的动作或环境细节呈现情绪，避免反复说'心痛'。"}
+  ],
+  "director_notes": "言情核心是情感张力与关系发展，对白是第一驱动力（占比可到40%~65%），人物说话要有情感层次与潜台词；误会(MIS)是核心引擎但必须有合理的信息差基础，不能为虐而虐；角色成长弧线围绕情感成熟与自我认知展开；甜宠场景重细节与互动，虐恋场景重克制与留白；多视角切换可增强情感代入但需注意信息差控制。章末可卡在情感转折点或悬念点，不一定要强冲突断章。"
+}

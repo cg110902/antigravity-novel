@@ -1,14 +1,30 @@
 {
-  "schema": "novel-studio.genre-profile/v1",
+  "schema": "novel-studio.genre-profile/v2",
   "id": "history",
-  "label": "历史 / 架空 / 种田权谋",
-  "word_count": {"min": 2500, "recommended": 3200, "max": 5000},
-  "ratio_baseline": {"dialogue": [34, 48], "action": [32, 48], "describe": [12, 28]},
+  "label": "历史 / 架空 / 种田权谋 / 古代",
+  "creation_goal": "commercial",
+  "word_count": {"min": 2200, "recommended": 3200, "max": 5000},
+  "ratio_baseline": {"dialogue": [30, 50], "action": [25, 45], "describe": [12, 32]},
+  "tone_policy": {
+    "mode": "adaptive",
+    "bright_allowed": true,
+    "dark_allowed": true,
+    "note": "历史题材基调灵活：种田发展可明快踏实，权谋宫斗可阴暗压抑，战争乱世可悲壮苍凉，由子类型与场景决定。"
+  },
+  "state_components": ["current_state", "chekhov_guns", "timeline", "character_growth_arcs", "economy_ledger", "misunderstandings"],
   "stall_window": 3,
   "scheduler": {"remind_lead": 3, "dormant_gap": 5, "longline_interval": [8, 12]},
-  "dialogue_floor": 28,
-  "describe_ceiling": 36,
-  "extra_ticks": ["渊渟岳峙", "不怒自威", "神色肃穆", "抱拳领命", "老朽",
-                   "龙行虎步", "眉宇间", "沉声", "冷笑一声"],
-  "director_notes": "人物对白可带时代质感但必须讲人话、有利益算计，严禁古装舞台剧念白与成语批发（斩除‘老朽活了大半辈子’‘渊渟岳峙’类）；权谋靠信息差与体制机锋推进，反派要有格局与智商，不得脸谱化叫嚣；种田/发展要有可量化积累（钱粮、人手、地盘），时代细节为人物与剧情服务、不堆砌。"
+  "dialogue_floor": 22,
+  "describe_ceiling": 38,
+  "combat_heavy": false,
+  "economy_required": true,
+  "ending_style": "strong_hook",
+  "pov_default": "third_limited",
+  "extra_ticks": ["龙行虎步", "眉宇间", "沉声", "冷笑一声", "沉吟", "捻须", "拂袖", "拱手"],
+  "cliffhanger_keywords": ["圣旨", "奏折", "密信", "令牌", "兵符", "官印", "契约", "地契", "粮草", "军报", "急报", "兵变", "谋反", "科举", "状元", "钦差", "知府", "衙门", "朝堂"],
+  "quantity_whitelist": ["丈", "尺", "寸", "里", "亩", "顷", "石", "斗", "升", "文", "钱", "两", "锭", "贯", "日", "月", "年", "载", "时辰", "刻", "半柱香", "一柱香"],
+  "semantic_clusters": [
+    {"cluster_name": "权谋算计同义堆砌", "keywords": ["算计", "谋划", "布局", "运筹", "盘算", "心计"], "min_hits": 3, "suggestion": "权谋场景密集出现算计同义表达，建议用具体的计策步骤或利益博弈呈现权谋，避免反复说'算计'。"}
+  ],
+  "director_notes": "人物对白可带时代质感但必须讲人话、有利益算计，严禁古装舞台剧念白与成语批发——注意：'老朽''抱拳领命'等词在符合身份与语境时可自然使用，检测的是'念白感'而非单词本身；权谋靠信息差与体制机锋推进，反派要有格局与智商，不得脸谱化叫嚣；种田/发展要有可量化积累（钱粮、人手、地盘），时代细节为人物与剧情服务、不堆砌。历史细节需考据准确（或在架空设定中自洽）。"
 }

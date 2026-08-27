@@ -1,0 +1,30 @@
+{
+  "schema": "novel-studio.genre-profile/v2",
+  "id": "wuxia",
+  "label": "武侠 / 江湖 / 武林",
+  "creation_goal": "commercial",
+  "word_count": {"min": 2200, "recommended": 3200, "max": 5000},
+  "ratio_baseline": {"dialogue": [30, 50], "action": [30, 50], "describe": [12, 30]},
+  "tone_policy": {
+    "mode": "mixed",
+    "bright_allowed": true,
+    "dark_allowed": true,
+    "note": "武侠有江湖快意也有恩怨情仇，基调随场景灵活切换，无通用禁令。"
+  },
+  "state_components": ["current_state", "chekhov_guns", "timeline", "character_growth_arcs", "misunderstandings"],
+  "stall_window": 3,
+  "scheduler": {"remind_lead": 3, "dormant_gap": 5, "longline_interval": [8, 12]},
+  "dialogue_floor": 20,
+  "describe_ceiling": 35,
+  "combat_heavy": true,
+  "economy_required": false,
+  "ending_style": "strong_hook",
+  "pov_default": "third_limited",
+  "extra_ticks": ["恐怖如斯", "倒吸一口凉气", "瞳孔骤缩", "冷哼一声", "桀桀", "江湖", "武林"],
+  "cliffhanger_keywords": ["刀光", "剑影", "暗器", "镖局", "丐帮", "少林", "武当", "内功", "轻功", "真气", "点穴", "门派", "秘籍", "江湖令"],
+  "quantity_whitelist": ["三丈", "五丈", "十丈", "百丈", "一息", "数息", "十息", "半柱香", "一柱香", "半个时辰", "一个时辰", "三招", "五招", "十招"],
+  "semantic_clusters": [
+    {"cluster_name": "武功高强同义堆砌", "keywords": ["深不可测", "深不可测", "出神入化", "登峰造极", "炉火纯青", "叹为观止"], "min_hits": 3, "suggestion": "描写武功高强时密集出现同义成语，建议用具体的招式效果、对手反应或环境变化呈现。"}
+  ],
+  "director_notes": "武侠核心是江湖快意与恩怨情仇，战斗描写重意境与招式美感而非数值面板；人物对白可带江湖气但必须讲人话、有动机，严禁舞台剧念白；门派/镖局/帮会等组织有独立利益逻辑；轻功/内功/点穴等设定前后一致。基调随场景灵活切换——酒楼快意可明快，密室复仇可阴暗。"
+}

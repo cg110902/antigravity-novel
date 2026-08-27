@@ -1,0 +1,30 @@
+{
+  "schema": "novel-studio.genre-profile/v2",
+  "id": "sports",
+  "label": "体育 / 竞技 / 篮球足球网球赛车",
+  "creation_goal": "commercial",
+  "word_count": {"min": 2000, "recommended": 3000, "max": 4800},
+  "ratio_baseline": {"dialogue": [25, 50], "action": [30, 55], "describe": [12, 32]},
+  "tone_policy": {
+    "mode": "bright_preferred",
+    "bright_allowed": true,
+    "dark_allowed": true,
+    "note": "体育竞技常规场景热血明快，伤病/低谷/绝境场景可压抑沉重，由场景决定。"
+  },
+  "state_components": ["current_state", "chekhov_guns", "timeline", "character_growth_arcs"],
+  "stall_window": 3,
+  "scheduler": {"remind_lead": 3, "dormant_gap": 5, "longline_interval": [8, 12]},
+  "dialogue_floor": 18,
+  "describe_ceiling": 38,
+  "combat_heavy": true,
+  "economy_required": false,
+  "ending_style": "strong_hook",
+  "pov_default": "third_limited",
+  "extra_ticks": ["瞳孔骤缩", "倒吸一口凉气", "牛逼", "不可思议", "难以置信", "天呐"],
+  "cliffhanger_keywords": ["比赛", "决赛", "冠军", "联赛", "季后赛", "奥运会", "世锦赛", "MVP", "纪录", "伤病", "复出", "退役", "转会", "选秀", "教练", "战术", "绝杀", "逆转", "加时", "点球"],
+  "quantity_whitelist": ["分", "秒", "分钟", "小时", "米", "厘米", "公斤", "磅", "码", "英尺", "回合", "局", "盘", "节", "半场", "命中率", "得分", "助攻", "篮板", "时速", "转速"],
+  "semantic_clusters": [
+    {"cluster_name": "比赛精彩同义堆砌", "keywords": ["精彩", "漂亮", "完美", "惊艳", "不可思议", "叹为观止"], "min_hits": 3, "suggestion": "比赛场景密集出现赞美词，建议用具体的技术动作或数据呈现精彩程度。"}
+  ],
+  "director_notes": "体育竞技核心是成长与突破，技术动作要有专业细节与数据支撑，不能只说'厉害'；运动员有真实的身体极限与伤病代价，训练/比赛/恢复有真实周期；团队项目重战术配合与角色分工，个人项目重心理博弈与技术精进；教练/对手/队友各有独立动机与性格。体育数据需考据准确（或在设定中自洽）。常规场景热血明快，伤病/低谷可压抑沉重。"
+}

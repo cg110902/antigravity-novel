@@ -1,14 +1,30 @@
 {
-  "schema": "novel-studio.genre-profile/v1",
+  "schema": "novel-studio.genre-profile/v2",
   "id": "scifi",
-  "label": "科幻 / 机甲 / 末世废土 / 赛博",
-  "word_count": {"min": 2500, "recommended": 3200, "max": 5000},
-  "ratio_baseline": {"dialogue": [28, 42], "action": [40, 56], "describe": [12, 30]},
+  "label": "科幻 / 机甲 / 星际 / 赛博朋克 / 末世废土",
+  "creation_goal": "commercial",
+  "word_count": {"min": 2200, "recommended": 3200, "max": 5000},
+  "ratio_baseline": {"dialogue": [25, 50], "action": [30, 55], "describe": [12, 35]},
+  "tone_policy": {
+    "mode": "adaptive",
+    "bright_allowed": true,
+    "dark_allowed": true,
+    "note": "科幻基调跨度极大：星际探险可宏大开阔，赛博朋克可霓虹迷离，末世废土可压抑绝望，由子类型与场景决定。"
+  },
+  "state_components": ["current_state", "chekhov_guns", "timeline", "character_growth_arcs", "economy_ledger"],
   "stall_window": 3,
   "scheduler": {"remind_lead": 3, "dormant_gap": 5, "longline_interval": [8, 12]},
-  "dialogue_floor": 20,
+  "dialogue_floor": 15,
   "describe_ceiling": 40,
-  "extra_ticks": ["瞳孔骤缩", "眸", "嘴角勾起", "金属质感的声音", "数据洪流",
-                   "不禁", "倒吸一口凉气"],
-  "director_notes": "硬设定必须自洽：科技/异能/灾变规则前后一致，资源（弹药、能源、义体损耗、配给）有真实成本，拒绝凭空产出；用具体物理细节代替空泛形容词，信息给出要有层次（读者与主角同步解谜）；末世/赛博可基调冷峻但人物仍要有烟火气与动机，避免通篇压抑。"
+  "combat_heavy": true,
+  "economy_required": false,
+  "ending_style": "strong_hook",
+  "pov_default": "third_limited",
+  "extra_ticks": ["瞳孔骤缩", "眸", "嘴角勾起", "金属质感的声音", "数据洪流", "不禁", "倒吸一口凉气", "全息", "神经接驳", "义体"],
+  "cliffhanger_keywords": ["警报", "系统提示", "能量读数", "护盾", "跃迁", "星舰", "机甲", "义体", "赛博", "纳米", "病毒", "AI", "人工智能", "黑洞", "虫洞", "辐射", "变异", "废土", "幸存者"],
+  "quantity_whitelist": ["米", "公里", "光年", "秒", "分钟", "小时", "天", "年", "字节", "MB", "GB", "TB", "信用点", "能源块", "弹药", "发", "枚", "台", "艘", "焦耳", "瓦特", "伏特", "安培"],
+  "semantic_clusters": [
+    {"cluster_name": "科技震撼同义堆砌", "keywords": ["震撼", "不可思议", "叹为观止", "前所未见", "颠覆认知", "匪夷所思"], "min_hits": 3, "suggestion": "科技展示场景密集出现震撼同义表达，建议用具体的技术参数、物理效果或角色反应呈现科技感。"}
+  ],
+  "director_notes": "硬设定必须自洽：科技/异能/灾变规则前后一致，资源（弹药、能源、义体损耗、配给）有真实成本，拒绝凭空产出；用具体物理细节代替空泛形容词，信息给出要有层次（读者与主角同步解谜）；末世/赛博可基调冷峻但人物仍要有烟火气与动机，避免通篇压抑；星际探险可宏大开阔。科幻子类型差异大，应根据具体子类型灵活调整基调与配比。"
 }

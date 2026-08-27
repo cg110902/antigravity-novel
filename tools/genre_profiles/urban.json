@@ -1,14 +1,31 @@
 {
-  "schema": "novel-studio.genre-profile/v1",
+  "schema": "novel-studio.genre-profile/v2",
   "id": "urban",
-  "label": "都市 / 异能 / 职场商战",
-  "word_count": {"min": 2500, "recommended": 3000, "max": 4800},
-  "ratio_baseline": {"dialogue": [38, 55], "action": [30, 48], "describe": [8, 22]},
+  "label": "都市 / 异能 / 职场商战 / 娱乐",
+  "creation_goal": "commercial",
+  "word_count": {"min": 2200, "recommended": 3000, "max": 4800},
+  "ratio_baseline": {"dialogue": [35, 60], "action": [20, 45], "describe": [8, 25]},
+  "tone_policy": {
+    "mode": "bright_preferred",
+    "bright_allowed": true,
+    "dark_allowed": true,
+    "note": "都市常规场景明快接地气，商战/阴谋/底层场景可压抑冷峻，由场景决定。"
+  },
+  "state_components": ["current_state", "chekhov_guns", "timeline", "character_growth_arcs", "economy_ledger", "misunderstandings"],
   "stall_window": 3,
   "scheduler": {"remind_lead": 3, "dormant_gap": 5, "longline_interval": [8, 12]},
-  "dialogue_floor": 30,
+  "dialogue_floor": 25,
   "describe_ceiling": 30,
-  "extra_ticks": ["嘴角微勾", "似笑非笑", "玩味", "戏谑", "不动声色", "意味深长",
-                   "装逼", "打脸来得太快", "空气突然安静"],
-  "director_notes": "都市靠世情与机锋对白驱动，台词占比可自然上浮到 40%~55%，人物说话要有利益算盘与现实微机锋；爽点来自信息差翻盘、身份反差与现实博弈，少用超自然蛮力；场景贴近真实生活质感，环境描写点到为止；警惕悬浮与脸谱化反派。"
+  "combat_heavy": false,
+  "economy_required": true,
+  "ending_style": "strong_hook",
+  "pov_default": "third_limited",
+  "extra_ticks": ["嘴角微勾", "似笑非笑", "玩味", "戏谑", "不动声色", "意味深长", "装逼", "打脸来得太快", "空气突然安静", "秒", "绝绝子"],
+  "cliffhanger_keywords": ["手机响了", "微信", "转账", "合同", "项目", "融资", "上市", "热搜", "曝光", "爆料", "饭局", "酒局", "董事会", "升职", "加薪", "拆迁", "学区房"],
+  "quantity_whitelist": ["百万", "千万", "亿", "月薪", "年薪", "平米", "公里", "分钟", "小时", "天", "周", "月", "年", "K", "W", "块", "毛"],
+  "semantic_clusters": [
+    {"cluster_name": "装逼打脸同义堆砌", "keywords": ["震惊", "难以置信", "目瞪口呆", "大跌眼镜", "刮目相看", "肃然起敬"], "min_hits": 3, "suggestion": "装逼打脸场景密集出现旁观者震惊同义表达，建议删减重复，用一个具体的行为反转或利益后果呈现打脸效果。"},
+    {"cluster_name": "财富炫耀同义堆砌", "keywords": ["豪车", "豪宅", "名表", "私人飞机", "游艇", "限量版"], "min_hits": 3, "suggestion": "财富展示密集出现奢侈品罗列，建议用一个具体的消费场景或他人反应呈现财力，避免报菜名式堆砌。"}
+  ],
+  "director_notes": "都市靠世情与机锋对白驱动，台词占比可自然上浮到40%~60%，人物说话要有利益算盘与现实微机锋；爽点来自信息差翻盘、身份反差与现实博弈，少用超自然蛮力；场景贴近真实生活质感，环境描写点到为止；警惕悬浮与脸谱化反派。商战/阴谋场景可压抑冷峻，日常/逆袭场景明快接地气。"
 }

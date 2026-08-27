@@ -1,0 +1,30 @@
+{
+  "schema": "novel-studio.genre-profile/v2",
+  "id": "military",
+  "label": "军事 / 战争 / 军旅 / 特种兵 / 谍战",
+  "creation_goal": "commercial",
+  "word_count": {"min": 2200, "recommended": 3200, "max": 5000},
+  "ratio_baseline": {"dialogue": [20, 45], "action": [35, 60], "describe": [12, 32]},
+  "tone_policy": {
+    "mode": "adaptive",
+    "bright_allowed": true,
+    "dark_allowed": true,
+    "note": "军事战争基调沉重冷峻，日常/战友互动可明快温暖，战场/谍战紧张压抑，由场景决定。"
+  },
+  "state_components": ["current_state", "chekhov_guns", "timeline", "character_growth_arcs"],
+  "stall_window": 3,
+  "scheduler": {"remind_lead": 3, "dormant_gap": 5, "longline_interval": [8, 12]},
+  "dialogue_floor": 15,
+  "describe_ceiling": 38,
+  "combat_heavy": true,
+  "economy_required": false,
+  "ending_style": "strong_hook",
+  "pov_default": "third_limited",
+  "extra_ticks": ["瞳孔骤缩", "倒吸一口凉气", "沉声", "冷声道", "厉声道"],
+  "cliffhanger_keywords": ["命令", "任务", "行动", "作战", "战斗", "交火", "伏击", "包围", "突围", "撤退", "增援", "炮火", "弹药", "伤亡", "情报", "密电", "密码", "卧底", "叛变", "牺牲"],
+  "quantity_whitelist": ["米", "公里", "英尺", "码", "节", "马赫", "秒", "分钟", "小时", "发", "枚", "颗", "吨", "公斤", "班", "排", "连", "营", "团", "师", "军"],
+  "semantic_clusters": [
+    {"cluster_name": "战场惨烈同义堆砌", "keywords": ["惨烈", "血腥", "残酷", "尸横遍野", "血流成河", "满目疮痍"], "min_hits": 3, "suggestion": "战场场景密集出现惨烈形容词，建议用具体的伤亡数字或环境细节呈现战争残酷性。"}
+  ],
+  "director_notes": "军事战争核心是使命与牺牲，战术/装备/编制要有专业细节支撑，不能只说'打仗'；军人有真实的身体极限与心理压力，战斗/训练/休整有真实周期；命令链与军纪严格，角色行为符合军阶与身份；谍战重信息差与心理博弈，卧底有真实的身份危机与道德困境。军事数据需考据准确（或在设定中自洽）。基调沉重冷峻，战友互动可明快温暖作反差。"
+}

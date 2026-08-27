@@ -1,0 +1,30 @@
+{
+  "schema": "novel-studio.genre-profile/v2",
+  "id": "iyashikei",
+  "label": "治愈系 / 日常 / 慢生活 / 田园美食 / 温馨",
+  "creation_goal": "commercial",
+  "word_count": {"min": 1500, "recommended": 2500, "max": 4000},
+  "ratio_baseline": {"dialogue": [30, 55], "action": [10, 25], "describe": [25, 50]},
+  "tone_policy": {
+    "mode": "bright_preferred",
+    "bright_allowed": true,
+    "dark_allowed": true,
+    "note": "治愈系核心是温暖宁静与生活质感，明快温馨是基调；可偶尔有小波折但不搞强冲突，阴暗场景极少且短暂。"
+  },
+  "state_components": ["current_state", "chekhov_guns", "timeline", "character_growth_arcs"],
+  "stall_window": 5,
+  "scheduler": {"remind_lead": 5, "dormant_gap": 8, "longline_interval": [12, 20]},
+  "dialogue_floor": 20,
+  "describe_ceiling": 55,
+  "combat_heavy": false,
+  "economy_required": false,
+  "ending_style": "quiet_close",
+  "pov_default": "third_limited",
+  "extra_ticks": [],
+  "cliffhanger_keywords": ["春天", "夏天", "秋天", "冬天", "雨", "雪", "风", "阳光", "花", "树", "海", "山", "河", "田", "菜园", "厨房", "饭", "茶", "咖啡", "猫", "狗", "鸟", "鱼"],
+  "quantity_whitelist": ["分钟", "小时", "天", "周", "月", "季", "年", "岁", "克", "斤", "两", "勺", "杯", "碗", "盘", "朵", "棵", "只", "条", "米", "步"],
+  "semantic_clusters": [
+    {"cluster_name": "治愈氛围同义堆砌", "keywords": ["温暖", "温馨", "宁静", "祥和", "惬意", "悠然"], "min_hits": 3, "suggestion": "治愈场景密集出现氛围形容词，建议用具体的感官细节（食物香气、阳光温度、风声鸟鸣）呈现治愈感，避免反复说'温暖'。"}
+  ],
+  "director_notes": "治愈系核心是温暖宁静与生活质感，节奏慢、冲突弱、细节丰；美食/田园/手工/萌宠等元素要有具体可感的细节（食材处理、季节变化、动植物互动），不能只说'好吃''可爱'；人物关系温和，有小误会但快速化解，不搞强冲突与虐心；环境描写占比高（25%~50%），四季/天气/自然是重要叙事元素；章末可安静收尾（余韵/留白），不一定要强断章钩子。字数可偏少（1500~4000），节奏由生活心流决定。"
+}

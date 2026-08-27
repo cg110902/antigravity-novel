@@ -1,14 +1,31 @@
 {
-  "schema": "novel-studio.genre-profile/v1",
+  "schema": "novel-studio.genre-profile/v2",
   "id": "xuanhuan",
-  "label": "玄幻 / 仙侠 / 系统模拟器",
+  "label": "玄幻 / 仙侠 / 修仙 / 系统模拟器",
+  "creation_goal": "commercial",
   "word_count": {"min": 2500, "recommended": 3500, "max": 5500},
-  "ratio_baseline": {"dialogue": [28, 42], "action": [38, 58], "describe": [10, 28]},
+  "ratio_baseline": {"dialogue": [25, 45], "action": [35, 60], "describe": [10, 30]},
+  "tone_policy": {
+    "mode": "bright_preferred",
+    "bright_allowed": true,
+    "dark_allowed": true,
+    "note": "玄幻常规场景偏好明快从容，但秘境/绝境/反派阵营可阴暗压抑，由场景决定。"
+  },
+  "state_components": ["current_state", "chekhov_guns", "timeline", "character_growth_arcs", "economy_ledger", "misunderstandings"],
   "stall_window": 3,
   "scheduler": {"remind_lead": 3, "dormant_gap": 5, "longline_interval": [8, 10]},
-  "dialogue_floor": 18,
-  "describe_ceiling": 38,
-  "extra_ticks": ["恐怖如斯", "倒吸一口凉气", "眸", "眸光", "瞳孔骤缩", "嘴角勾起一抹弧度",
-                   "气息暴涨", "不怒自威", "威压", "蝼蚁", "大能", "气运", "天地异象"],
-  "director_notes": "以境界/里程碑推进为爽点骨架：每章要有可量化的实力、资源或地位推进（突破、得宝、布局兑现），严禁单章暴涨境界；战斗干脆利落、结果反差强，拒绝慢动作拆招；系统/模拟器结算必须带真实波折与代价；长线金手指伏笔按 8~10 章周期回唤，保持期待不断线。"
+  "dialogue_floor": 15,
+  "describe_ceiling": 35,
+  "combat_heavy": true,
+  "economy_required": true,
+  "ending_style": "strong_hook",
+  "pov_default": "third_limited",
+  "extra_ticks": ["恐怖如斯", "倒吸一口凉气", "眸", "眸光", "瞳孔骤缩", "嘴角勾起一抹弧度", "气息暴涨", "不怒自威", "威压", "蝼蚁", "大能", "气运", "天地异象", "桀桀", "冷哼一声"],
+  "cliffhanger_keywords": ["灵鹤", "玉简", "飞舟", "剑鸣", "神芒", "神轮", "大世", "出山", "渡劫", "金丹", "元婴", "化神", "宗门", "秘境", "灵气", "宝光", "法相", "天劫"],
+  "quantity_whitelist": ["百丈", "千丈", "万丈", "万载", "三载", "十载", "百年", "千年", "万年", "一息", "数息", "十息", "百丈", "一文", "一锭", "灵石", "丹药", "符箓"],
+  "semantic_clusters": [
+    {"cluster_name": "反派震慑同义堆砌", "keywords": ["瑟瑟发抖", "噤若寒蝉", "面如死灰", "屁滚尿流", "魂飞魄散", "肝胆俱裂"], "min_hits": 3, "suggestion": "反派被震慑时密集出现同义表达，建议删减重复，用一个具体动作或后果呈现威慑力。"},
+    {"cluster_name": "突破爽感同义堆砌", "keywords": ["突破", "晋升", "暴涨", "飙升", "突飞猛进", "一日千里"], "min_hits": 3, "suggestion": "突破场景密集出现同义表达，建议用具体的境界变化、生理感受或环境异象呈现，避免反复说'突破'。"}
+  ],
+  "director_notes": "以境界/里程碑推进为爽点骨架：每章要有可量化的实力、资源或地位推进（突破、得宝、布局兑现），严禁单章暴涨境界；战斗干脆利落、结果反差强，拒绝慢动作拆招；系统/模拟器结算必须带真实波折与代价；长线金手指伏笔按8~10章周期回唤。常规场景明快从容，秘境/绝境可阴暗压抑，由场景心流决定。"
 }

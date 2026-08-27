@@ -1,0 +1,30 @@
+{
+  "schema": "novel-studio.genre-profile/v2",
+  "id": "infinite",
+  "label": "无限流 / 轮回 / 任务世界 / 主神空间",
+  "creation_goal": "commercial",
+  "word_count": {"min": 2200, "recommended": 3300, "max": 5200},
+  "ratio_baseline": {"dialogue": [25, 50], "action": [30, 55], "describe": [12, 32]},
+  "tone_policy": {
+    "mode": "adaptive",
+    "bright_allowed": true,
+    "dark_allowed": true,
+    "note": "无限流每个任务世界基调不同（恐怖本/玄幻本/科幻本/历史本），应随世界灵活切换，主神空间可固定一种基调。"
+  },
+  "state_components": ["current_state", "chekhov_guns", "timeline", "character_growth_arcs", "economy_ledger"],
+  "stall_window": 2,
+  "scheduler": {"remind_lead": 3, "dormant_gap": 4, "longline_interval": [6, 10]},
+  "dialogue_floor": 18,
+  "describe_ceiling": 38,
+  "combat_heavy": true,
+  "economy_required": true,
+  "ending_style": "strong_hook",
+  "pov_default": "third_limited",
+  "extra_ticks": ["瞳孔骤缩", "倒吸一口凉气", "积分", "点数", "兑换", "主神", "轮回", "任务", "奖励", "惩罚"],
+  "cliffhanger_keywords": ["主神", "轮回", "任务", "副本", "世界", "积分", "点数", "兑换", "技能", "血统", "装备", "奖励", "惩罚", "死亡", "回归", "传送", "光柱"],
+  "quantity_whitelist": ["积分", "点数", "等级", "D级", "C级", "B级", "A级", "S级", "SS级", "次", "回合", "天", "小时", "分钟", "秒"],
+  "semantic_clusters": [
+    {"cluster_name": "任务紧张同义堆砌", "keywords": ["紧张", "紧迫", "危急", "千钧一发", "迫在眉睫", "刻不容缓"], "min_hits": 3, "suggestion": "任务场景密集出现紧张同义表达，建议用倒计时具体数值或角色具体行动呈现紧迫感。"}
+  ],
+  "director_notes": "无限流核心是多世界穿梭与成长，每个任务世界应有独立的规则与基调（恐怖本阴暗/玄幻本明快/科幻本冷峻），主神空间作为固定枢纽；积分/点数/兑换体系前后一致，技能/血统/装备获取有真实代价；团队角色各有分工与成长弧线，避免主角一人carry；每个世界结束应有收获与损失，回归主神空间后休整与强化。主线（轮回真相/主神目的）长线伏笔按6~10章回唤。"
+}
