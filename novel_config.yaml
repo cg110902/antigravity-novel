@@ -1,37 +1,38 @@
 # -*- coding: utf-8 -*-
-# Universal Novel Studio - 全局声明式配置文件 (novel_config.yaml)
+# Universal Novel Studio - 全局声明式配置文件 (novel_config.yaml v2)
+# 全题材自适应版本：字数/配比/基调/词表由 genre_profile.json（题材档案）控制，本文件仅为全局工程配置。
 
 project:
   name: "一年抽取一词条，模拟的也可以？" # 当前项目书名 (开新书时自定义)
-  version: "3.5.0"
+  version: "3.6.0"
   workspace_dir: "novel_workspace" # 唯一事实真值源目录 (SSOT)
-  default_genre: "玄幻脑洞" # 当前题材 (支持全题材配置)
+  default_genre: "通用自适应" # 默认题材 (init 时可指定，支持17种内置题材，运行 studio.py genre --list 查看)
 
 workflow:
   mode: "autonomous_creation" # 自动创作流水线模式 (自主决断细纲最优走向 -> 直通起草审校与状态自同步 -> 终审交付)
   self_healing_pipeline: true # Stage 2-4 全自动自愈回炉重试闭环 (门禁未过自动打回精修，直至 100% 达标)
-  max_auto_retry_attempts: 3 # 单章质量门禁与台账校验自愈重试最大保护上限
+  max_auto_retry_attempts: 3 # 单章质量门禁与台账校验自愈重试最大保护上限，耗尽后暂停等待人工审核
   human_in_the_loop_mode: "final_review_only" # 人类仅负责 finalized 终稿终审，全流程零打扰
   auto_recycle_subagents: true # Sub-Agent 瞬态即焚与 100% 自动生命周期回收
   long_arc_safeguards:
-    max_realm_jump_per_chapter: 0 # 单章严禁跨越多个大境界
+    max_power_level_jump_per_chapter: 0 # 单章严禁跨越多个大层级 (v2: realm→power_level，适用于全题材：玄幻=境界/科幻=异能/都市=资源/悬疑=认知/言情=情感深度)
     require_simulation_friction: true # 模拟推演必须包含真实波折、瓶颈或未竟之憾
     anti_plot_homogenization: true # 严禁模式化套路复读与脸谱化反派
-    three_tier_anticipation_model: true # 强制实施显性目标+隐性危机+倒计时炸弹
+    three_tier_anticipation_model: true # 三层期待感模型 (显性目标+隐性危机+倒计时炸弹)；治愈系/日常题材可弱化 L3 倒计时，侧重 L1 生活目标与 L2 人际暗流
 
 generation:
   target_word_count:
-    min: 2500 # 篇幅及格底线 (低于此阈值 Linter 强制 Exit Code 1 报错阻断)
+    min: 1800 # v2: 全局兜底篇幅底线从2500降至1800，实际字数由 genre_profile.word_count.min 控制 (治愈系可低至1500，玄幻默认2500)
     max: 5000
-    recommended: 3200 # 字数自适应：情节饱满、意群完整即自然收尾，不注水也不机械卡死
-  allow_hybrid_pacing_modes: true # 支持 16 大变奏形态自由复合拼接 (如 Mode F+A, Mode I+H, Mode M+D 等)
-  structure_adjacent_repeat_forbidden: false # 变奏矩阵作为启发式参考工具箱，支持依大事件连贯跨章推进
+    recommended: 3000 # 字数自适应：情节饱满、意群完整即自然收尾，不注水也不机械卡死
+  allow_hybrid_pacing_modes: true # 支持 16 大变奏形态自由复合拼接
+  structure_adjacent_repeat_forbidden: false # 变奏矩阵作为启发式参考工具箱
 
 linter_thresholds:
   allow_natural_dialogue_variance: true # 对白比例依场景自然自适应 (闭关章可无对白，辩论章可多对白)
   max_consecutive_breathless_chars: 75 # 仅对超长无标点极端病句做基础兜底
-  prohibit_battle_cliche_stacking: true # 禁止战斗脸谱化词汇堆砌
-  hard_gate_min_word_count: 2500 # 核心硬伤断言门禁字数阈值
+  prohibit_battle_cliche_stacking: true # v2: 战斗脸谱化词汇堆砌检测，仅对 combat_heavy=true 的题材启用 (玄幻/武侠/科幻/军事/游戏/体育)，言情/治愈/悬疑等非战斗题材自动跳过
+  hard_gate_min_word_count: 1800 # v2: 核心硬伤断言门禁字数阈值从2500降至1800，实际由 genre_profile.word_count.min 控制
 
 subagent:
   editor_role: "novel_editor (金牌长篇网文责编与定稿总笔)"
