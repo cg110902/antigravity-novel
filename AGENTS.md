@@ -1,281 +1,267 @@
-# Universal Novel Studio · 全题材通用小说工业化流水线法典 (AGENTS.md)
+# Universal Novel Studio — 全题材自适应小说工业化流水线法典 (AGENTS.md v2)
 
-本文件定义了 **Universal Novel Studio** 的总架构师（Lead Director / Planner）与专业特工（Sub-Agents）之间的协同流水线、任务分派协议、宏观元素配比与通用质量门禁。
+> **v2 通用性改造**：本文档原名为「玄幻爽文工业化流水线法典」，v2 版本将所有有题材倾向的文风/基调/配比规则降级为「商业爽文默认值」，由 `genre_profile.json`（题材档案）按题材覆盖。真正的通用铁律仅保留五条（详见 `rules/novel_style.md` 第一节）。本法典聚焦**工程流程与确定性流水线**，文风规范请参阅 `rules/novel_style.md`（v2 自适应版）。
 
-> 📌 **跨题材通用母法原则 (Universal Multi-Genre Law)**：
-> 本文件及所有 `agents/rules/`、`agents/skills/` 均为**全题材通用的基础母体法典**（适配玄幻仙侠、都市异能、科幻机甲、悬疑推理、历史架空、无限流等任意题材）。
-> 严禁在通用指令中硬编码任何具体作品的专有名词、特定人名、地名、特定卷名或特定数值。具体小说的设定、手稿与状态台账严格物理隔离在 `novel_workspace/` 中，开新书时仅变更 `novel_workspace/`。
+本文件是本仓库的**最高执行法典**。所有 Agent（主 Agent / Sub-Agent / 审校官 / 同步官）在执行任何操作前，必须先读本文件并严格遵守。本文件与 `rules/`、`skills/` 下的文档共同构成完整的创作规范体系。
 
 ---
 
-## 0. 上下文卫生与工具调用铁律 (Context Hygiene & Tool Contract)
+## 第 0 节：运行时绝对禁令 (Runtime Invariants)
 
-> 🎯 **核心认知：Python 工具是"被调用的函数"，不是"要阅读的文档"。**
-> 所有 Agent（含主控与 Sub-Agent）通过 `run_command` 执行 `python studio.py <命令>`，只消费其**终端输出 / `--json` 结果**，**绝不读取工具源码**。工具代码再大也不占模型上下文——占上下文的只有你主动 view_file 的文件。
+以下禁令在**任何情况下**都不可违反：
 
-**🛑 三条上下文红线（所有 Agent 必须遵守）：**
-
-1. **严禁翻阅 / view_file 任何代码文件**：`tools/*.py`、`studio.py`、`tests/*.py`、`__pycache__/`。需要什么能力就调对应命令，行为以命令输出和本法典为准，不要去源码里"确认实现"。唯一例外是主控 Agent 在开发/维护工具链本身时。
-2. **不要整本打开状态台账**：`current_state.md`、`economy_ledger.json`、`chekhov_guns.md` 等长台账，一律通过 `studio.py pack`（已自动裁剪/预算化）或 `studio.py status` 获取摘要；不要手动 view_file 全量读取再塞进上下文。
-3. **一章一装载，用完即弃**：每章开工前 `python studio.py pack ch_xxx --json`（上下文紧张加 `--budget 8000`）拿到**本章专用上下文包**；章末定稿后该包即作废，不要跨章累积。`budget_report` 会明确告诉你裁掉了什么。
-
-**上下文分层（什么东西在什么时候占用窗口）：**
-
-| 层 | 内容 | 何时占用 |
-|---|---|---|
-| 常驻 | 本法典 AGENTS.md + 平台挂载的 `agents/rules/`、`agents/skills/` | 进会话即常驻（规则总量克制，勿往里堆正文/样例） |
-| 按需 | 本章 pack 上下文包（状态/伏笔/梗概脊柱/RAG召回/调度建议/预警） | 调 `pack` 时装载，受 `--budget` 封顶 |
-| 按需 | 当前章细纲 / 草稿 / 定稿（`03_outlines/`、`05_manuscript/`） | 只在该章 Stage 2/3 读写本章对应文件 |
-| 零占用 | `tools/*.py`、`studio.py`（工具源码） | **永不读取**，只调用、只看输出 |
-
-**阶段 ↔ 命令速查（照着调即可，无需理解内部实现）：**
-
-| 阶段 | 命令 | 作用 |
-|---|---|---|
-| Stage 0 | `python studio.py status` | 进度/字数/资产/活跃伏笔概览 |
-| Stage 0 | `python studio.py doctor` | 工作区结构与账本体检（ERROR 必须先修） |
-| Stage 0 | `python studio.py genre` | 查看本书题材档案（配比基线/口癖/塌中段窗口/题材导演指导） |
-| Stage 1 | `python studio.py init --title "..." --genre "..." --protagonist "..."` | 全题材新书脚手架母版创生与初始化 |
-| Stage 2 | `python studio.py pack ch_xxx --json [--budget N]` | 装载本章全量上下文（含记忆引擎与伏笔调度） |
-| Stage 2 | `python studio.py schedule ch_xxx` | 伏笔主动排期（该引爆/回唤/唤醒哪些枪） |
-| Stage 2 | `python studio.py memory recall "关键词"` | BM25 资料员手动回捞旧伏笔/人物/设定 |
-| Stage 2 | `python studio.py memory spine` | 扫描定稿自动补全章节梗概脊柱 |
-| Stage 2 | `python studio.py memory repeat` | 跨章重复检测（重复首介/雷同/节拍相似） |
-| Stage 3 | `python studio.py lint ch_xxx [--voice]` | 定稿质量门禁（字数/AI腔/读者懵逼，CRITICAL 阻断） |
-| Stage 3 | `python studio.py confusion ch_xxx` | 单独运行读者阅读卡点与认知断层检测 |
-| Stage 3 | `python studio.py rx ch_xxx` | 生成单章分层靶向微创手术处方建议 |
-| Stage 3 | `python studio.py diff ch_xxx` | 初稿 vs 定稿脱水重铸质量与颗粒度对比 |
-| Stage 3 | `python studio.py quality ratio -c ch_xxx` | 黄金配比三维量化（WARNING 参考，不阻断） |
-| Stage 3 | `python studio.py quality stall` | 连续无状态变更塌中段注水检测 |
-| Stage 3 | `python studio.py quality distill [-c ch_xxx]` | 全书文风指纹蒸馏或单章偏离度比对 |
-| Stage 4 | `python studio.py facts ch_xxx` | 0-Token 快速预提取单章资金流水、伤势与重点道具 |
-| Stage 4 | `python studio.py draft ch_xxx` | 0-LLM 预填提案骨架（角色/候选流水/线索/梗概）→ `.draft.json` |
-| Stage 4 | `python studio.py apply` | 确定性合并 `state_inbox` 中待处理的状态变更提案 |
-| Stage 4 | LLM 复核草稿另存为 `state_inbox/ch_xxx.json` → `python studio.py sync ch_xxx` | 提交结构化状态变更→引擎合并→校验台账→快照封存 |
-| 任意 | `python studio.py radar [--json]` | 全维雷达总控（doctor/账本/DAG/塌中段/配比/重复/懵逼…） |
-| 任意 | `python studio.py export [--txt]` | 编译导出全书出版级 Markdown 或 TXT 手稿 |
-| 任意 | `python studio.py snapshots` / `snapshot <name>` | 列出历史快照 / 创建指定名称快照 |
-| 任意 | `python studio.py rollback <name> [--clean-drafts]` | 回滚状态机至历史快照（可选清理孤立稿件） |
-| 任意 | `python studio.py test` | 运行自动化单元测试套件 (76 项测试全绿) |
-
-> 💡 **职责分工铁律**：确定性的事（记账、编号、查重、配比统计、BM25 召回、伏笔排期、快照回滚）**全部由本地 Python 完成，零 Token**；需要语义理解的事（提炼事实突变、写梗概、写正文、判断戏腔与张力）才交给 LLM。LLM 产出**结构化提案/正文**，Python 引擎负责**校验、合并、记账、守门**。
+1. **严禁翻阅 / view_file 任何代码文件**：`tools/*.py`、`studio.py`、`tests/*.py`。所有工具能力通过 `python studio.py <command>` 调用，不要读源码。理由：代码文件体积大、上下文污染严重，且工具行为以 CLI 输出为准。
+2. **严禁手写状态机文件**：`current_state.md`、`economy_ledger.json`、`chekhov_guns.md`、`misunderstandings.md`、`character_growth_arcs.md`、`timeline.md`。状态变更必须通过 `state_inbox/ch_xxx.json` 提案 → `python studio.py sync ch_xxx` 引擎合并。AI 只提案、不手写台账。
+3. **严禁跳过质量门禁**：定稿必须通过 `python studio.py lint ch_xxx`（Exit Code 0）。CRITICAL 级问题（工程标记外泄、字数不足、读者懵逼检测）必须修复后才能交付。
+4. **严禁在正文中出现工程标记**：GUN-003、MIS-001、Stage 1、伏笔道具、当前心智阶段、`[中文占位符]` 等。
+5. **严禁直接修改 `finalized/` 下的定稿**：定稿修改必须通过「修改 raw_drafts → 重新审校 → 覆盖 finalized」流程。
+6. **严禁删除 `state_inbox/processed/` 和 `snapshots/`**：这些是审计与回滚依据。
 
 ---
-## 1. 核心架构与全自动自愈流水线总览 (Autonomous Self-Healing Architecture)
 
+## 第 1 节：五层架构与目录结构
+
+本项目采用**确定性/语义分离**的五层架构：
+
+| 层级 | 目录/文件 | 职责 | 执行者 |
+|------|-----------|------|--------|
+| L1 配置层 | `novel_config.yaml`、`00_meta/genre_profile.json` | 全局声明式配置 + 题材档案 | 人类/总策划 |
+| L2 设定层 | `00_meta/`、`01_world/`、`02_characters/`、`03_outlines/` | 世界观、人设、大纲、细纲 | 总策划/编剧 Agent |
+| L3 状态层 | `04_timeline_and_state/` | 状态机、伏笔池、误会台账、心智台账、复式账本、时间线、提案收件箱 | 确定性引擎（AI 只提案） |
+| L4 创作层 | `05_manuscript/` | 正文手稿（raw_drafts + finalized） | 主笔 Agent + 审校官 |
+| L5 工具层 | `tools/`、`studio.py` | 33 个确定性工具 + 统一 CLI 调度器 | 程序（不读源码） |
+
+### 目录结构速查
 ```
- ┌────────────────────────────────────────────────────────┐
- │      Stage 1: 新书开局与全题材世界架构 (Novel Inception)     │
- │   - 人机对话确定核心脑洞、世界法则、民生经济与角色卡片 │
- │   - 无需前期样本：基于 4 大通用心流母则直接冷启动首章   │
- └──────────────────────────┬─────────────────────────────┘
-                            │
-                            ▼ 
- ┌────────────────────────────────────────────────────────────────────────┐
- │       Stage 2-4 全自动自愈闭环流水线 (Autonomous Self-Healing Loop)     │
- │   【人类只负责 finalized 终审，其余全环节遇阻自动打回重做直到 100% 通过】 │
- ├────────────────────────────────────────────────────────────────────────┤
- │ 1. Stage 2: 细纲自主决断 (Beats Builder)                               │
- │    - 自动装载 pack 语境 + 自动伏笔排期 + 自动查重，自主决断最优走向      │
- │                                                                        │
- │ 2. Stage 3: 正文起草与自愈审校门禁 (Draft & Self-Healing Polish)         │
- │    - 起草初稿 raw_drafts/ -> 派发 novel_editor 精修 finalized/         │
- │    - 🚨 门禁巡检: 字数/AI腔/读者懵逼/黄金配比/内部代号泄漏             │
- │    - 🔄【自愈回炉循环】: 若 exit_code != 0 或存在 CRITICAL 缺陷，       │
- │      自动提取 rx 靶向处方打回精修重写，直至全部门禁绿灯通过 (0 Errors) │
- │                                                                        │
- │ 3. Stage 4: 状态确定性自同步与双台账审计 (State Sync & Double Ledgers)  │
- │    - 0-LLM 扫描定稿预填 draft.json -> 语义复核补全为正式提案            │
- │    - 运行 studio.py sync 执行确定性合并 + 账本审计 + 道具轨迹跟踪      │
- │    - 🔄【台账自愈】: 若账本不平或编号冲突，自动修正提案重跑直至健康     │
- │    - 自动封存版本快照 (Snapshot)                                       │
- └──────────────────────────┬─────────────────────────────────────────────┘
-                            │
-                            ▼
- ┌────────────────────────────────────────────────────────┐
- │        人类终审与交付呈现 (Human Editorial Sign-off)   │
- │   - 自动 present_file 弹出 finalized/ch_xxx.md 终稿    │
- │   - 输出质检雷达简报与状态摘要，人类作家一键终审放行   │
- └────────────────────────────────────────────────────────┘
+novel_workspace/
+├── 00_meta/           # 项目圣经 + 题材档案
+│   ├── project_bible.md
+│   └── genre_profile.json    # ← 题材档案，控制文风/基调/配比/词表自适应
+├── 01_world/          # 世界观设定
+│   ├── world_rules.md
+│   ├── factions.md
+│   └── geography.md
+├── 02_characters/     # 角色卡
+│   ├── character_index.md
+│   └── profiles/
+├── 03_outlines/       # 大纲与细纲
+│   ├── main_plot.md
+│   ├── vol_01_outline.md
+│   └── beats/
+├── 04_timeline_and_state/  # 状态机（AI 不手写）
+│   ├── current_state.md
+│   ├── economy_ledger.json
+│   ├── chekhov_guns.md
+│   ├── misunderstandings.md
+│   ├── character_growth_arcs.md
+│   ├── timeline.md
+│   ├── state_inbox/         # 提案收件箱
+│   │   ├── ch_xxx.draft.json   # 草稿（不合并）
+│   │   ├── ch_xxx.json          # 正式提案（合并）
+│   │   ├── processed/           # 已合并
+│   │   └── failed/              # 校验失败
+│   └── snapshots/           # 状态快照（回滚用）
+└── 05_manuscript/       # 正文
+    └── vol_01/
+        ├── raw_drafts/      # 初稿
+        └── finalized/       # 定稿（门禁通过后）
 ```
 
 ---
 
-## 2. 通用文风与叙事心流 4 大母则 (Universal Flow Pillars)
+## 第 2 节：文风规范 (v2 自适应)
 
-无论何种题材，全书起草与精修必须严格遵守以下 4 大通用标准，彻底拔除 AI 味、老套包浆与阅读疲劳：
+> ⚠️ **v2 重大变更**：原「4 大通用心流母则」中的基调/断章/配比规则已降级为「商业爽文默认值」，由题材档案 `genre_profile.json` 按题材覆盖。**真正的通用铁律仅保留五条**，详见 `rules/novel_style.md` 第一节。
 
-1. ☀️ **【自然通透 · 拒绝逼仄阴暗与冷峻压抑】**：
-   - 坚决杜绝通篇沉溺于逼仄、阴暗、压抑、死寂、冷峻或暗黑中二基调；
-   - 无论何种题材，常规场景必须保持**明快、干脆、从容、自信、富有烟火气与生活感**，多展现开阔视界、健康生命力与积极向上的力量感。
-2. 💬 **【市井人话 · 彻底斩除古早戏腔与虚伪客套】**：
-   - 对白必须讲人话、接地气、有动机、有利益算盘与现实微机锋；
-   - 坚决斩除“老朽活了大半辈子”、“某某有绝密要务求见”、“渊渟岳峙”、“不怒自威”、“神色肃穆”、“抱拳领命”等古装舞台剧念白与老套成语堆砌；人物对话像活在真实利益世界中的人。
-3. ⚙️ **【扎实推进 · 轻量动线与拒绝慢动作描写过载 (Lean Description)】**：
-   - **描写严控在 15%~30% 以内**：环境与器物描写必须依附于人物动线一笔带过，严禁停下剧情大段描摹风景与死物；
-   - **交锋拒绝子弹时间**：动作交锋追求干脆凌厉、雷霆破局，靠结果反差与利落动作营造爽感，严禁慢动作拆解微观粒子导致叙事拖沓；
-   - 核心机制（技能晋升、推演演法、系统结算、装备制造、超频异能）展现清晰的里程碑推进与真实生理/器物损耗代价，拒绝浮夸刷屏。
-4. 🎣 **【刀尖断章 · 坚决拔除假大空煽情口号】**：
-   - 章节末尾必须直接卡在最紧绷的冲突爆发点、动作临界点或悬念转折点上，逼读者立即翻页；
-   - 坚决拔除“大江东去，风云际会。浩瀚大世已在脚下铺展！”等假大空空洞煽情总结。
+### 五条通用铁律（所有题材不可违反）
+1. **限制视角不越界**：严格锁定当前 POV 角色的物理视野与认知边界。
+2. **信息差自洽**：谁知道什么、谁不知道什么，前后一致。
+3. **角色动机真实**：每个角色的行为有合乎其性格/立场/利益的动机。
+4. **前后因果一致**：设定/规则/时间线/道具权属/人物关系前后一致，不吃设定。
+5. **无工程标记外泄**：正文不出现 GUN-001/MIS-001/Stage 1/占位符等内部标记。
 
----
+### 文风自适应执行流程
+1. **先读题材档案**：执行任何文风判断前，先读取 `00_meta/genre_profile.json`（或运行 `python studio.py genre` 查看）。
+2. **按题材策略执行**：基调（`tone_policy`）、配比（`ratio_baseline`）、断章（`ending_style`）、词表（`cliche_patterns`/`cliffhanger_keywords`/`semantic_clusters`/`quantity_whitelist`）均由题材档案控制。
+3. **场景心流优先**：即使题材偏好明快，绝境/阴谋/葬礼场景自然可以阴暗；即使题材偏好阴暗，安全区/日常场景也可以明快。
+4. **详细规范**：完整文风规范参阅 `rules/novel_style.md`（v2 自适应版）。
 
-## 3. 全书宏观叙事元素黄金均值配比法则 (Macro Golden Ratio Law)
-
-> 💡 **【单章动态自适应 · 全书追求均值均衡 · 对话驱动灵活赋权】**：
-> - **全书宏观基线**：宏观上全书稳定维持在 **对白 30%~40% / 推进与动作 40%~50% / 静态描写 ≤20%~30%**；
-> - **对话推动剧情与灵活浮动**：现代读者高度偏好节奏生动的对话交锋。在机锋博弈、市井盘算、谈判对峙、误会揭露或日常互动等场景中，**不设死板上限，完全由主笔特工与审校 Sub-Agent 自主拿主意，对话占比可自然提升至 40%~55%+**，用密集的台词交锋直接拉扯剧情与推进因果；
-> - **决战与高潮章**：动作决策与雷霆破局自然占据主导（动作 50%~60%），各取所长，随物赋形。
-```
- ┌────────────────────────────────────────────────────────┐
- │           全书宏观叙事黄金配比 (Macro Golden Ratio)      │
- ├────────────────────────────┬───────────────────────────┤
- │ 💬 对白与机锋交锋 (30%~40%+)│ 讲人话、有算盘、对话推剧情│
- │ ⚡ 剧情推进与动作决策 (40%~50%)│ 谁干了什么、当场结果与收获│
- │ 🔍 环境与静态描写 (15%~30%)│ 随动线一笔带过，绝不慢放  │
- └────────────────────────────┴───────────────────────────┘
-```
-text
-
-
-- **将篇幅最大化倾注在剧情推进与人物交锋上**：把字数留给利益拉扯、机智博弈、破局决断与实质战备收获，杜绝用静态风景与无意义慢动作注水。
+### 内置题材覆盖（17 种）
+运行 `python studio.py genre --list` 查看全部内置题材档案：
+- 通用兜底：generic
+- 东方玄幻：xuanhuan（玄幻/仙侠/修仙/系统）、wuxia（武侠/江湖）、history（历史/架空/种田权谋）
+- 现代都市：urban（都市/异能/职场商战/娱乐）、realism（现实主义/年代/知青）
+- 科幻未来：scifi（科幻/机甲/星际/赛博朋克/末世废土）、lightnovel（轻小说/异世界转生）
+- 悬疑恐怖：mystery（悬疑/推理/惊悚犯罪）、horror（恐怖/克苏鲁/灵异/心理恐怖）
+- 规则生存：rulebound（规则怪谈/SCP/异常）、infinite（无限流/轮回/任务世界）
+- 情感日常：romance（言情/纯爱/甜宠/婚恋）、iyashikei（治愈系/日常/慢生活/田园美食）
+- 竞技军事：gaming（游戏/电竞/网游/直播）、sports（体育/竞技）、military（军事/战争/军旅/谍战）
 
 ---
 
-## 4. 分阶段执行细则与核心门禁
+## 第 3 节：核心工程铁律 (Engineering Invariants)
 
-### 阶段一：新书开局与全题材世界架构 (Stage 1: Novel Inception)
-- **触发**：用户提出一句话灵感或新书策划需求。
-- **执行**：
-  1. 调用 `novel-director`，与用户对齐核心看点（推荐运用 `/grill-me` 深度访谈）；
-  2. 生成 `00_meta/project_bible.md`、`01_world/world_rules.md`、`02_characters/`、`03_outlines/` 与 `04_timeline_and_state/` 初始状态机；init 会按题材自动匹配并落一份**题材档案** `00_meta/genre_profile.json`（内置玄幻/都市/科幻/悬疑/历史/规则怪谈/通用，可人工微调，最高优先）；
-     - 🎭 **题材档案决定本书的"好书店线"**：章节字数区间、黄金配比基线、塌中段窗口（悬疑/规则怪谈更紧=2 章）、对白地板/描写天花板、题材专属雷词口癖、伏笔提醒窗口，以及注入 pack 的 **director_notes 题材导演指导**（如悬疑要求线索公平、科幻要求设定自洽、都市鼓励对白到 55%）；
-     - 质检工具（`quality stall/ratio/distill`）与伏笔调度器（`schedule`）自动读取该档案，无需手改代码；改题材只需编辑这份 JSON 或 init 时换 `-g`；查看用 `python studio.py genre`；
-  3. 🌌 **长线叙事大格局规划**：构筑跨卷、跨阶段的深层伏笔网络（Chekhov's Guns）、多方阵营动态博弈、人物多阶心智弧光（Character Growth Arcs）与世界底层因果演进；
-  4. 🚀 **新书冷启动第一性原理 (Cold-Start First-Principles Engine)**：
-     - **新书在完全没有前序章节或参考切片的情况下，无需焦虑！**
-     - 起草与审校特工直接以本法典确立的 **4 大通用心流母则与黄金配比** 作为第一性原理基准；
-     - 结合新书设定的世界观与人设，直通起草第 1 章（CH1）；
-     - CH1 定稿后，自然成为全书后续所有章节（CH2+）的最高正向风格真值样板，实现全自动平稳巡航，杜绝反复试错。
+以下为**工程层面**的确定性规则，与题材无关，所有题材适用：
 
----
+### 3.1 能力阶梯锁（通用化，不限于玄幻境界）
+- 每卷仅允许主角跨越 **1 个大层级或 2~3 个小阶梯**。
+- "能力阶梯"通用化为所有题材的核心竞争力：玄幻是境界，科幻是科技/异能评级，都市是资源/人脉/权位，悬疑是认知与证据链，言情是情感深度与信任边界，游戏/体育是技术等级。
+- 严禁单章暴涨、跨级秒杀（除非有充分铺垫与代价）。
+- 能力跃迁必须源于漫长专注与生死领悟（或对应题材的等价积累）。
 
-### 阶段二：单章细纲推演与走向决断 (Stage 2: Autonomous Beats & Pacing)
-- **执行**：
-  1. 运行 `python studio.py pack ch_xxx --json` 一键装载全量语境、状态机与预警；上下文窗口紧张时加 `--budget 6000`，引擎会按「本章细纲 > 硬预警 > 当前状态 > 全书梗概脊柱 > 上章余温 > 伏笔/误会 > 心智台账/RAG召回 > 人物卡」的优先级裁剪，并在 `budget_report` 中明确报告**裁掉了哪些区块、各多少 token**；
-  2. **P1 记忆引擎会自动注入三类防重复/防遗忘语境（纯本地、零 Token）**：
-     - 📚 **全书梗概脊柱**（`chapter_synopsis.json`）：每章一句话梗概，避免重复已写过的场景/桥段；定稿后由 state-syncer 在提案里带 `synopsis` 字段登记精炼梗概（`studio.py memory spine` 可为漏登记章节补自动梗概占位）；
-     - 🔎 **RAG 资料员 BM25 召回**：按本章细纲/上章结尾召回最相关的旧伏笔、人物、设定段落（`studio.py memory recall "关键词"` 可手动查询；无 jieba 时自动降级为字 bi-gram，零依赖可用）；
-     - 🔁 **跨章重复预警**：已登场角色被"再次首次介绍"、n-gram 雷同、场景节拍相似（`studio.py memory repeat`），写新章时必须换桥段、勿重新介绍老角色；
-  3. 🪶 **P2 伏笔主动调度（pack 自动注入，也可 `studio.py schedule ch_xxx` 单独跑）**：beats-builder 动笔前先看排期建议——本章应**引爆/回收**哪些到期或超期伏笔、应**回唤**哪些临近引爆（3 章窗口内）的伏笔、哪些**沉睡伏笔**（5 章未提及）需要自然唤醒、长线伏笔的保温节奏；beats 必须为"应引爆"伏笔安排兑现节拍；
-  4. 调用 `novel-beats-builder` 推演单章分场景细纲，运用 4 维正交积木拼装体系（镜头/引擎/折叶/余韵）；
-  5. 🎣 **高级叙事驱动与推拉术**：在核心冲突篇章中运用三层期待感模型（显性目标 + 隐性危机 + 倒计时紧迫感），在日常过渡篇章中张弛有度；
-  6. 🛡️ **长线数值与阶梯锁**：严禁单章极速暴涨；机制与金手指必须具备真实波折、代价与未竟之憾；
-  7. 🏛️ **社会生态深度**：高位势力拥有体制威严与利益算盘，严禁安排低智反派无脑叫嚣；
-  8. 推演 3 个走向选项，由 Lead Director 自主评估选定最优选项，直通起草。
+### 3.2 核心竞争力（原"金手指"，通用化）
+- 每本书有且仅有一个核心竞争力（系统/模拟器/特殊能力/信息差/技术碾压/规则利用等）。
+- 核心竞争力的使用必须有真实代价与限制，不能无脑碾压。
+- 核心竞争力的成长曲线与能力阶梯锁对齐。
 
----
+### 3.3 经济数值防通胀（有经济体系的题材适用）
+- 以底层普通人一餐一饭为购买力原点，确定货币换算体系。
+- 高阶稀缺资源（灵石/信用点/装备/情报）有真实的流动消耗闭环。
+- 拒绝数字无限加零、拒绝凭空暴富。
+- 复式账本（`economy_ledger.json`）由确定性引擎从流水重算，AI 只提流水、不碰余额。
+- **无经济体系的题材**（纯悬疑/纯爱/恐怖/治愈系）可跳过经济台账，由 `genre_profile.economy_required: false` 控制。
 
-### 阶段三：正文起草与独立审校流水线 (Stage 3: Drafting & Auditing Pipeline)
-- **执行**：
-  1. **初稿起草 (Drafting)**：
-     - 调用 `novel-chapter-drafter` 分场景撰写正文（**标准 2500 ~ 5000 字自适应**，情节饱满即自然收尾），保存至 `raw_drafts/ch_xxx_v1.md`；
-     - 🚫 **【防工程标记外泄铁律】**：严禁在小说正文中出现 `GUN-xxx`、`MIS-xxx`、`Stage x` 等内部工程标记；
-     - ☀️ **【基调自然明朗】**：保持自然通透、干脆明快、富有生活感，严禁逼仄阴暗；
-     - 🗡️ **【动线轻量脱水】**：描写严格控制在 30% 以内，动作利落，杜绝子弹时间慢动作。
-  2. **独立审校流水线 (Subagent Auditing Pipeline)**：
-     - 🚀 **主轨 (Primary · Subagent 物理隔离审校与去戏腔重铸)**：
-       主控 Agent 调用 `invoke_subagent` 派发专职独立的 `novel_editor` 审校 Sub-Agent：
+### 3.4 伏笔闭环承诺
+- 所有埋下的伏笔（`chekhov_guns.md`）必须 100% 回收或明确标记为长线。
+- 伏笔调度由 `foreshadow_scheduler.py` 自动计算：回唤提前量、沉睡容忍、长线周期均由题材档案控制。
+- 严禁挖坑不填、严禁伏笔冲突。
 
-       ```json
-       {
-         "Subagents": [
-		    {
-             "TypeName": "novel_editor",
-             "Role": "novel_editor (金牌网文总编 · 通用网文精修与定稿特工)",
-             "Prompt": "【任务类型】: 通用单章网文内容精修、去戏腔去沉闷与全维定稿交付\n
-			 【输入文件】: novel_workspace/05_manuscript/vol_xx/raw_drafts/ch_xxx_v1.md\n
-			 【输出目标】: novel_workspace/05_manuscript/vol_xx/finalized/ch_xxx.md\n\n
-			 
-			 【1. 通用网文爆款标准 (Universal Flow Pillars)】:\n
-			 - 🎯 专人专事，充分放权！你的核心使命是打磨出自然明快、生动扎实、极具张力的现代网文内容；\n
-			 - 🌟 4 大核心风味支柱与宏观黄金配比：\n  
-			 ① 自然通透与生活烟火：基调健康明朗，坚决杜绝通篇逼仄、阴暗、压抑、冷峻或暗黑中二；多展现积极从容的生机与真实烟火气；\n  
-			 ② 对白讲人话与微机锋 (30%~55%，对白干脆利落、重利益、有温度，鼓励用台词击剑直接推动剧情；彻底斩除‘老朽活了大半辈子’、‘某某有绝密要务求见’、‘抱拳领命’、‘渊渟岳峙’、‘不怒自威’等舞台剧念白与老套成语；\n  
-			 ③ 轻量动线与机制推进 (40%~50%)：描写控制在 30% 以内，随动线一笔带过，机制推进展现里程碑厚度与真实代价；\n  
-			 ④ 强张力卡点断章：末尾直接切在动作临界、危机爆发或悬念转折点上，坚决拔除‘大江东去’式空洞煽情总结。\n\n
-			 ⑤ 靶向精修去AI 味：
-			 - 拔除‘笑了笑/似笑非笑/嘴角微勾’等口癖；
-			 - 将‘突然/骤然/忽然等’替换为物理声光或环境先兆铺垫（合理的可考虑保留）；
-			 - 严禁‘主谋就此伏诛’等上帝视角生硬定论，转化为具象动作或留白；
-			 - 将AI高频词汇/句式替换成更为合适的表述；
-			 - 人物角色的神态、表情、动作必须多样化，严禁面瘫； \n
-			 ⑥  读感顺畅与自然叙事：消灭长难句与拗口表达；追求自然连贯的丝滑流动感；\n 
-
-			 【2. 唯一不可改动的 3 条刚性红线 (Strict Invariants)】:\n
-			 - ① 核心因果与胜负绝对不变（谁死谁活、得了什么关键道具情报完全保留）；\n
-			 - ② 人设立场与战力阶梯绝对不变（主角沉稳有谋、从容破局，不擅自暴涨境界）；\n
-			 - ③ 数值台账分毫不差（金钱、年份、核心数值名必须与初稿及状态机完全一致）。\n
-			
-			【3. 重点重铸与去油修润清单 (Surgical Overhaul & Cleanup)】:\n
-			 - 🪓 斩除戏腔与成语批发，替换为自然生动的现代脱水人话；\n
-			 - ⚡ 描写脱水与节奏提速，切除冗长无聊的慢动作环境描摹与过场，直奔核心交锋；\n
-			 - 🔍 顺手全能纠错：通读全篇，顺手修复错别字、标点误用与前后动作物理穿帮。\n
-			 -✔ 长线防崩兜底：若草稿中出现反派脸谱化弱智叫嚣或无脑秒杀，顺手用更自然的体制机锋与真实交锋物理质感将其拉回合理水平。
-			 
-			 【4. 严禁违规动作 (Strict Tool Constraints)】:\n
-			 - 严禁翻阅 tools/ 源码或运行 Stage 4 全书状态工具；\n
-			 - 调用 write_to_file 写入 finalized/ch_xxx.md 时，严禁传入 ArtifactMetadata。\n
-			 
-			 【5. 标准化 4 步执行流 (Deterministic SOP)】:\n
-			 1. 调用 view_file 读取输入文件；\n
-			 2. 大胆执行语流重铸与通用风味打磨（确保中文字数 >= 2500）；\n
-			 3. 调用 write_to_file 一次性写入输出文件；\n
-			 4. 调用 run_command 运行 `python studio.py lint ch_xxx` 确认 Exit Code 0 门禁通过后立即交付退出！"
-           }
-         ]
-       }
-       ```
-
-     - 🛡️ **【Sub-Agent 瞬态即焚与生命周期回收铁律】**：
-       主控 Agent 在接收到 Sub-Agent 交付的定稿报告并验收完成后，**必须在单轮内无条件调用 `manage_subagents(Action='kill', ConversationIds=[<subagent_id>])` 立即物理销毁子代理**！杜绝会话池积压与内存残留。
-
-     - 🛡️ **容错降级轨 (Fallback · 本地 In-Context 自审校回退)**：
-       若因平台环境或网络偶发导致 Sub-Agent 无法调用，主控 Agent 立即无缝自动降级为本地自审校模式，运行 `python studio.py lint ch_xxx` 完成定稿。
-
-  3. 🚨 **【代码级确定性质检门禁 (Deterministic Linter Gate)】**：
-     - 单章中文字数 `< 2500 字`，`studio.py lint` 直接返回 **Exit Code 1 强制报错**；
-     - 存在未配对中文双引号或工程代号外泄，直接返回 **Exit Code 1 强制报错**；
-     - 必须修正通过门禁后，方可触发下一步检查。
-  4. 👁️ **【读者阅读卡点与懵逼检测门禁 (Reader Confusion Gate)】**：
-     - `studio.py lint` 在通过文学质检后，自动运行 `audit_reader_confusion.py` 执行 8 大读者视角确定性检测（幽灵实体/信息密度过载/代词迷雾区/休眠伏笔无召回/硬切场景/因果虚接/悬空对白/新概念无解释）；
-     - 存在 **CRITICAL 级别阅读卡点**（如从未出场的角色突然出现），直接返回 **Exit Code 1 强制报错**；
-     - WARNING 级别提示供审校特工参考修正，INFO 级别仅供人工审阅；
-     - 必须修正全部 CRITICAL 项通过后，方可触发 Stage 4 状态同步。
-
-  5. 📊 **【P2 高级量化质检雷达（确定性，零 Token，WARNING 不硬阻断）】**：
-     - 🪤 **塌中段/注水检测** `python studio.py quality stall`：连续 3 章定稿却无任何状态变更（提案/流水/编年史无痕迹）即判"中段塌陷/注水"（借鉴 Novel-OS stall_detector）；在 `radar` 中作为硬问题上报；
-     - ⚖️ **黄金配比量化门** `python studio.py quality ratio [-c ch_xxx]`：逐章统计 对白/推进动作/静态描写 三维占比（引号内为对白，其余按描写/动作信号词投票），对照黄金基线打分并对失衡（通篇风景、零对白、动作停滞）出 WARNING；只提示不阻断，对话章可自然上浮；
-     - 🎨 **文风蒸馏** `python studio.py quality distill`（全书建指纹，存 `style_fingerprint.json`）/ `quality distill -c ch_xxx`（单章对比）：以全部定稿为正样本统计句长分布、对白密度、短句占比、段长、口癖词频（笑了笑/似笑非笑/瞳孔骤缩等），单章显著偏离全书指纹或口癖超标即提示，作为去 AI 味/防 OOC 的客观参照。
+### 3.5 状态机幂等性
+- 状态变更通过提案（`state_inbox/ch_xxx.json`）→ 引擎合并（`studio.py sync`），幂等去重。
+- 重复提交同一提案不会重复记账。
+-  sync 失败的提案移入 `failed/`，修正后重跑即可，不会污染状态。
 
 ---
 
-### 阶段四：交付与状态自同步 (Stage 4: Delivery & State Sync)
-- **执行（本地先定骨架 → LLM 复核补全 → 确定性引擎合并，AI 不直接手改台账）**：
-  1. **零 LLM 预填骨架**：先运行 `python studio.py draft ch_xxx`。工具 0-Token 扫描定稿，把确定性高的字段预填进 `state_inbox/ch_xxx.draft.json`：在场角色（高置信）、候选资金流水（含方向/金额/资源池/证据句）、伤势/协议/伏笔线索句、自动梗概，并附 `_review_checklist`。
-  2. 调用 `novel-state-syncer`，**打开该草稿逐项复核**：确认/修正每条 `transactions_draft`（方向、金额、资源池、事由、对手方）后移入 `transactions`；润色 `synopsis`；按正文语义补全本地无法确定的字段（时空/境界/伤势/局势、`guns`/`misunderstandings`/`growth_arcs`/`timeline`）。核对 `_review_checklist` 后，**另存为正式** `state_inbox/ch_xxx.json`（删除 `_draft`/`_instructions`/`_evidence`/`_review_checklist`/`*_draft` 等草稿字段）。
-     > ⚠️ 草稿 `.draft.json` 与带 `_draft:true` 的提案**绝不会被合并**（state_apply 双重拦截），只有复核后的正式 `ch_xxx.json` 才会生效。提案字段规范（详见工作区 `04_timeline_and_state/state_inbox/README.md`）：
-     - `chapter`（如 `"ch_012"`）；
-     - `current_state`：`time / location / present_characters[] / realm / abilities / injury / assets / equipment / situation`（只写有变化的字段）；
-     - `guns[]`：`{action: plant|update|resolve, id?, name, target_ch?, plant_ch?, plan?, status?}`，id 省略时引擎自动编号 `GUN-00x`；
-     - `misunderstandings[]`：`{action: plant|update|resolve, id?, parties, content, truth?, level?, target_ch?}`，自动编号 `MIS-00x`；
-     - `growth_arcs[]`：`{name, action: insert|update, stage, baseline?, inciting_event?, strategy?, ultimate?}`（按角色名 upsert）；
-     - `timeline[]`：`{time, event}`（按时间锚点幂等去重）；
-     - `transactions[]`：复式记账流水 `{resource, delta(正收负支), type, subject, counterparty?, note?}`，余额由流水重算，**严禁手填余额**；资源池不存在时报错（先在台账登记）；
-     - `synopsis`（可选）+ `chapter_title`（可选）：本章 2~3 句精炼梗概，登记进梗概脊柱（source=manual，优先于自动梗概）。
-  3. 运行 `python studio.py sync ch_xxx`：流程 `[0/3]` 先由确定性合并器 `tools/state_apply.py` 校验并幂等合并提案（成功归档 `state_inbox/processed/`、失败归档 `state_inbox/failed/` 并报错），随后核验双台账平衡、道具时空轨迹并打下版本快照；
-  4. 可随时运行 `python studio.py doctor`（`tools/validate_state.py`）做工作区体检：结构完整性、复式账本平衡、GUN/MIS 编号冲突、正文占位符残留；有 ERROR 时退出码为 1；
-  5. 向人类导演交付定稿，并提供下一章剧情引子。
+## 第 4 节：Stage 0-4 确定性工作流
 
-> 📌 **设计原则**：MD/JSON 台账仍是唯一真值源且对人可读；LLM 只产出结构化提案，所有校验、编号、记账、去重由零依赖 Python 引擎确定性完成（不花 Token、可重放、可审计）。合并为幂等操作，重复提交同一提案不会重复记账。
+### Stage 0：新书初始化
+1. 运行 `python studio.py init --title "书名" --genre "题材" --protagonist "主角名"`
+2. 工具自动：创建目录结构、拷贝模板、匹配题材档案（`genre_profile.json`）、生成初始状态机。
+3. 总策划 Agent（`skills/novel-director`）与用户互动对齐：核心看点、世界观、人设、首卷大纲。
+4. 生成初始资产：`project_bible.md`、`world_rules.md`、`factions.md`、`geography.md`、`character_index.md` + 主角卡、`main_plot.md`、`vol_01_outline.md`。
+
+### Stage 1：单章细纲推演
+1. 运行 `python studio.py pack ch_xxx --json` 装载全量上下文（状态机/伏笔/角色卡/上章余温）。
+2. 编剧 Agent（`skills/novel-beats-builder`）推演 3 个 ABC 走向选项，由人类或总策划选定。
+3. 细纲写入 `03_outlines/vol_xx/beats/ch_xxx_beats.md`。
+
+### Stage 2：正文起草
+1. 主笔 Agent（`skills/novel-chapter-drafter`）按细纲分场景起草。
+2. 初稿写入 `05_manuscript/vol_xx/raw_drafts/ch_xxx_v1.md`。
+3. 字数目标由题材档案控制（`genre_profile.word_count`），通用兜底 1800~5000 字。
+
+### Stage 3：双轨独立审校
+1. **Sub-Agent 审校优先**：调用 `invoke_subagent` 启动审校官（`skills/novel-continuity-guard`），在物理隔离上下文中执行语感重铸+全能纠错。
+2. **本地自审校降级**：Sub-Agent 不可用时，主 Agent 自审校。
+3. 审校官写入 `05_manuscript/vol_xx/finalized/ch_xxx.md`。
+4. 运行 `python studio.py lint ch_xxx` 门禁核验（Exit Code 0 才能交付）。
+
+### Stage 4：状态自同步
+1. 运行 `python studio.py draft ch_xxx` 生成提案骨架（0-Token 预扫描，预填在场角色/资金流水/伤势/伏笔线索）。
+2. 同步官（`skills/novel-state-syncer`）复核草稿，补全语义字段，另存为正式提案 `state_inbox/ch_xxx.json`。
+3. 运行 `python studio.py sync ch_xxx`：引擎合并提案 → 复式记账 → 双台账校验 → 道具轨迹校验 → 打快照。
+4. 交付【事实突变声明】+【下一章情节引子】。
+
+---
+
+## 第 5 节：Sub-Agent 协同规范
+
+### 5.1 角色分工
+| 角色 | Skill | 职责 | 生命周期 |
+|------|-------|------|----------|
+| 总策划 | novel-director | 新书策划、世界观、人设、大纲、走向决断 | 常驻 |
+| 编剧 | novel-beats-builder | 单章细纲推演、ABC 走向 | 单章 |
+| 主笔 | novel-chapter-drafter | 正文起草 | 单章 |
+| 审校官 | novel-continuity-guard | 语感重铸、纠错、门禁 | 单章（物理隔离） |
+| 同步官 | novel-state-syncer | 状态提案、记忆沉淀 | 单章 |
+
+### 5.2 协同规则
+- 审校官必须在**物理隔离上下文**中运行（`invoke_subagent`），不继承主 Agent 的上下文，确保双盲审校。
+- Sub-Agent 完成任务后立即销毁（`auto_recycle_subagents: true`），避免上下文污染。
+- Sub-Agent 之间不直接通信，通过文件系统（细纲/初稿/定稿/提案）传递信息。
+- 所有 Sub-Agent 必须遵守第 0 节运行时禁令。
+
+---
+
+## 第 6 节：CLI 命令速查
+
+运行 `python studio.py --help` 查看完整命令列表。常用命令：
+
+| 命令 | 用途 |
+|------|------|
+| `studio.py init` | 初始化新书工作区 |
+| `studio.py status` | 工作区状态总览 |
+| `studio.py pack ch_xxx` | 打包全量上下文（JSON/文本） |
+| `studio.py lint ch_xxx` | 质量门禁（含读者懵逼检测） |
+| `studio.py draft ch_xxx` | 生成状态提案骨架 |
+| `studio.py sync ch_xxx` | 合并状态提案 + 校验 + 快照 |
+| `studio.py genre` | 查看/匹配题材档案 |
+| `studio.py genre --list` | 列出全部内置题材 |
+| `studio.py schedule ch_xxx` | 伏笔调度建议 |
+| `studio.py radar` | 全维质量雷达（14 项检测） |
+| `studio.py doctor` | 工作区体检（结构/账本/编号/占位符） |
+| `studio.py snapshots` | 列出状态快照 |
+| `studio.py rollback <snapshot>` | 回滚到指定快照 |
+| `studio.py export` | 导出全本（md/txt） |
+| `studio.py memory recall "关键词"` | 语义召回旧伏笔/人物/设定 |
+| `studio.py memory repeat` | 跨章重复场景检测 |
+
+---
+
+## 第 7 节：质量门禁 (Quality Gates)
+
+### 7.1 硬门禁（CRITICAL，阻断交付）
+1. **工程标记外泄**：正文出现 GUN-001/MIS-001/Stage 1/占位符等。
+2. **字数不足**：低于 `genre_profile.word_count.min`（通用兜底 1800 字）。
+3. **读者懵逼检测 CRITICAL**：幽灵实体/代词迷雾区/因果虚接等严重阅读卡点。
+4. **状态机不一致**：sync 后双台账不平衡、道具时空轨迹冲突。
+
+### 7.2 软门禁（WARNING，不阻断但需关注）
+1. 配比偏离题材基线（`ratio_baseline`）。
+2. 语义冗余聚类命中（同段同义表达堆砌）。
+3. 题材特定陈词模式命中（`cliche_patterns`）。
+4. 伏笔沉睡超期（超过 `dormant_gap`）。
+5. 角色掉线（超过 `stall_window` 章未出场）。
+
+### 7.3 自愈流水线
+- `self_healing_pipeline: true` 时，门禁不通过自动打回精修重写。
+- `max_auto_retry_attempts: 3` 次上限，耗尽后暂停等待人工审核。
+- 每次重试记录原因，避免相同错误无限重犯。
+
+---
+
+## 第 8 节：故障排查
+
+| 现象 | 排查命令 | 解决方案 |
+|------|----------|----------|
+| lint 报工程标记外泄 | `studio.py lint ch_xxx -v` | 搜索正文删除 GUN-/MIS-/Stage 等标记 |
+| sync 失败 | 查看 `state_inbox/failed/` | 按错误信息修正提案后重跑 `sync` |
+| 题材档案不匹配 | `studio.py genre --genre "你的题材"` | 检查关键词，或手动编辑 `00_meta/genre_profile.json` |
+| 状态不一致 | `studio.py doctor` | 修复 ERROR 项，或 `rollback` 到最近快照 |
+| 伏笔沉睡超期 | `studio.py schedule ch_xxx` | 按调度建议回唤或引爆 |
+| 配比持续报警 | `studio.py genre` 查看当前配比基线 | 确认题材档案是否正确，或微调 `ratio_baseline` |
+| 工具命令不存在 | `studio.py --help` | 确认命令拼写，或查看本法典第 6 节 |
+
+---
+
+## 附录：文档索引
+
+| 文档 | 路径 | 内容 |
+|------|------|------|
+| 本法典 | `AGENTS.md` | 工程流程、确定性流水线、运行时禁令 |
+| 文风规范 | `rules/novel_style.md` | v2 自适应文风规范（5条铁律+题材覆盖） |
+| 长线节奏 | `rules/novel_long_arc_and_pacing.md` | 三层期待感、能力阶梯、经济防通胀 |
+| 脑洞节奏 | `rules/novel_brainhole_and_pacing.md` | 核心看点、爽点模型、反套路 |
+| 防OOC | `rules/novel_anti_ooc.md` | 角色一致性、心智阶段、行为逻辑 |
+| 工作流 | `rules/novel_workflow.md` | Stage 0-4 详细执行SOP |
+| 总策划 | `skills/novel-director/SKILL.md` | 新书策划、世界观、人设、大纲 |
+| 编剧 | `skills/novel-beats-builder/SKILL.md` | 单章细纲、ABC走向 |
+| 主笔 | `skills/novel-chapter-drafter/SKILL.md` | 正文起草 |
+| 审校官 | `skills/novel-continuity-guard/SKILL.md` | 语感重铸、纠错、门禁 |
+| 同步官 | `skills/novel-state-syncer/SKILL.md` | 状态提案、记忆沉淀 |
+| 题材档案 | `tools/genre_profiles/*.json` | 17 种题材的文风/基调/配比/词表配置 |
+
+---
+
+*本法典为 v2 全题材自适应版本。文风规范以 `rules/novel_style.md` 为准，本法典聚焦工程流程。如有冲突，以具体场景的题材档案 + 场景心流为最高优先级。*
