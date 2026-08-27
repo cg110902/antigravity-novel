@@ -41,9 +41,10 @@ description: >-
 > 💡 **Antigravity 协同技巧**：若用户希望对设定进行更密集的压力测试与灵魂拷问，推荐用户使用 `/grill-me` 命令进行多轮交互访谈。
 
 ### 3. 生成项目资产并持久化
-在用户确认后，按标准规范在 `novel_workspace/` 中创建初始资产（可运行 `python tools/init_new_novel.py --title "书名" --genre "题材"` 初始化脚手架）：
+在用户确认后，按标准规范在 `novel_workspace/` 中创建初始资产（运行 `python studio.py init --title "书名" --genre "题材" --protagonist "主角名"` 一键初始化脚手架）：
 - `00_meta/project_bible.md`（项目圣经，确立核心法则，无需前期样本，直接依据 4 大通用心流母则进行冷启动）；
+- `00_meta/genre_profile.json`（题材档案：自动匹配安装玄幻/科幻/都市/悬疑/历史/规则怪谈等专属配置，可用 `python studio.py genre` 查看或微调）；
 - `01_world/world_rules.md`（力量/法则/科技与购买力防通胀锚定表）、`factions.md`、`geography.md`；
 - `02_characters/character_index.md` 以及主角与首卷核心人物卡；
 - `03_outlines/main_plot.md` 与 `vol_01_outline.md`；
-- `04_timeline_and_state/`（状态机、伏笔池、误会台账、心智台账、时间线）。
+- `04_timeline_and_state/`（状态机、伏笔池、误会台账、心智台账、时间线、复式账本与提案收件箱）。

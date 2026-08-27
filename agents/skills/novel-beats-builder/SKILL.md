@@ -15,12 +15,15 @@ description: >-
 
 ## 一、 执行第一步：一键装载动态语境 (Context Packager)
 
-在推演细纲前，运行语境打包工具获取全量事实与预警：
+在推演细纲前，运行统一 CLI 装载全量事实与预警（支持 token 预算裁剪）：
 ```powershell
-python tools/package_context.py -c ch_xxx --json
+python studio.py pack ch_xxx --json [--budget 8000]
 ```
 **深度消费工具数据**：
 - 提取 `high_priority_story_alerts`：优先在细纲中安排**【临界伏笔揭露】**与**【掉线角色唤醒】**；
+- 提取 `foreshadow_schedule`（或单独运行 `python studio.py schedule ch_xxx`）：按调度建议规划本章应**引爆/回收**的到期伏笔、应**回唤**的临近伏笔与需**唤醒**的沉睡伏笔；
+- 提取 `synopsis_spine`（全书梗概脊柱）与 `cross_chapter_warnings`（跨章重复预警，可运行 `python studio.py memory repeat` 深度检测）：避免重复已写过的场景桥段与人设介绍；
+- 提取 `librarian_recall`（或运行 `python studio.py memory recall "关键词"`）：回捞最相关的旧伏笔、人物与设定细节；
 - 提取 `current_state` 与 `character_growth_arcs`：确保在场角色行为符合其当前心智阶段（Stage 0/1/2...）；
 - 提取 `active_chekhov_guns` 与 `active_misunderstandings`：设计本章针对性推进或引爆点。
 

@@ -320,8 +320,8 @@ def _merge_growth_arcs(content: str, arcs: list, chapter: str, report: dict) -> 
 def _set_bullet_value(lines: list, label: str, value: str):
     """Sets the value after a '- **label**：' bullet; returns True if found."""
     for i, line in enumerate(lines):
-        if line.strip().startswith("-") and f"**{label}**" in line:
-            m = re.match(r"^(\s*-\s*\*\*" + re.escape(label) + r"\*\*\s*[：:])\s*(.*)$", line)
+        if line.strip().startswith("-") and f"**{label}" in line:
+            m = re.match(r"^(\s*-\s*\*\*" + re.escape(label) + r"[^\*]*\*\*\s*[：:])\s*(.*)$", line)
             if m:
                 lines[i] = m.group(1) + " " + value
                 return True
@@ -501,8 +501,11 @@ def _merge_synopsis(workspace: Path, chapter: str, synopsis: str, title: str, re
 def _gather_proposals(inbox: Path):
     if not inbox.exists():
         return []
-    # 草稿提案（*.draft.json，由 proposal_draft.py 生成、待 LLM 复核）绝不参与合并
-    return sorted(p for p in inbox.glob("*.json") if not p.name.endswith(".draft.json"))
+    # 草稿提案（*.draft.json）与示例母版（*.template.json, *.sample.json）绝不参与合并
+    return sorted(
+        p for p in inbox.glob("*.json")
+        if not (p.name.endswith(".draft.json") or p.name.endswith(".template.json") or p.name.endswith(".sample.json"))
+    )
 
 
 def main():

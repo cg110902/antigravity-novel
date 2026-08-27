@@ -2,7 +2,7 @@
 """
 Chapter Tension Pacing Curve & Mobile Visual Heatmap Analyzer
 Computes 5-segment tension/conflict velocity curves, checks paragraph breathing density,
-and flags breathless sentences (>30 chars without punctuation) for mobile readability.
+and flags breathless sentences (>=75 chars without punctuation, aligned with novel_config.yaml) for mobile readability.
 Usage:
     python tools/analyze_pacing_curve.py
     python tools/analyze_pacing_curve.py -c ch_004
