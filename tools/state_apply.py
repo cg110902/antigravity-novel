@@ -459,7 +459,36 @@ def apply_proposal(workspace: Path, proposal: dict, dry_run: bool = False) -> di
         else:
             report["updated"].append(f"💰 [dry-run] 将记账 {len(proposal['transactions'])} 笔")
 
+    # chapter synopsis (P1 梗概脊柱)：提案可带本章 2~3 句人工/LLM 提炼梗概
+    syn = proposal.get("synopsis")
+    if syn:
+        if not dry_run:
+            _merge_synopsis(workspace, chapter, syn, proposal.get("chapter_title", ""), report)
+        else:
+            report["updated"].append(f"📖 [dry-run] 将登记章节梗概（{chapter}）")
+
     return report
+
+
+def _merge_synopsis(workspace: Path, chapter: str, synopsis: str, title: str, report: dict):
+    """把本章梗概 upsert 进 chapter_synopsis.json（source=manual，优先级高于 auto）。"""
+    try:
+        import memory_core
+        data = memory_core.load_synopsis(workspace)
+        num_m = re.search(r"(\d+)", chapter or "")
+        num = int(num_m.group(1)) if num_m else len(data["chapters"]) + 1
+        key = f"ch_{num:03d}"
+        prev = data["chapters"].get(key, {})
+        data["chapters"][key] = {
+            "num": num,
+            "title": title or prev.get("title", ""),
+            "synopsis": str(synopsis).strip(),
+            "source": "manual",
+        }
+        memory_core.save_synopsis(workspace, data)
+        report["updated"].append(f"📖 章节梗概已登记（{key}，manual 覆盖 auto）")
+    except Exception as e:
+        report["warnings"].append(f"章节梗概登记失败: {e}")
 
 
 def _gather_proposals(inbox: Path):

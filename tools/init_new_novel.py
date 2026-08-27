@@ -231,8 +231,16 @@ def init_novel(title="未命名新书", genre="通用题材", protagonist="主�
         "- `misunderstandings`：误会 plant/update/resolve\n"
         "- `growth_arcs`：角色心智阶段更新\n"
         "- `timeline`：编年史事件追加（幂等去重）\n"
-        "- `transactions`：复式账本流水（delta 正=收入负=支出，余额由流水自动重算）\n\n"
-        "合并成功的提案自动移入 processed/，校验失败的移入 failed/。\n",
+        "- `transactions`：复式账本流水（delta 正=收入负=支出，余额由流水自动重算）\n"
+        "- `synopsis`：（可选）本章 2~3 句精炼梗概 + `chapter_title`，登记进章节梗概脊柱\n"
+        "  chapter_synopsis.json（source=manual，优先于自动梗概，供 pack 防场景/情节重复）\n\n"
+        "合并成功的提案自动移入 processed/，校验失败的移入 failed/。\n\n"
+        "## 记忆与上下文引擎（P1，纯本地零 Token）\n"
+        "- `python studio.py pack ch_xxx --budget 6000`：打包语境并按 token 预算裁剪（报告裁掉了什么）；\n"
+        "  pack 会自动注入「全书梗概脊柱」「BM25 资料员召回的相关旧段落」「跨章重复预警」。\n"
+        "- `python studio.py memory spine`：扫描定稿章节，为缺失梗概的章节补自动梗概。\n"
+        "- `python studio.py memory recall \"铁壁公司 芯片\"`：BM25 召回最相关的旧章节段落。\n"
+        "- `python studio.py memory repeat`：跨章重复检测（已登场角色被再次首次介绍 / n-gram 雷同 / 场景节拍相似）。\n",
         encoding="utf-8")
 
     # 8. Sync Root novel_config.yaml —— 仅当工作区位于本仓库内时才回写仓库配置，

@@ -94,12 +94,20 @@ def _collect_anomalies(name: str, report) -> list:
         out.append(f"[{name}] {report['error']}")
     for a in (report.get("anomalies") or []):
         out.append(f"[{name}] {a}")
+    # memory_core 跨章重复检测用 warnings 字段（WARNING 级，提示而非硬阻断）；
+    # 其字符串已自带 🔁/📝/🎬 前缀，直接用、不再加 ⚠️
+    if name == "cross_chapter_repetition":
+        for w in (report.get("warnings") or []):
+            out.append(f"[{name}] {w}")
     for e in (report.get("errors") or []):
         out.append(f"[{name}] ❌ {e}")
     for w in (report.get("warnings") or []):
         # 新书模板里的 [方括号] 占位符属于“待填写”正常空态，只在 scorecard 里可见，
         # 不把总控雷达打成 ATTENTION（有 ERROR 仍会阻断）。
         if name == "workspace_doctor" and "占位符" in w:
+            continue
+        # 跨章重复已在上方专门处理（字符串自带前缀），此处跳过避免重复
+        if name == "cross_chapter_repetition":
             continue
         out.append(f"[{name}] ⚠️ {w}")
     if report.get("status") == "FAIL":
@@ -129,6 +137,7 @@ def run_master_radar(target_chapter=None, workspace_path=None, as_json=False):
             ("economy_ledger", [python_exe, str(tools_dir / "audit_economy_ledger.py"), "-w", str(workspace_dir), "--json"]),
             ("memory_decay", [python_exe, str(tools_dir / "track_character_decay.py"), "-w", str(workspace_dir), "--json"]),
             ("character_network", [python_exe, str(tools_dir / "map_character_network.py"), "-w", str(workspace_dir), "--json"]),
+            ("cross_chapter_repetition", [python_exe, str(tools_dir / "memory_core.py"), "-w", str(workspace_dir), "--json", "repeat"]),
         ]
 
         ch_subtools = [
@@ -284,8 +293,15 @@ def run_master_radar(target_chapter=None, workspace_path=None, as_json=False):
         cmd_confusion.extend(["-c", target_chapter])
     subprocess.run(cmd_confusion)
 
+    # 13. Cross-Chapter Repetition (P1 memory engine)
+    print("\n" + "─" * 76)
+    print(" 1️⃣3️⃣ 【跨章重复检测：重复首介 / n-gram 雷同 / 场景节拍相似】")
+    print("─" * 76)
+    cmd_rep = [python_exe, str(tools_dir / "memory_core.py"), "-w", str(workspace_dir), "repeat"]
+    subprocess.run(cmd_rep)
+
     print("\n" + "═" * 76)
-    print(" ✨ [全维巡检完成] 12 大工程经典算法与诊断雷达执行完毕。")
+    print(" ✨ [全维巡检完成] 13 大工程经典算法与诊断雷达执行完毕。")
     print("═" * 76 + "\n")
 
 if __name__ == "__main__":

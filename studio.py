@@ -111,9 +111,26 @@ def cmd_pack(args):
     extra = ["-c", ch]
     if args.json:
         extra.append("--json")
+    if getattr(args, "budget", 0):
+        extra.extend(["--budget", str(args.budget)])
     if args.workspace:
         extra.extend(["-w", args.workspace])
     return run_script("package_context.py", extra)
+
+def cmd_memory(args):
+    """P1 memory engine: synopsis spine build / BM25 recall / cross-chapter repetition."""
+    # memory_core.py 全局参数（-w/--json）须位于子命令之前
+    extra = []
+    if args.workspace:
+        extra.extend(["-w", args.workspace])
+    if args.json:
+        extra.append("--json")
+    extra.append(args.sub)
+    if args.sub == "recall":
+        extra.append(args.query)
+        if args.top_k:
+            extra.extend(["-k", str(args.top_k)])
+    return run_script("memory_core.py", extra)
 
 def cmd_lint(args):
     """Stage 3: Lint chapter for consistency, generic skeletons, AI clichés & tag leaks, then reader confusion check."""
@@ -395,7 +412,17 @@ def main():
     p_pack.add_argument("chapter", help="目标章节 (如 6 或 ch_006)")
     p_pack.add_argument("-w", "--workspace", help="指定工作区路径")
     p_pack.add_argument("--json", action="store_true", help="以结构化 JSON 格式输出 (Agent 首选用例)")
+    p_pack.add_argument("--budget", type=int, default=0, help="token 预算；>0 时按相关性裁剪并报告裁掉了什么 (0=全量)")
     p_pack.set_defaults(func=cmd_pack)
+
+    # memory (P1: synopsis spine / BM25 librarian / cross-chapter repetition)
+    p_mem = subparsers.add_parser("memory", help="[P1 记忆引擎] 梗概脊柱 / BM25 资料员召回 / 跨章重复检测")
+    p_mem.add_argument("sub", choices=["spine", "recall", "repeat"], help="spine=建梗概脊柱; recall=BM25召回; repeat=跨章重复检测")
+    p_mem.add_argument("query", nargs="?", help="recall 子命令的查询词")
+    p_mem.add_argument("-k", "--top-k", type=int, default=5, help="recall 返回条数")
+    p_mem.add_argument("-w", "--workspace", help="指定工作区路径")
+    p_mem.add_argument("--json", action="store_true", help="以结构化 JSON 格式输出")
+    p_mem.set_defaults(func=cmd_memory)
 
     # lint
     p_lint = subparsers.add_parser("lint", help="[Stage 3] 体验金字塔门禁: 读感·体验·造句·读者懵逼检测")
