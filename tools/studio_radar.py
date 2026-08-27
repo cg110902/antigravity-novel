@@ -73,6 +73,8 @@ def _is_blocking(report) -> bool:
         return True
     if report.get("is_balanced") is False:
         return True
+    if report.get("status") == "ERRORS" or report.get("error_count", 0):
+        return True
     if report.get("total_fatal_count", 0):
         return True
     if report.get("total_critical", 0):
@@ -92,6 +94,14 @@ def _collect_anomalies(name: str, report) -> list:
         out.append(f"[{name}] {report['error']}")
     for a in (report.get("anomalies") or []):
         out.append(f"[{name}] {a}")
+    for e in (report.get("errors") or []):
+        out.append(f"[{name}] ❌ {e}")
+    for w in (report.get("warnings") or []):
+        # 新书模板里的 [方括号] 占位符属于“待填写”正常空态，只在 scorecard 里可见，
+        # 不把总控雷达打成 ATTENTION（有 ERROR 仍会阻断）。
+        if name == "workspace_doctor" and "占位符" in w:
+            continue
+        out.append(f"[{name}] ⚠️ {w}")
     if report.get("status") == "FAIL":
         out.append(f"[{name}] 质检状态 FAIL（致命硬伤 {report.get('total_fatal_count', '?')} 处）")
     if report.get("is_balanced") is False:
@@ -112,6 +122,7 @@ def run_master_radar(target_chapter=None, workspace_path=None, as_json=False):
         blocking_tools = []
 
         subtools = [
+            ("workspace_doctor", [python_exe, str(tools_dir / "validate_state.py"), "-w", str(workspace_dir), "--json"]),
             ("double_ledgers", [python_exe, str(tools_dir / "verify_double_ledgers.py"), "-w", str(workspace_dir), "--json"]),
             ("state_machine", [python_exe, str(tools_dir / "state_inspector.py"), "-w", str(workspace_dir), "--json"]),
             ("plot_dag", [python_exe, str(tools_dir / "audit_plot_dag.py"), "-w", str(workspace_dir), "--json"]),
@@ -164,6 +175,13 @@ def run_master_radar(target_chapter=None, workspace_path=None, as_json=False):
     print(f" 🚀 Universal Novel Studio - 全维健康巡检总控仪表盘 (Master Studio Radar)")
     print(f" 📂 目标工作区: {workspace_dir.name} | 🎯 巡检目标: {target_chapter or '全书最新进度'}")
     print("═" * 76)
+
+    # 0. Workspace structure & ledger health (P0 deterministic doctor)
+    print("\n" + "─" * 76)
+    print(" 0️⃣ 【工作区结构完整性与复式账本自检 (Doctor)】")
+    print("─" * 76)
+    cmd_doctor = [python_exe, str(tools_dir / "validate_state.py"), "-w", str(workspace_dir)]
+    subprocess.run(cmd_doctor)
 
     # 1. State & Guns & Double Ledgers
     print("\n" + "─" * 76)

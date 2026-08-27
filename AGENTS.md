@@ -189,7 +189,17 @@
 ---
 
 ### 阶段四：交付与状态自同步 (Stage 4: Delivery & State Sync)
-- **执行**：
-  1. 调用 `novel-state-syncer`，提炼 10 大事实突变，在**单轮内并发调用 `write_to_file` 批量回写** 6 大状态文件（`current_state.md`、`timeline.md`、`chekhov_guns.md`、`misunderstandings.md`、`character_growth_arcs.md` 与 `economy_ledger.json`）；
-  2. 运行 `python studio.py sync ch_xxx` 一键核验双台账平衡、道具时空轨迹并打下版本快照；
-  3. 向人类导演交付定稿，并提供下一章剧情引子。
+- **执行（AI 提议 → 确定性引擎合并，AI 不直接手改台账）**：
+  1. 调用 `novel-state-syncer`，提炼本章全部事实突变，但**不再手写 6 大状态文件**；改为产出**一份**结构化变更提案 JSON（schema `novel-studio.state-mutation/v1`），写入 `04_timeline_and_state/state_inbox/ch_xxx.json`。提案字段见 `state_inbox/README.md`：
+     - `chapter`（如 `"ch_012"`）；
+     - `current_state`：`time / location / present_characters[] / realm / abilities / injury / assets / equipment / situation`（只写有变化的字段）；
+     - `guns[]`：`{action: plant|update|resolve, id?, name, target_ch?, plant_ch?, plan?, status?}`，id 省略时引擎自动编号 `GUN-00x`；
+     - `misunderstandings[]`：`{action: plant|update|resolve, id?, parties, content, truth?, level?, target_ch?}`，自动编号 `MIS-00x`；
+     - `growth_arcs[]`：`{name, action: insert|update, stage, baseline?, inciting_event?, strategy?, ultimate?}`（按角色名 upsert）；
+     - `timeline[]`：`{time, event}`（按时间锚点幂等去重）；
+     - `transactions[]`：复式记账流水 `{resource, delta(正收负支), type, subject, counterparty?, note?}`，余额由流水重算，**严禁手填余额**；资源池不存在时报错（先在台账登记）。
+  2. 运行 `python studio.py sync ch_xxx`：流程 `[0/3]` 先由确定性合并器 `tools/state_apply.py` 校验并幂等合并提案（成功归档 `state_inbox/processed/`、失败归档 `state_inbox/failed/` 并报错），随后核验双台账平衡、道具时空轨迹并打下版本快照；
+  3. 可随时运行 `python studio.py doctor`（`tools/validate_state.py`）做工作区体检：结构完整性、复式账本平衡、GUN/MIS 编号冲突、正文占位符残留；有 ERROR 时退出码为 1；
+  4. 向人类导演交付定稿，并提供下一章剧情引子。
+
+> 📌 **设计原则**：MD/JSON 台账仍是唯一真值源且对人可读；LLM 只产出结构化提案，所有校验、编号、记账、去重由零依赖 Python 引擎确定性完成（不花 Token、可重放、可审计）。合并为幂等操作，重复提交同一提案不会重复记账。

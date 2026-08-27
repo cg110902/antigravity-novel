@@ -120,6 +120,8 @@ def init_novel(title="未命名新书", genre="通用题材", protagonist="主�
         workspace / "02_characters" / "templates",
         workspace / "03_outlines" / "vol_01" / "beats",
         workspace / "04_timeline_and_state" / "snapshots",
+        workspace / "04_timeline_and_state" / "state_inbox" / "processed",
+        workspace / "04_timeline_and_state" / "state_inbox" / "failed",
         workspace / "05_manuscript" / "vol_01" / "raw_drafts",
         workspace / "05_manuscript" / "vol_01" / "finalized",
     ]
@@ -212,6 +214,26 @@ def init_novel(title="未命名新书", genre="通用题材", protagonist="主�
     write_from_template("04_timeline_and_state/misunderstandings.template.md", "04_timeline_and_state/misunderstandings.md", "# 误会与信息差台账\n")
     write_from_template("04_timeline_and_state/character_growth_arcs.template.md", "04_timeline_and_state/character_growth_arcs.md", "# 核心人物动态成长与心智演进总台账\n")
     write_from_template("04_timeline_and_state/economy_ledger.template.json", "04_timeline_and_state/economy_ledger.json", '{\n  "resource_pools": {}\n}\n')
+
+    # 7.5 State-inbox guide (structured mutation proposals)
+    inbox = workspace / "04_timeline_and_state" / "state_inbox"
+    inbox.mkdir(parents=True, exist_ok=True)
+    (inbox / "README.md").write_text(
+        "# 状态变更提案投递箱 (State Inbox)\n\n"
+        "章节定稿后，把结构化的状态变更提案（JSON）放入本目录，再运行：\n\n"
+        "```\n"
+        "python studio.py apply        # 确定性地合并进 6 大状态文件并自动记账\n"
+        "python studio.py sync ch_xxx  # 也会自动先合并本目录提案，再校验并打快照\n"
+        "```\n\n"
+        "提案格式（schema: novel-studio.state-mutation/v1）：\n"
+        "- `current_state`：时空锚点/在场角色/境界/伤势/资产/局势（按字段更新）\n"
+        "- `guns`：伏笔 plant/update/resolve（id 可省略，自动编号）\n"
+        "- `misunderstandings`：误会 plant/update/resolve\n"
+        "- `growth_arcs`：角色心智阶段更新\n"
+        "- `timeline`：编年史事件追加（幂等去重）\n"
+        "- `transactions`：复式账本流水（delta 正=收入负=支出，余额由流水自动重算）\n\n"
+        "合并成功的提案自动移入 processed/，校验失败的移入 failed/。\n",
+        encoding="utf-8")
 
     # 8. Sync Root novel_config.yaml —— 仅当工作区位于本仓库内时才回写仓库配置，
     # 避免 -w 指向仓库外（或测试临时目录）时污染仓库的 novel_config.yaml。

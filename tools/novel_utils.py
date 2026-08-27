@@ -195,6 +195,70 @@ def is_table_header(line: str, keywords=()) -> bool:
         return True
     return any(k in line for k in keywords)
 
+
+# ---------------------------------------------------------------------------
+# Atomic file writes (never leave a half-written state file on crash)
+# ---------------------------------------------------------------------------
+def atomic_write_text(path, text: str, encoding: str = "utf-8") -> None:
+    """Writes text to `path` atomically (temp file + os.replace).
+
+    Guarantees readers never see a truncated/half-written ledger or state file.
+    """
+    import os
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    with open(tmp, "w", encoding=encoding, newline="") as f:
+        f.write(text)
+        f.flush()
+        try:
+            os.fsync(f.fileno())
+        except OSError:
+            pass
+    os.replace(tmp, path)
+
+
+# ---------------------------------------------------------------------------
+# Markdown table helpers (deterministic parse / upsert / render)
+# ---------------------------------------------------------------------------
+def split_table_row(line: str) -> list:
+    """Splits a markdown table line into trimmed cell strings."""
+    return [c.strip() for c in line.strip().strip("|").split("|")]
+
+
+def render_table_row(cells: list) -> str:
+    """Renders a markdown table row from cell strings."""
+    return "| " + " | ".join(str(c) for c in cells) + " |"
+
+
+def find_table_block(lines: list, header_keyword: str):
+    """Locates a markdown table whose header contains `header_keyword`.
+
+    Returns dict with keys: header_idx, sep_idx, data_start, data_end,
+    headers (list), rows (list of cell-lists), or None if not found.
+    """
+    for i, line in enumerate(lines):
+        if line.strip().startswith("|") and header_keyword in line and i + 1 < len(lines):
+            if is_table_separator(lines[i + 1]):
+                headers = split_table_row(line)
+                rows = []
+                j = i + 2
+                while j < len(lines) and lines[j].strip().startswith("|"):
+                    if is_table_separator(lines[j]):
+                        j += 1
+                        continue
+                    rows.append(split_table_row(lines[j]))
+                    j += 1
+                return {
+                    "header_idx": i,
+                    "sep_idx": i + 1,
+                    "data_start": i + 2,
+                    "data_end": j,
+                    "headers": headers,
+                    "rows": rows,
+                }
+    return None
+
 def strip_placeholders(text: str) -> str:
     """Removes all [中文] placeholder spans from a string."""
     return PLACEHOLDER_RE.sub("", str(text or ""))

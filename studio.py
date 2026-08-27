@@ -192,6 +192,24 @@ def cmd_facts(args):
         extra.extend(["-w", args.workspace])
     return run_script("extract_chapter_facts.py", extra)
 
+def cmd_apply(args):
+    """Stage 4: Apply a structured state-mutation proposal (deterministic state engine)."""
+    extra = []
+    if getattr(args, "file", None):
+        extra.extend(["-f", args.file])
+    if getattr(args, "dry_run", False):
+        extra.append("--dry-run")
+    if args.workspace:
+        extra.extend(["-w", args.workspace])
+    return run_script("state_apply.py", extra)
+
+def cmd_doctor(args):
+    """Health check: validate workspace structure, ledgers, and state files."""
+    extra = []
+    if args.workspace:
+        extra.extend(["-w", args.workspace])
+    return run_script("validate_state.py", extra)
+
 def cmd_sync(args):
     """Stage 4: Verify ledgers, track continuity, and automatically snapshot."""
     ch = args.chapter if args.chapter.startswith("ch_") else f"ch_{int(args.chapter):03d}"
@@ -200,6 +218,13 @@ def cmd_sync(args):
     print("=" * 72)
     print(f" 🔄 [Stage 4 · 状态自同步流水线] 目标章节: {ch}")
     print("=" * 72)
+
+    # 0. Apply any pending structured state-mutation proposals (deterministic engine)
+    print("\n[0/3] 正在合并状态变更提案 (state_apply)...")
+    rc0 = run_script("state_apply.py", w_arg)
+    # rc0 == 0 表示无提案或全部成功；非 0（有失败提案）不中断快照，但给出提示
+    if rc0 != 0:
+        print("⚠️ 部分状态变更提案未通过校验，请检查 state_inbox/failed/ 后重试。")
 
     # 1. Verify Double Ledgers
     print("\n[1/3] 正在校验双台账平衡 (verify_double_ledgers)...")
@@ -406,6 +431,18 @@ def main():
     p_facts.add_argument("-w", "--workspace", help="指定工作区路径")
     p_facts.add_argument("--json", action="store_true", help="以结构化 JSON 格式输出")
     p_facts.set_defaults(func=cmd_facts)
+
+    # apply
+    p_apply = subparsers.add_parser("apply", help="[Stage 4] 确定性合并 state_inbox 中的结构化状态变更提案")
+    p_apply.add_argument("-f", "--file", help="指定单个提案 JSON 文件（默认处理整个 state_inbox/）")
+    p_apply.add_argument("--dry-run", action="store_true", help="只校验预演，不写入")
+    p_apply.add_argument("-w", "--workspace", help="指定工作区路径")
+    p_apply.set_defaults(func=cmd_apply)
+
+    # doctor
+    p_doc = subparsers.add_parser("doctor", help="工作区健康自检（结构/台账/占位符/快照）")
+    p_doc.add_argument("-w", "--workspace", help="指定工作区路径")
+    p_doc.set_defaults(func=cmd_doctor)
 
     # sync
     p_sync = subparsers.add_parser("sync", help="[Stage 4] 双台账校验、道具流转核验与版本快照自同步")
