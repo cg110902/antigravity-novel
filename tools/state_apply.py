@@ -394,7 +394,7 @@ def _merge_timeline(content: str, entries: list, report: dict) -> str:
         event = e.get("event", "").strip()
         if not event:
             continue
-        bullet = f"- **[[{time_lbl}]]**：{event}"
+        bullet = f"- **【{time_lbl}】**：{event}"
         if re.sub(r"\s", "", event) in "\n".join(existing):
             continue  # 幂等去重
         added.append(bullet)
