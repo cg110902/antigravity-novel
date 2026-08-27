@@ -27,6 +27,9 @@ from novel_utils import (
     resolve_workspace, natural_chapter_sort_key, find_manuscript_files,
     reconfigure_utf8, file_matches_chapter, chapter_token_to_num, has_placeholder
 )
+from log_core import get_logger, degrade
+
+logger = get_logger("package_context")
 
 reconfigure_utf8()
 
@@ -275,8 +278,8 @@ def package_context_for_chapter(target_chapter_str: str, workspace_path=None, as
                         "current": econ_data.get("current_balance", 0)
                     }
                 }
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("economy_ledger.json 解析失败，资源池信息不可用: %s", e)
 
     # 2. Load Active Guns
     guns_file = workspace_dir / "04_timeline_and_state" / "chekhov_guns.md"
@@ -370,8 +373,10 @@ def package_context_for_chapter(target_chapter_str: str, workspace_path=None, as
         if decay_data and "warnings" in decay_data:
             for w in decay_data["warnings"]:
                 story_alerts.append(f"🧠 [角色掉线唤醒提醒] {w}")
-    except Exception:
-        pass
+    except ImportError as e:
+        degrade(logger, "track_character_decay", e)
+    except Exception as e:
+        logger.warning("角色掉线检测运行失败: %s", e)
 
     # Check urgent Chekhov guns
     try:
@@ -380,8 +385,10 @@ def package_context_for_chapter(target_chapter_str: str, workspace_path=None, as
         if dag_data and "urgent_guns" in dag_data:
             for ug in dag_data["urgent_guns"]:
                 story_alerts.append(f"🕸️ [伏笔临界到期提醒] {ug}")
-    except Exception:
-        pass
+    except ImportError as e:
+        degrade(logger, "audit_plot_dag", e)
+    except Exception as e:
+        logger.warning("伏笔 DAG 审计运行失败: %s", e)
 
     package["high_priority_story_alerts"] = story_alerts
 
@@ -408,7 +415,11 @@ def package_context_for_chapter(target_chapter_str: str, workspace_path=None, as
             story_alerts.append(
                 f"🔁 [跨章重复预警] 检测到 {len(rep['warnings'])} 处疑似重复（重复首介/雷同/场景相似），"
                 "写新章时务必换桥段、勿重新介绍已登场角色")
+    except ImportError as e:
+        degrade(logger, "memory_core", e)
+        package["memory_engine_error"] = str(e)
     except Exception as e:
+        logger.warning("记忆引擎运行失败: %s", e)
         package["memory_engine_error"] = str(e)
 
     # 8d. P3-4 题材档案指导（注入题材专属导演提示，随书 00_meta/genre_profile.json 可微调）
@@ -421,7 +432,11 @@ def package_context_for_chapter(target_chapter_str: str, workspace_path=None, as
             "word_count": gprof.get("word_count", {}),
             "ratio_baseline": gprof.get("ratio_baseline", {}),
         }
+    except ImportError as e:
+        degrade(logger, "genre_profile", e)
+        package["genre_profile_error"] = str(e)
     except Exception as e:
+        logger.warning("题材档案加载失败: %s", e)
         package["genre_profile_error"] = str(e)
 
     # 8e. P2 伏笔主动调度（为 beats-builder 排期：本章该引爆/回唤/唤醒哪些伏笔）
@@ -436,7 +451,11 @@ def package_context_for_chapter(target_chapter_str: str, workspace_path=None, as
                     f"💥 [伏笔调度] {tag} {g['id']}《{g['name']}》{g['target']}：{g['note']}")
             for g in sched.get("remind_soon", [])[:3]:
                 story_alerts.append(f"🔔 [伏笔回唤] {g['id']}《{g['name']}》：{g['note']}")
+    except ImportError as e:
+        degrade(logger, "foreshadow_scheduler", e)
+        package["scheduler_error"] = str(e)
     except Exception as e:
+        logger.warning("伏笔调度器运行失败: %s", e)
         package["scheduler_error"] = str(e)
 
     # 9. Token 预算模式：按相关性裁剪（在所有内容装配完成后）
