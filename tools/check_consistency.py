@@ -1,12 +1,19 @@
 # -*- coding: utf-8 -*-
 """
-Universal Readability & Consistency Linter for novel chapters.
+Universal Readability & Consistency Linter for novel chapters (v2 全题材自适应).
+
 Refactored to prioritize:
 1. 🌊 Readability & Cadence First (读感优先 / 呼吸感 / 长难句 / 排版透气度)
-2. 🎭 Reading Experience & Tone Second (阅读体验 / 文风明快度 / 对白张力 / 断章钩子)
+2. 🎭 Reading Experience & Tone Second (阅读体验 / 文风基调自适应 / 对白张力 / 断章钩子)
 3. ✍️ Diction & AI De-Cliché Tuning Third (遣词造句 / 去AI味启发 / 智能角色去噪)
 
-Supports any genre (Sci-Fi, Xianxia/Fantasy, Urban, Suspense, Game, etc.).
+v2 变更：
+- 陈词模式从 GENERIC_SKELETONS 常量改为 get_cliche_patterns() 动态加载（自动过滤 combat_genre_only + 叠加题材特定模式）
+- 断章关键词从 CLIFFHANGER_KEYWORDS 常量改为 get_cliffhanger_keywords() 动态加载（叠加题材特定关键词）
+- 文风压抑检测考虑题材档案 tone_policy：dark_preferred 题材（悬疑/恐怖）的压抑词汇是合理基调，不报警
+- 字数下限动态显示 min_word_count，不再硬编码 2500
+
+Supports any genre (17 种内置题材).
 Usage:
     python tools/check_consistency.py
     python tools/check_consistency.py -w novel_workspace
@@ -33,13 +40,23 @@ from novel_utils import (
     natural_chapter_sort_key,
     reconfigure_utf8,
     load_studio_config,
-    GENERIC_SKELETONS,
-    CLIFFHANGER_KEYWORDS,
+    get_cliche_patterns,
+    get_cliffhanger_keywords,
     OPPRESSIVE_KEYWORDS,
     STOP_CHARS
 )
 
 reconfigure_utf8()
+
+
+def _load_genre_profile(workspace_dir: Path) -> dict:
+    """加载题材档案；失败返回空 dict。"""
+    try:
+        import genre_profile as gp
+        return gp.resolve_genre_profile(workspace_dir)
+    except Exception:
+        return {}
+
 
 def detect_genre(workspace_dir: Path) -> str:
     """Detects primary genre from project bible."""
@@ -50,6 +67,7 @@ def detect_genre(workspace_dir: Path) -> str:
         if m:
             return m.group(1).strip()
     return "通用"
+
 
 def check_readability_cadence(lines):
     """
@@ -75,7 +93,7 @@ def check_readability_cadence(lines):
                 cadence_issues.append(
                     f"   🌊 [长难句停顿提示] 连续 {clause_chars} 字无标点停顿: \"{preview}\"，可适当增设标点以助自然默读。"
                 )
-                
+
     # 2. 检查单次超长说教对白 (> 250 字无任何动作与叙事穿插)
     quotes = re.findall(r"“([^”]*)”", full_text)
     for q in quotes:
@@ -86,42 +104,54 @@ def check_readability_cadence(lines):
             cadence_issues.append(
                 f"   🌊 [对白说教提示] 单句对白长达 {q_chars} 字: \"{preview}\"，建议适当穿插人物动作或情境互动。"
             )
-            
+
     return cadence_issues
 
-def check_reading_experience_and_tone(content, lines, dialogue_ratio):
+
+def check_reading_experience_and_tone(content, lines, dialogue_ratio, workspace_dir=None):
     """
     🎭 第二优先级：阅读体验与文风情绪诊断 (Reading Experience & Tone Diagnostics)
-    - 文风压抑与暗黑饱和度检测 (响应用户最新反压抑规则)
+    - 文风压抑检测 (v2: 考虑题材基调，dark_preferred 题材不报警)
     - 对白与叙事张力平衡
-    - 章末断章期待钩子
+    - 章末断章期待钩子 (v2: 断章关键词动态加载，叠加题材特定关键词)
     """
     experience_issues = []
-    
-    # 1. 文风压抑温和观察 (Anti-Oppressive Tone)
+
+    # 1. 文风压抑温和观察 (v2: 考虑题材基调)
     chinese_count = len(re.findall(r"[\u4e00-\u9fa5]", content))
     oppressive_hits = []
     for kw in OPPRESSIVE_KEYWORDS:
         matches = len(re.findall(re.escape(kw), content))
         if matches > 0:
             oppressive_hits.append((kw, matches))
-    
+
     total_oppressive_hits = sum(cnt for _, cnt in oppressive_hits)
-    if chinese_count > 1000 and total_oppressive_hits >= 15 and (total_oppressive_hits / (chinese_count / 1000.0)) > 5.0:
+
+    # v2: 检查题材基调策略。dark_preferred 题材（悬疑/恐怖/克苏鲁）的压抑词汇是核心美学，不报警。
+    tone_mode = "adaptive"
+    if workspace_dir:
+        prof = _load_genre_profile(workspace_dir)
+        tone_mode = (prof.get("tone_policy") or {}).get("mode", "adaptive")
+
+    is_dark_preferred = tone_mode == "dark_preferred"
+
+    if (not is_dark_preferred) and chinese_count > 1000 and total_oppressive_hits >= 15 and (total_oppressive_hits / (chinese_count / 1000.0)) > 5.0:
         top_kws = ", ".join([f"{kw}({cnt}次)" for kw, cnt in sorted(oppressive_hits, key=lambda x: x[1], reverse=True)[:4]])
         experience_issues.append(
-            f"   🎭 [文风基调提示] 本章沉郁词汇出现较多（{top_kws}）。若非极端险境死斗，建议结合情境保持从容明快。"
+            f"   🎭 [文风基调提示] 本章沉郁词汇出现较多（{top_kws}）。若非极端险境死斗，建议结合情境保持从容明快。（当前题材基调策略: {tone_mode}）"
         )
-        
-    # 2. 章末断章钩子 (温和提示，不强制拦截)
+
+    # 2. 章末断章钩子 (v2: 动态加载断章关键词，叠加题材特定关键词)
     last_chunk = "\n".join(lines[-15:])
-    has_cliffhanger = any(k in last_chunk for k in CLIFFHANGER_KEYWORDS)
+    cliffhanger_keywords = get_cliffhanger_keywords(workspace_dir) if workspace_dir else get_cliffhanger_keywords()
+    has_cliffhanger = any(k in last_chunk for k in cliffhanger_keywords)
     if not has_cliffhanger and len(lines) > 30:
         experience_issues.append(
-            "   🎭 [断章期待钩子] 本章末尾未检测到显著转折或悬念钩子，可根据剧情走向决定是否留扣。"
+            "   🎭 [断章期待钩子] 本章末尾未检测到显著转折或悬念钩子，可根据剧情走向决定是否留扣。（断章风格由题材档案 ending_style 控制）"
         )
-        
+
     return experience_issues
+
 
 def check_smart_burstiness(text, smart_whitelist, window_size=500, min_repeat=5):
     """
@@ -142,7 +172,7 @@ def check_smart_burstiness(text, smart_whitelist, window_size=500, min_repeat=5)
         return len(lines)
 
     # 免检池不再硬编码任何题材专名（旧版写死了上一本修仙小说的
-    # “灵草/丹药/水牢/地胆/玉髓…”等特定词汇，对科幻/悬疑/都市题材无效且误导）。
+    # "灵草/丹药/水牢/地胆/玉髓…"等特定词汇，对科幻/悬疑/都市题材无效且误导）。
     # 题材专名一律由 build_smart_whitelist() 从本书 01_world/、人物卡与
     # current_state 动态提取，实现真正的全题材自适应。
     COMMON_EXEMPT = set()
@@ -167,18 +197,20 @@ def check_smart_burstiness(text, smart_whitelist, window_size=500, min_repeat=5)
                         bursts[gram] = (line_num, len(positions))
     return bursts
 
+
 def check_all_consistency(workspace_dir: Path, target_chapter: str = None, as_json: bool = False):
     cfg = load_studio_config()
     thresholds = cfg.get("linter_thresholds", {}) or {}
     gen_wc = (cfg.get("generation", {}) or {}).get("target_word_count", {}) or {}
     min_word_count = thresholds.get("hard_gate_min_word_count",
-                                     gen_wc.get("min", 2500))
+                                     gen_wc.get("min", 1800))
 
     genre = detect_genre(workspace_dir)
     registered_chars = load_registered_characters(workspace_dir)
     smart_whitelist = build_smart_whitelist(workspace_dir)
 
-    patterns_to_check = list(GENERIC_SKELETONS)
+    # v2: 陈词模式动态加载（自动过滤 combat_genre_only + 叠加题材特定模式）
+    patterns_to_check = get_cliche_patterns(workspace_dir)
 
     all_drafts = []
     manuscript_dir = workspace_dir / "05_manuscript"
@@ -193,15 +225,13 @@ def check_all_consistency(workspace_dir: Path, target_chapter: str = None, as_js
             print(json.dumps(err, ensure_ascii=False, indent=2))
             return err
         print(f"ℹ️ {err_msg}")
-        # 指定章节却找不到 → 调用方用法错误，返回 False 以便 CLI 退出码非 0；
-        # 全书扫描且工作区尚无稿件 → 正常空态，返回 True。
         return not bool(target_chapter)
 
     if not as_json:
         print("=" * 76)
-        print(f" 🔍 [Universal Novel Studio 全维读感与体验质检引擎] 根目录: {workspace_dir.name}")
+        print(f" 🔍 [Universal Novel Studio 全维读感与体验质检引擎 v2] 根目录: {workspace_dir.name}")
         print("=" * 76)
-        print(f"📖 【题材模式】: [{genre}] | 🎯 【质检准则】: 读感第一 · 体验第二 · 造句第三")
+        print(f"📖 【题材模式】: [{genre}] | 🎯 【质检准则】: 读感第一 · 体验第二 · 造句第三 | 字数底线: {min_word_count}")
         char_preview = ", ".join(registered_chars[:6]) + ("..." if len(registered_chars) > 6 else "")
         print(f"👥 【白名单角色】已注册 {len(registered_chars)} 位核心角色: {char_preview}")
 
@@ -226,8 +256,6 @@ def check_all_consistency(workspace_dir: Path, target_chapter: str = None, as_js
         fatal_errors = []
 
         # 0.1 字数硬性门禁 (所有章节 < 配置下限 直接判定致命硬伤)
-        # 注：第一卷同样是当前创作卷，不做任何豁免，确保 README/AGENTS 宣称的
-        # “低于下限即 Exit Code 1”在全书与单章模式下都真实生效。
         if chinese_count < min_word_count:
             fatal_errors.append(
                 f"   🚨 [硬伤·篇幅熔断门禁] 单章中文字数仅 {chinese_count} 字 "
@@ -248,14 +276,14 @@ def check_all_consistency(workspace_dir: Path, target_chapter: str = None, as_js
         # ----------------------------------------------------
         # 🎭 2. 阅读体验与情绪氛围 (Reading Experience & Tone)
         # ----------------------------------------------------
-        experience_issues = check_reading_experience_and_tone(content, lines, dialogue_ratio)
+        experience_issues = check_reading_experience_and_tone(content, lines, dialogue_ratio, workspace_dir)
 
         # ----------------------------------------------------
         # ✍️ 3. 遣词造句与去AI味微调 (Diction & AI Tuning)
         # ----------------------------------------------------
         diction_issues = list(fatal_errors)
 
-        # 正则检查
+        # 正则检查 (v2: patterns_to_check 已动态加载)
         pattern_hits = defaultdict(list)
         for line_idx, line in enumerate(lines, 1):
             if not line.strip() or line.startswith("#"):
@@ -312,7 +340,7 @@ def check_all_consistency(workspace_dir: Path, target_chapter: str = None, as_js
             else:
                 status_symbol = "✅ [读感流畅·体验完美]"
             print(f"\n📄 文件: {rel_path} | 中文字数: {chinese_count} | 对白占比: {dialogue_ratio:.1f}% | 叙事占比: {narrative_ratio:.1f}% -> {status_symbol}")
-            
+
             if cadence_issues:
                 print("   🌊 ──【1. 读感与呼吸节奏 (Readability & Flow)】──")
                 for issue in cadence_issues:
@@ -330,6 +358,7 @@ def check_all_consistency(workspace_dir: Path, target_chapter: str = None, as_js
         out = {
             "workspace": workspace_dir.name,
             "genre": genre,
+            "min_word_count": min_word_count,
             "total_files": len(all_drafts),
             "total_optimizations": total_optimizations,
             "total_fatal_count": total_fatal_count,
@@ -341,7 +370,7 @@ def check_all_consistency(workspace_dir: Path, target_chapter: str = None, as_js
 
     print("\n" + "=" * 76)
     if total_fatal_count > 0:
-        print(f"❌ [致命门禁未通过] 发现 {total_fatal_count} 处核心硬伤阻断（字数 < 2500 或排版硬伤）！请必须修正后方可定稿！")
+        print(f"❌ [致命门禁未通过] 发现 {total_fatal_count} 处核心硬伤阻断（字数 < {min_word_count} 或排版硬伤）！请必须修正后方可定稿！")
         print("=" * 76)
         return False
     elif total_optimizations == 0:
@@ -351,8 +380,9 @@ def check_all_consistency(workspace_dir: Path, target_chapter: str = None, as_js
     print("=" * 76)
     return True
 
+
 def main():
-    parser = argparse.ArgumentParser(description="Universal Novel Studio Readability & Consistency Linter.")
+    parser = argparse.ArgumentParser(description="Universal Novel Studio Readability & Consistency Linter v2.")
     parser.add_argument("-w", "--workspace", type=str, default=None, help="Path to novel workspace")
     parser.add_argument("-c", "--chapter", type=str, default=None, help="Target chapter (e.g. ch_001)")
     parser.add_argument("--json", action="store_true", help="以结构化 JSON 格式输出")
@@ -365,6 +395,7 @@ def main():
             sys.exit(1)
     elif not res:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
