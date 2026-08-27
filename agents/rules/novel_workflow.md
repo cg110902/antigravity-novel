@@ -10,10 +10,12 @@
   1. 调用 `novel-director`，执行 8 维人机对齐访谈（推荐使用 `/grill-me` 深度交互）；
   2. 运行脚手架初始化命令：
      ```powershell
-     python tools/init_new_novel.py --title "书名" --genre "题材" --protagonist "主角名"
+     python studio.py init --title "书名" --genre "题材" --protagonist "主角名"
      ```
+     （工具将按题材自动匹配并安装题材档案 `00_meta/genre_profile.json`，可用 `python studio.py genre` 查看或微调）
 - **输出资产**：
   - `00_meta/project_bible.md`（项目圣经，确立核心法则，无需前期样本即可由 4 大通用心流母则直接冷启动首章）
+  - `00_meta/genre_profile.json`（题材档案，锁定字数/配比/调度窗口/导演指导）
   - `01_world/`（力量/法则/科技规则库与购买力防通胀锚定表）
   - `02_characters/`（角色索引表与独立人物卡）
   - `03_outlines/`（全局主线与分卷大纲）
@@ -26,8 +28,9 @@
 - **执行**：
   1. 运行语境打包器一键聚合创作全量语境（耗时 0.1 秒 · 0 Token）：
      ```powershell
-     python tools/package_context.py -c ch_xxx --json
+     python studio.py pack ch_xxx --json [--budget 8000]
      ```
+     （自动注入梗概脊柱、BM25 召回旧段落、跨章查重预警与题材导演提示；可用 `python studio.py schedule ch_xxx` 主动排期伏笔）；
   2. 调用 `novel-beats-builder`，运用 16 大变奏形态工具箱与 10 大核心看点矩阵推演单章细纲；
   3. 推演 3 个不同风味的走向分支（ABC 方案），Lead Director 自主选定最优项并写入：
      `novel_workspace/03_outlines/vol_xx/beats/ch_xxx_beats.md`。
@@ -50,14 +53,14 @@
 
 ---
 
-## 阶段四：交付与状态自同步 (Delivery & State Sync)
+## 阶段四：交付与状态自同步 (Delivery & State Sync Engine)
 - **输入**：`finalized/ch_xxx.md` 定稿文本；
-- **执行**：
-  1. 调用 `novel-state-syncer`，提炼 10 大事实突变（时空、伤势、资产、道具权属、人际关系、信息差、心智演进）；
-  2. 在单轮内并发调用 `write_to_file` 批量回写 6 大状态文件；
-  3. 运行一键状态自同步与快照封存：
+- **执行**（本地先定骨架 → LLM 复核补全 → 确定性引擎合并，AI 不直接手改台账）：
+  1. **零 LLM 预填骨架**：运行 `python studio.py draft ch_xxx`，0-Token 扫描定稿预填在场角色、候选资金流水（带证据句）、伤势/协议线索与自动梗概至 `state_inbox/ch_xxx.draft.json`；
+  2. **LLM 语义复核**：调用 `novel-state-syncer` 打开草稿逐项复核（确认流水方向/金额/资源池，润色梗概，补全时空/境界/局势/伏笔/心智/编年史），另存为正式 `state_inbox/ch_xxx.json`；
+  3. **确定性合并与快照封存**：运行一键状态自同步：
      ```powershell
      python studio.py sync ch_xxx
      ```
-     （内部自动依次运行 `verify_double_ledgers.py` 校验双台账、`track_item_continuity.py` 校验道具时空轨迹，并生成 `snapshots/` 快照）；
-- **输出资产**：更新后的 6 大状态机文件、版本快照归档与最终交付章节正文。
+     （流程 `[0/3]` 由 `state_apply.py` 校验并合并提案、重算复式账本余额；`[1/3]` 由 `verify_double_ledgers.py` 校验双台账；`[2/3]` 由 `track_item_continuity.py` 核验道具轨迹；`[3/3]` 封存 `ch_xxx_done` 版本快照）；
+- **输出资产**：合并后的 6 大状态真值文件、版本快照归档与最终交付章节定稿。

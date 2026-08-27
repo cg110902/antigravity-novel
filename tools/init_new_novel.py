@@ -229,41 +229,17 @@ def init_novel(title="未命名新书", genre="通用题材", protagonist="主�
     except Exception as e:
         print(f"   ⚠️ 题材档案生成失败（不影响初始化）: {e}")
 
-    # 7.5 State-inbox guide (structured mutation proposals)
-    inbox = workspace / "04_timeline_and_state" / "state_inbox"
-    inbox.mkdir(parents=True, exist_ok=True)
-    (inbox / "README.md").write_text(
-        "# 状态变更提案投递箱 (State Inbox)\n\n"
-        "章节定稿后的推荐流程：先运行 `python studio.py draft ch_xxx` 生成 0-LLM 预填骨架\n"
-        "（`ch_xxx.draft.json`：已填在场角色/候选流水/线索/梗概）；state-syncer(LLM) 打开草稿逐项\n"
-        "复核补全后，另存为正式 `ch_xxx.json`（去掉 _draft/_evidence 等字段）。\n"
-        "注意：`*.draft.json` 与带 _draft:true 的提案不会被合并，只有复核后的正式 JSON 才生效。\n\n"
-        "把结构化的状态变更提案（正式 JSON）放入本目录后，运行：\n\n"
-        "```\n"
-        "python studio.py apply        # 确定性地合并进 6 大状态文件并自动记账\n"
-        "python studio.py sync ch_xxx  # 也会自动先合并本目录提案，再校验并打快照\n"
-        "```\n\n"
-        "提案格式（schema: novel-studio.state-mutation/v1）：\n"
-        "- `current_state`：时空锚点/在场角色/境界/伤势/资产/局势（按字段更新）\n"
-        "- `guns`：伏笔 plant/update/resolve（id 可省略，自动编号）\n"
-        "- `misunderstandings`：误会 plant/update/resolve\n"
-        "- `growth_arcs`：角色心智阶段更新\n"
-        "- `timeline`：编年史事件追加（幂等去重）\n"
-        "- `transactions`：复式账本流水（delta 正=收入负=支出，余额由流水自动重算）\n"
-        "- `synopsis`：（可选）本章 2~3 句精炼梗概 + `chapter_title`，登记进章节梗概脊柱\n"
-        "  chapter_synopsis.json（source=manual，优先于自动梗概，供 pack 防场景/情节重复）\n\n"
-        "合并成功的提案自动移入 processed/，校验失败的移入 failed/。\n\n"
-        "## 记忆与上下文引擎（P1，纯本地零 Token）\n"
-        "- `python studio.py pack ch_xxx --budget 6000`：打包语境并按 token 预算裁剪（报告裁掉了什么）；\n"
-        "  pack 会自动注入「全书梗概脊柱」「BM25 资料员召回的相关旧段落」「跨章重复预警」。\n"
-        "- `python studio.py memory spine`：扫描定稿章节，为缺失梗概的章节补自动梗概。\n"
-        "- `python studio.py memory recall \"铁壁公司 芯片\"`：BM25 召回最相关的旧章节段落。\n"
-        "- `python studio.py memory repeat`：跨章重复检测（已登场角色被再次首次介绍 / n-gram 雷同 / 场景节拍相似）。\n"
-        "- `python studio.py schedule ch_xxx`：伏笔主动调度（本章该引爆/回唤/唤醒哪些枪）。\n"
-        "- `python studio.py quality stall|ratio|distill`：塌中段/黄金配比/文风蒸馏质检。\n"
-        "- `python studio.py genre`：查看本书题材档案（配比/口癖/调度窗口/导演指导）。\n"
-        "- `python studio.py doctor`：工作区结构与账本体检（有 ERROR 退出码 1）。\n",
-        encoding="utf-8")
+    # 7.5 State-inbox guide and sample proposal
+    write_from_template(
+        "04_timeline_and_state/state_inbox/README.template.md",
+        "04_timeline_and_state/state_inbox/README.md",
+        "# 状态变更提案投递箱 (State Inbox)\n"
+    )
+    write_from_template(
+        "04_timeline_and_state/state_inbox/ch_sample.proposal.template.json",
+        "04_timeline_and_state/state_inbox/ch_sample.proposal.template.json",
+        '{\n  "schema": "novel-studio.state-mutation/v1"\n}\n'
+    )
 
     # 8. Sync Root novel_config.yaml —— 仅当工作区位于本仓库内时才回写仓库配置，
     # 避免 -w 指向仓库外（或测试临时目录）时污染仓库的 novel_config.yaml。

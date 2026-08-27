@@ -9,7 +9,7 @@ Usage:
     python studio.py lint [ch_004]          # 2. 一键运行反 AI 腔、句式骨架与断章 Linter (--voice 可选加测声纹)
     python studio.py diff ch_004            # 3. 一键初稿 vs 定稿脱水重铸质量对比
     python studio.py sync ch_004            # 4. 一键完成双台账校验、道具轨迹追踪并打下版本快照
-    python studio.py radar [ch_004]         # 5. 一键运行全书 12 大工程雷达总控仪表盘
+    python studio.py radar [ch_004]         # 5. 一键运行全书 14 项工程雷达总控仪表盘 (17 项遥测指标)
     python studio.py test                   # 6. 一键运行 tests/ 自动化测试套件
     python studio.py export [--txt]         # 7. 一键编译导出全书手稿 (Markdown / TXT)
     python studio.py clean                  # 8. 一键清空手稿与临时草稿
@@ -440,7 +440,7 @@ def main():
     python studio.py sync 6                  # 双台账核验、道具流转追踪并自动封存版本快照
     
  4. 全维工程雷达与安全网:
-    python studio.py radar                   # 一键运行全书 12 大工程雷达总控仪表盘
+    python studio.py radar                   # 一键运行全书 14 项工程雷达总控仪表盘 (17 项遥测指标)
     python studio.py test                    # 运行自动化单元测试套件
     python studio.py export --txt            # 编译导出全书出版级手稿 (Markdown / TXT)
     python studio.py snapshot ch_006_done    # 手动创建状态机快照
@@ -558,7 +558,7 @@ def main():
     p_sync.set_defaults(func=cmd_sync)
 
     # radar
-    p_radar = subparsers.add_parser("radar", help="运行全维 12 大工程雷达总控仪表盘")
+    p_radar = subparsers.add_parser("radar", help="运行全维 14 项工程雷达总控仪表盘 (17 项遥测指标)")
     p_radar.add_argument("chapter", nargs="?", help="指定章节 (可选)")
     p_radar.add_argument("-w", "--workspace", help="指定工作区路径")
     p_radar.add_argument("--json", action="store_true", help="输出 JSON 格式")

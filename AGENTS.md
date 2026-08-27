@@ -35,14 +35,28 @@
 | Stage 0 | `python studio.py status` | 进度/字数/资产/活跃伏笔概览 |
 | Stage 0 | `python studio.py doctor` | 工作区结构与账本体检（ERROR 必须先修） |
 | Stage 0 | `python studio.py genre` | 查看本书题材档案（配比基线/口癖/塌中段窗口/题材导演指导） |
+| Stage 1 | `python studio.py init --title "..." --genre "..." --protagonist "..."` | 全题材新书脚手架母版创生与初始化 |
 | Stage 2 | `python studio.py pack ch_xxx --json [--budget N]` | 装载本章全量上下文（含记忆引擎与伏笔调度） |
 | Stage 2 | `python studio.py schedule ch_xxx` | 伏笔主动排期（该引爆/回唤/唤醒哪些枪） |
 | Stage 2 | `python studio.py memory recall "关键词"` | BM25 资料员手动回捞旧伏笔/人物/设定 |
+| Stage 2 | `python studio.py memory spine` | 扫描定稿自动补全章节梗概脊柱 |
+| Stage 2 | `python studio.py memory repeat` | 跨章重复检测（重复首介/雷同/节拍相似） |
 | Stage 3 | `python studio.py lint ch_xxx [--voice]` | 定稿质量门禁（字数/AI腔/读者懵逼，CRITICAL 阻断） |
+| Stage 3 | `python studio.py confusion ch_xxx` | 单独运行读者阅读卡点与认知断层检测 |
+| Stage 3 | `python studio.py rx ch_xxx` | 生成单章分层靶向微创手术处方建议 |
+| Stage 3 | `python studio.py diff ch_xxx` | 初稿 vs 定稿脱水重铸质量与颗粒度对比 |
 | Stage 3 | `python studio.py quality ratio -c ch_xxx` | 黄金配比三维量化（WARNING 参考，不阻断） |
+| Stage 3 | `python studio.py quality stall` | 连续无状态变更塌中段注水检测 |
+| Stage 3 | `python studio.py quality distill [-c ch_xxx]` | 全书文风指纹蒸馏或单章偏离度比对 |
+| Stage 4 | `python studio.py facts ch_xxx` | 0-Token 快速预提取单章资金流水、伤势与重点道具 |
 | Stage 4 | `python studio.py draft ch_xxx` | 0-LLM 预填提案骨架（角色/候选流水/线索/梗概）→ `.draft.json` |
-| Stage 4 | LLM 复核草稿另存为 `state_inbox/ch_xxx.json` → `python studio.py sync ch_xxx` | 提交结构化状态变更→引擎合并→校验→快照 |
-| 任意 | `python studio.py radar [--json]` | 全维雷达总控（doctor/账本/DAG/塌中段/配比/重复…） |
+| Stage 4 | `python studio.py apply` | 确定性合并 `state_inbox` 中待处理的状态变更提案 |
+| Stage 4 | LLM 复核草稿另存为 `state_inbox/ch_xxx.json` → `python studio.py sync ch_xxx` | 提交结构化状态变更→引擎合并→校验台账→快照封存 |
+| 任意 | `python studio.py radar [--json]` | 全维雷达总控（doctor/账本/DAG/塌中段/配比/重复/懵逼…） |
+| 任意 | `python studio.py export [--txt]` | 编译导出全书出版级 Markdown 或 TXT 手稿 |
+| 任意 | `python studio.py snapshots` / `snapshot <name>` | 列出历史快照 / 创建指定名称快照 |
+| 任意 | `python studio.py rollback <name> [--clean-drafts]` | 回滚状态机至历史快照（可选清理孤立稿件） |
+| 任意 | `python studio.py test` | 运行自动化单元测试套件 (76 项测试全绿) |
 
 > 💡 **职责分工铁律**：确定性的事（记账、编号、查重、配比统计、BM25 召回、伏笔排期、快照回滚）**全部由本地 Python 完成，零 Token**；需要语义理解的事（提炼事实突变、写梗概、写正文、判断戏腔与张力）才交给 LLM。LLM 产出**结构化提案/正文**，Python 引擎负责**校验、合并、记账、守门**。
 
@@ -244,7 +258,7 @@
 - **执行（本地先定骨架 → LLM 复核补全 → 确定性引擎合并，AI 不直接手改台账）**：
   1. **零 LLM 预填骨架**：先运行 `python studio.py draft ch_xxx`。工具 0-Token 扫描定稿，把确定性高的字段预填进 `state_inbox/ch_xxx.draft.json`：在场角色（高置信）、候选资金流水（含方向/金额/资源池/证据句）、伤势/协议/伏笔线索句、自动梗概，并附 `_review_checklist`。
   2. 调用 `novel-state-syncer`，**打开该草稿逐项复核**：确认/修正每条 `transactions_draft`（方向、金额、资源池、事由、对手方）后移入 `transactions`；润色 `synopsis`；按正文语义补全本地无法确定的字段（时空/境界/伤势/局势、`guns`/`misunderstandings`/`growth_arcs`/`timeline`）。核对 `_review_checklist` 后，**另存为正式** `state_inbox/ch_xxx.json`（删除 `_draft`/`_instructions`/`_evidence`/`_review_checklist`/`*_draft` 等草稿字段）。
-     > ⚠️ 草稿 `.draft.json` 与带 `_draft:true` 的提案**绝不会被合并**（state_apply 双重拦截），只有复核后的正式 `ch_xxx.json` 才会生效。提案字段见 `state_inbox/README.md`：
+     > ⚠️ 草稿 `.draft.json` 与带 `_draft:true` 的提案**绝不会被合并**（state_apply 双重拦截），只有复核后的正式 `ch_xxx.json` 才会生效。提案字段规范（详见工作区 `04_timeline_and_state/state_inbox/README.md`）：
      - `chapter`（如 `"ch_012"`）；
      - `current_state`：`time / location / present_characters[] / realm / abilities / injury / assets / equipment / situation`（只写有变化的字段）；
      - `guns[]`：`{action: plant|update|resolve, id?, name, target_ch?, plant_ch?, plan?, status?}`，id 省略时引擎自动编号 `GUN-00x`；

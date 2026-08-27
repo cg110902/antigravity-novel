@@ -31,12 +31,12 @@
 │    - novel-beats-builder: 编剧 (语境打包、4 维积木拼装、张力走向自主决断)              │
 │    - novel-chapter-drafter: 主笔 (影视级分场景起草、限制视角、真实物理代价)             │
 │    - novel-continuity-guard: 审校官 (方案 A 靶向精修、高光保护、顺手全能纠错)           │
-│    - novel-state-syncer: 同步官 (10 大事实突变提炼、6 大状态机单轮并发回写)             │
+│    - novel-state-syncer: 同步官 (10 大事实突变提炼、结构化提案生成与确定性状态合并)     │
 ├────────────────────────────────────────────────────────────────────────────────────────┤
 │ 5. 底层数据与工具基座: novel_workspace/ & templates/ & tools/ (真值源+母版+工具箱)      │
 │    - novel_workspace/: 唯一事实真值源 (SSOT: 设定/大纲/状态机/手稿/快照)               │
 │    - templates/: 全题材 6 大官方标准母版中心 (圣经/世界/人物/大纲/细纲/状态机)          │
-│    - tools/: 21 个 Python 经典算法纯函数工具箱 (复式记账/图论/时空追踪/声韵分析/读者懵逼检测) │
+│    - tools/: 28 个 Python 经典算法纯函数工具箱 (复式记账/图论/时空追踪/声韵分析/读者懵逼检测) │
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -47,40 +47,70 @@
 系统提供极简统一的 CLI 命令集，由主控 Agent 直接通过 `run_command` 高速调度：
 
 ```powershell
-# 0. 【项目状态】查看全书进度大盘、资产存量、已完成模拟世数与活跃伏笔池
+# 0. 【项目状态】查看全书进度大盘、资产存量、已完成章节与活跃伏笔池
 python studio.py status
 
-# 1. 【语境打包】一键装载指定章节的创作全量语境 (支持 --json 格式，Agent 首选)
-python studio.py pack ch_011 --json
+# 1. 【工作区自检】运行健康自检 (结构完整性/台账平衡/占位符残留/快照完整性)
+python studio.py doctor
 
-# 2. 【全维门禁】对指定章节运行体验金字塔质检 + 读者懵逼检测 (字数<2500强制 Exit Code 1 阻断)
-python studio.py lint ch_011
+# 2. 【题材档案】查看或微调当前题材配置档案 (配比基线/口癖雷词/调度窗口/导演指导)
+python studio.py genre
 
-# 2.5 【懵逼检测】单独运行读者阅读卡点与懵逼检测 (8 大确定性算法)
+# 3. 【语境打包】一键装载指定章节的创作全量语境 (支持 --json 格式与 --budget 预算裁剪，Agent 首选)
+python studio.py pack ch_011 --json --budget 8000
+
+# 4. 【伏笔主动调度】为指定章节 Beats 细纲主动排期待引爆/回唤/沉睡伏笔
+python studio.py schedule ch_011
+
+# 5. 【记忆引擎】梗概脊柱补全 / BM25 资料员召回 / 跨章雷同与重复检测
+python studio.py memory spine                     # 扫描定稿自动补全章节梗概脊柱
+python studio.py memory recall "黑市 芯片 伏笔"   # BM25 资料员相关旧段落召回
+python studio.py memory repeat                    # 跨章重复检测 (重复首介/雷同/节拍相似)
+
+# 6. 【全维质检门禁】对指定章节运行读感·体验·造句·标记外泄门禁 + 读者懵逼检测 (字数<2500强制 Exit Code 1 阻断)
+python studio.py lint ch_011 [--voice]
+
+# 7. 【读者懵逼检测】单独运行读者阅读卡点与认知断层检测 (8 大确定性算法)
 python studio.py confusion ch_011
 
-# 3. 【状态同步】一键校验双台账平衡、道具时空轨迹并自动打下版本快照
-python studio.py sync ch_011
-
-# 4. 【微创诊断】在控制台即时输出该章分层靶向微创手术处方与切片建议 (0 落盘)
+# 8. 【微创诊断】即时输出该章分层靶向微创手术处方与切片建议 (0 落盘)
 python studio.py rx ch_011
 
-# 5. 【脱水对比】初稿 (raw_drafts) vs 定稿 (finalized) 质量提升与颗粒度分析
+# 9. 【脱水对比】初稿 (raw_drafts) vs 定稿 (finalized) 质量提升与颗粒度分析
 python studio.py diff ch_011
 
-# 6. 【全书体检】一键运行全书 12 大工程雷达巡检 (异常自动非零退出码) (因果拓扑/记账/记忆衰减/读者懵逼检测)
+# 10. 【高级质检雷达】塌中段注水检测 / 黄金配比量化门 / 文风蒸馏指纹
+python studio.py quality stall                   # 连续无状态变更塌中段注水检测
+python studio.py quality ratio -c ch_011         # 对白/推进/描写三维配比量化
+python studio.py quality distill                 # 全书文风指纹蒸馏或单章偏离度比对
+
+# 11. 【事实预提取】0-Token 快速预提取单章资金流水、伤势、重点道具与出场角色
+python studio.py facts ch_011
+
+# 12. 【零 LLM 提案骨架】扫描定稿章节预填在场角色/候选流水/线索句/梗概至 .draft.json
+python studio.py draft ch_011
+
+# 13. 【确定性状态合并】将 state_inbox 中的结构化变更提案幂等合并进 6 大状态真值文件
+python studio.py apply [--dry-run]
+
+# 14. 【状态自同步】一键合并提案、校验双台账平衡、核验道具轨迹并自动打下版本快照
+python studio.py sync ch_011
+
+# 15. 【全维雷达巡检】一键运行全书 14 项工程雷达总控巡检 (17 项 JSON 遥测，异常自动非零阻断)
 python studio.py radar
 
-# 7. 【全书导出】一键合并全书定稿章节为出版级 Markdown 或 TXT 手稿
-python studio.py export --txt
+# 16. 【全书手稿导出】一键合并全书定稿章节为出版级 Markdown 或 TXT 手稿
+python studio.py export [--txt]
 
-# 8. 【版本回滚】一键回滚状态机至历史指定快照 (--clean-drafts 可自动物理清理孤立章节)
-python studio.py rollback ch_010_done --clean-drafts
+# 17. 【版本快照与回滚】管理多分支与历史状态快照
+python studio.py snapshots                       # 列出所有历史版本快照
+python studio.py snapshot my_milestone           # 手动创建指定名称快照
+python studio.py rollback ch_010_done --clean-drafts # 一键回滚状态机并可选清理孤立手稿
 
-# 9. 【手动快照】为当前状态机创建指定名称的版本快照
-python studio.py snapshot my_milestone
+# 18. 【开新书初始化】一键为任意题材小说生成标准化全套脚手架母版
+python studio.py init --title "书名" --genre "题材" --protagonist "主角名"
 
-# 10. 【工程自检】运行自动化单元测试套件 (底层 21 个工具自动化测试 100% 绿灯 PASS (自包含临时夹具))
+# 19. 【工程自检套件】运行自动化单元测试套件 (底层 28 个工具 76 项自动化测试 100% 绿灯 PASS)
 python studio.py test
 ```
 
@@ -119,11 +149,13 @@ python studio.py test
                             ▼
  ┌────────────────────────────────────────────────────────┐
  │   Stage 4: 状态自同步、版本快照与终审交付 (Sync & Done) │
- │   - Gemini 优势: 提炼 10 大事实突变 (时空/资产/道具/因果)│
- │   - Antigravity 优势: 单轮内并发 write_to_file 写入 6 大│
- │     状态文件 (current_state, timeline, guns, arcs...)  │
- │   - 运行 python studio.py sync 校验双台账并打下版本快照 │
- │   - 呈递【章节定稿】与【状态更新备忘】供人类导演终审   │
+ │   1. 骨架预填: 运行 studio.py draft ch_xxx 预填草稿    │
+ │   2. 语义复核: novel-state-syncer 复核补全后另存为     │
+ │      state_inbox/ch_xxx.json 结构化提案 (AI 不手改台账) │
+ │   3. 确定性合并: 运行 python studio.py sync ch_xxx      │
+ │      - state_apply 自动合并提案并重算复式账本余额       │
+ │      - 校验双台账平衡、道具流转轨迹并封存版本快照       │
+ │   4. 交付备忘: 呈递【章节定稿】与【状态更新备忘】      │
  └────────────────────────────────────────────────────────┘
 ```
 
@@ -156,7 +188,7 @@ python studio.py test
 
 1. **一键初始化新书脚手架**：
    ```powershell
-   python tools/init_new_novel.py --title "星际深渊：我有一艘反重力打捞船" --genre "科幻末世 / 深空悬疑" --protagonist "陈昂"
+   python studio.py init --title "星际深渊：我有一艘反重力打捞船" --genre "科幻末世 / 深空悬疑" --protagonist "陈昂"
    ```
 2. **声明式配置**：在 `novel_config.yaml` 中配置新书名称与题材特色；
 3. **开启创作**：调用 `novel-director` 进行设定推演与世界观生成，无缝开启全新百万字长篇创作！

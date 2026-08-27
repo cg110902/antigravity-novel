@@ -153,16 +153,16 @@ def validate_workspace(workspace: Path):
             if d.is_dir() and not any(d.glob("*.md")) and not any(d.glob("*.json")):
                 warnings.append(f"快照 {d.name} 为空目录")
 
+    status_str = "ERRORS" if errors else ("WARNINGS" if warnings else "HEALTHY")
     report = {
         "workspace": str(workspace),
-        "status": "HEALTHY" if not errors else ("WARNINGS" if not errors else "ERRORS"),
+        "status": status_str,
         "error_count": len(errors),
         "warning_count": len(warnings),
         "errors": errors,
         "warnings": warnings,
         "checked_files": ok_files,
     }
-    report["status"] = "ERRORS" if errors else ("WARNINGS" if warnings else "HEALTHY")
     return report
 
 
