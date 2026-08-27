@@ -252,6 +252,19 @@ def cmd_schedule(args):
         extra.extend(["-w", args.workspace])
     return run_script("foreshadow_scheduler.py", extra)
 
+def cmd_genre(args):
+    """P3-4 genre profile: view / list configured genre profile."""
+    extra = []
+    if args.list:
+        extra.append("--list")
+    if args.genre:
+        extra.extend(["--genre", args.genre])
+    if args.json:
+        extra.append("--json")
+    if args.workspace:
+        extra.extend(["-w", args.workspace])
+    return run_script("genre_profile.py", extra)
+
 def cmd_sync(args):
     """Stage 4: Verify ledgers, track continuity, and automatically snapshot."""
     ch = args.chapter if args.chapter.startswith("ch_") else f"ch_{int(args.chapter):03d}"
@@ -512,6 +525,14 @@ def main():
     p_sched.add_argument("-w", "--workspace", help="指定工作区路径")
     p_sched.add_argument("--json", action="store_true", help="以结构化 JSON 格式输出")
     p_sched.set_defaults(func=cmd_schedule)
+
+    # genre (P3-4: genre profile)
+    p_genre = subparsers.add_parser("genre", help="[P3-4 题材档案] 查看当前题材 profile（配比/口癖/调度窗口/导演指导）")
+    p_genre.add_argument("--list", action="store_true", help="列出所有内置题材档案")
+    p_genre.add_argument("--genre", help="按题材文本解析匹配（不读工作区）")
+    p_genre.add_argument("-w", "--workspace", help="指定工作区路径")
+    p_genre.add_argument("--json", action="store_true", help="以结构化 JSON 格式输出")
+    p_genre.set_defaults(func=cmd_genre)
 
     # sync
     p_sync = subparsers.add_parser("sync", help="[Stage 4] 双台账校验、道具流转核验与版本快照自同步")

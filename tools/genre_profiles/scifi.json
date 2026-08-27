@@ -1,0 +1,14 @@
+{
+  "schema": "novel-studio.genre-profile/v1",
+  "id": "scifi",
+  "label": "科幻 / 机甲 / 末世废土 / 赛博",
+  "word_count": {"min": 2500, "recommended": 3200, "max": 5000},
+  "ratio_baseline": {"dialogue": [28, 42], "action": [40, 56], "describe": [12, 30]},
+  "stall_window": 3,
+  "scheduler": {"remind_lead": 3, "dormant_gap": 5, "longline_interval": [8, 12]},
+  "dialogue_floor": 20,
+  "describe_ceiling": 40,
+  "extra_ticks": ["瞳孔骤缩", "眸", "嘴角勾起", "金属质感的声音", "数据洪流",
+                   "不禁", "倒吸一口凉气"],
+  "director_notes": "硬设定必须自洽：科技/异能/灾变规则前后一致，资源（弹药、能源、义体损耗、配给）有真实成本，拒绝凭空产出；用具体物理细节代替空泛形容词，信息给出要有层次（读者与主角同步解谜）；末世/赛博可基调冷峻但人物仍要有烟火气与动机，避免通篇压抑。"
+}

@@ -34,10 +34,18 @@ from novel_utils import (
 
 reconfigure_utf8()
 
-# 爆发前多少章开始提醒读者（回唤窗口）
-REMIND_LEAD = 3
-# 伏笔埋设后多少章完全没被提及就算"沉睡需唤醒"
-DORMANT_GAP = 5
+
+def _profile_windows(workspace: Path):
+    """从题材档案取调度窗口（P3-4），失败回退默认。"""
+    lead, gap = 3, 5
+    try:
+        import genre_profile as gp
+        s = (gp.resolve_genre_profile(workspace) or {}).get("scheduler", {}) or {}
+        lead = int(s.get("remind_lead", lead))
+        gap = int(s.get("dormant_gap", gap))
+    except Exception:
+        pass
+    return lead, gap
 
 _RESOLVED_MARKS = ("Resolved", "已回收", "Triggered", "已引爆", "已澄清", "Closed")
 _LONG_HINTS = ("全局", "全书", "贯穿", "长线", "待定", "未定", "卷末", "第二卷", "2 卷", "2卷")
@@ -104,6 +112,7 @@ def _last_mention_chapter(workspace: Path, name: str):
 def schedule(workspace: Path, target_chapter: int) -> dict:
     guns = _parse_guns(workspace)
     current = target_chapter
+    REMIND_LEAD, DORMANT_GAP = _profile_windows(workspace)
 
     detonate, remind, dormant, plant_suggest, longline = [], [], [], [], []
 

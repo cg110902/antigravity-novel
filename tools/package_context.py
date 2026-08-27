@@ -411,7 +411,20 @@ def package_context_for_chapter(target_chapter_str: str, workspace_path=None, as
     except Exception as e:
         package["memory_engine_error"] = str(e)
 
-    # 8d. P2 伏笔主动调度（为 beats-builder 排期：本章该引爆/回唤/唤醒哪些伏笔）
+    # 8d. P3-4 题材档案指导（注入题材专属导演提示，随书 00_meta/genre_profile.json 可微调）
+    try:
+        import genre_profile as gp
+        gprof = gp.resolve_genre_profile(workspace_dir)
+        package["genre_profile"] = {
+            "id": gprof.get("id"), "label": gprof.get("label"),
+            "director_notes": gprof.get("director_notes", ""),
+            "word_count": gprof.get("word_count", {}),
+            "ratio_baseline": gprof.get("ratio_baseline", {}),
+        }
+    except Exception as e:
+        package["genre_profile_error"] = str(e)
+
+    # 8e. P2 伏笔主动调度（为 beats-builder 排期：本章该引爆/回唤/唤醒哪些伏笔）
     try:
         import foreshadow_scheduler as fs
         if target_num is not None:
@@ -445,6 +458,14 @@ def package_context_for_chapter(target_chapter_str: str, workspace_path=None, as
             print(f"   👉 {al}")
         print("─" * 72)
     
+    gp = package.get("genre_profile")
+    if gp and gp.get("director_notes"):
+        wc = gp.get("word_count", {})
+        print(f"\n## 🎭 题材档案: {gp.get('label','')} (id={gp.get('id','')})"
+              f"  字数下限 {wc.get('min','-')} / 建议 {wc.get('recommended','-')}")
+        print("   📝 " + gp["director_notes"])
+        print("─" * 72)
+
     if package.get("synopsis_spine"):
         print("\n## 📚 全书梗概脊柱 (Synopsis Spine · 防场景/情节重复):\n" + package["synopsis_spine"])
         print("─" * 72)

@@ -1,0 +1,14 @@
+{
+  "schema": "novel-studio.genre-profile/v1",
+  "id": "history",
+  "label": "历史 / 架空 / 种田权谋",
+  "word_count": {"min": 2500, "recommended": 3200, "max": 5000},
+  "ratio_baseline": {"dialogue": [34, 48], "action": [32, 48], "describe": [12, 28]},
+  "stall_window": 3,
+  "scheduler": {"remind_lead": 3, "dormant_gap": 5, "longline_interval": [8, 12]},
+  "dialogue_floor": 28,
+  "describe_ceiling": 36,
+  "extra_ticks": ["渊渟岳峙", "不怒自威", "神色肃穆", "抱拳领命", "老朽",
+                   "龙行虎步", "眉宇间", "沉声", "冷笑一声"],
+  "director_notes": "人物对白可带时代质感但必须讲人话、有利益算计，严禁古装舞台剧念白与成语批发（斩除‘老朽活了大半辈子’‘渊渟岳峙’类）；权谋靠信息差与体制机锋推进，反派要有格局与智商，不得脸谱化叫嚣；种田/发展要有可量化积累（钱粮、人手、地盘），时代细节为人物与剧情服务、不堆砌。"
+}

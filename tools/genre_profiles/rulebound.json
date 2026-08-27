@@ -1,0 +1,14 @@
+{
+  "schema": "novel-studio.genre-profile/v1",
+  "id": "rulebound",
+  "label": "规则怪谈 / 无限流 / 副本求生",
+  "word_count": {"min": 2500, "recommended": 3300, "max": 5200},
+  "ratio_baseline": {"dialogue": [30, 46], "action": [36, 54], "describe": [12, 30]},
+  "stall_window": 2,
+  "scheduler": {"remind_lead": 4, "dormant_gap": 4, "longline_interval": [6, 10]},
+  "dialogue_floor": 22,
+  "describe_ceiling": 38,
+  "extra_ticks": ["瞳孔骤缩", "倒吸一口凉气", "毛骨悚然", "不寒而栗", "空气仿佛凝固",
+                   "诡异", "邪魅", "勾起唇角", "san值", "SAN值"],
+  "director_notes": "规则体系是第一生命线：每条规则要清晰、可推理、前后绝对一致，解谜靠角色与读者同步掌握的规则推演（线索公平），不靠主角开挂；每个副本有独立规则与代价，失败有真实伤亡/损耗；恐怖张力靠规则违背的后果与氛围留白，不靠形容词堆‘诡异’；主线（逃出循环/系统真相）长线伏笔按 6~10 章回唤，避免副本间失忆断线。"
+}

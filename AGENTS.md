@@ -8,6 +8,45 @@
 
 ---
 
+## 0. 上下文卫生与工具调用铁律 (Context Hygiene & Tool Contract)
+
+> 🎯 **核心认知：Python 工具是"被调用的函数"，不是"要阅读的文档"。**
+> 所有 Agent（含主控与 Sub-Agent）通过 `run_command` 执行 `python studio.py <命令>`，只消费其**终端输出 / `--json` 结果**，**绝不读取工具源码**。工具代码再大也不占模型上下文——占上下文的只有你主动 view_file 的文件。
+
+**🛑 三条上下文红线（所有 Agent 必须遵守）：**
+
+1. **严禁翻阅 / view_file 任何代码文件**：`tools/*.py`、`studio.py`、`tests/*.py`、`__pycache__/`。需要什么能力就调对应命令，行为以命令输出和本法典为准，不要去源码里"确认实现"。唯一例外是主控 Agent 在开发/维护工具链本身时。
+2. **不要整本打开状态台账**：`current_state.md`、`economy_ledger.json`、`chekhov_guns.md` 等长台账，一律通过 `studio.py pack`（已自动裁剪/预算化）或 `studio.py status` 获取摘要；不要手动 view_file 全量读取再塞进上下文。
+3. **一章一装载，用完即弃**：每章开工前 `python studio.py pack ch_xxx --json`（上下文紧张加 `--budget 8000`）拿到**本章专用上下文包**；章末定稿后该包即作废，不要跨章累积。`budget_report` 会明确告诉你裁掉了什么。
+
+**上下文分层（什么东西在什么时候占用窗口）：**
+
+| 层 | 内容 | 何时占用 |
+|---|---|---|
+| 常驻 | 本法典 AGENTS.md + 平台挂载的 `agents/rules/`、`agents/skills/` | 进会话即常驻（规则总量克制，勿往里堆正文/样例） |
+| 按需 | 本章 pack 上下文包（状态/伏笔/梗概脊柱/RAG召回/调度建议/预警） | 调 `pack` 时装载，受 `--budget` 封顶 |
+| 按需 | 当前章细纲 / 草稿 / 定稿（`03_outlines/`、`05_manuscript/`） | 只在该章 Stage 2/3 读写本章对应文件 |
+| 零占用 | `tools/*.py`、`studio.py`（工具源码） | **永不读取**，只调用、只看输出 |
+
+**阶段 ↔ 命令速查（照着调即可，无需理解内部实现）：**
+
+| 阶段 | 命令 | 作用 |
+|---|---|---|
+| Stage 0 | `python studio.py status` | 进度/字数/资产/活跃伏笔概览 |
+| Stage 0 | `python studio.py doctor` | 工作区结构与账本体检（ERROR 必须先修） |
+| Stage 0 | `python studio.py genre` | 查看本书题材档案（配比基线/口癖/塌中段窗口/题材导演指导） |
+| Stage 2 | `python studio.py pack ch_xxx --json [--budget N]` | 装载本章全量上下文（含记忆引擎与伏笔调度） |
+| Stage 2 | `python studio.py schedule ch_xxx` | 伏笔主动排期（该引爆/回唤/唤醒哪些枪） |
+| Stage 2 | `python studio.py memory recall "关键词"` | BM25 资料员手动回捞旧伏笔/人物/设定 |
+| Stage 3 | `python studio.py lint ch_xxx [--voice]` | 定稿质量门禁（字数/AI腔/读者懵逼，CRITICAL 阻断） |
+| Stage 3 | `python studio.py quality ratio -c ch_xxx` | 黄金配比三维量化（WARNING 参考，不阻断） |
+| Stage 4 | 写 `state_inbox/ch_xxx.json` 提案 → `python studio.py sync ch_xxx` | 提交结构化状态变更→引擎合并→校验→快照 |
+| 任意 | `python studio.py radar [--json]` | 全维雷达总控（doctor/账本/DAG/塌中段/配比/重复…） |
+
+> 💡 **职责分工铁律**：确定性的事（记账、编号、查重、配比统计、BM25 召回、伏笔排期、快照回滚）**全部由本地 Python 完成，零 Token**；需要语义理解的事（提炼事实突变、写梗概、写正文、判断戏腔与张力）才交给 LLM。LLM 产出**结构化提案/正文**，Python 引擎负责**校验、合并、记账、守门**。
+
+---
+
 ## 1. 核心架构与 4 阶段流水线总览
 
 ```
@@ -88,7 +127,9 @@
 - **触发**：用户提出一句话灵感或新书策划需求。
 - **执行**：
   1. 调用 `novel-director`，与用户对齐核心看点（推荐运用 `/grill-me` 深度访谈）；
-  2. 生成 `00_meta/project_bible.md`、`01_world/world_rules.md`、`02_characters/`、`03_outlines/` 与 `04_timeline_and_state/` 初始状态机；
+  2. 生成 `00_meta/project_bible.md`、`01_world/world_rules.md`、`02_characters/`、`03_outlines/` 与 `04_timeline_and_state/` 初始状态机；init 会按题材自动匹配并落一份**题材档案** `00_meta/genre_profile.json`（内置玄幻/都市/科幻/悬疑/历史/规则怪谈/通用，可人工微调，最高优先）；
+     - 🎭 **题材档案决定本书的"好书店线"**：章节字数区间、黄金配比基线、塌中段窗口（悬疑/规则怪谈更紧=2 章）、对白地板/描写天花板、题材专属雷词口癖、伏笔提醒窗口，以及注入 pack 的 **director_notes 题材导演指导**（如悬疑要求线索公平、科幻要求设定自洽、都市鼓励对白到 55%）；
+     - 质检工具（`quality stall/ratio/distill`）与伏笔调度器（`schedule`）自动读取该档案，无需手改代码；改题材只需编辑这份 JSON 或 init 时换 `-g`；查看用 `python studio.py genre`；
   3. 🌌 **长线叙事大格局规划**：构筑跨卷、跨阶段的深层伏笔网络（Chekhov's Guns）、多方阵营动态博弈、人物多阶心智弧光（Character Growth Arcs）与世界底层因果演进；
   4. 🚀 **新书冷启动第一性原理 (Cold-Start First-Principles Engine)**：
      - **新书在完全没有前序章节或参考切片的情况下，无需焦虑！**

@@ -215,6 +215,14 @@ def init_novel(title="未命名新书", genre="通用题材", protagonist="主�
     write_from_template("04_timeline_and_state/character_growth_arcs.template.md", "04_timeline_and_state/character_growth_arcs.md", "# 核心人物动态成长与心智演进总台账\n")
     write_from_template("04_timeline_and_state/economy_ledger.template.json", "04_timeline_and_state/economy_ledger.json", '{\n  "resource_pools": {}\n}\n')
 
+    # 7.4 Genre profile (P3-4)：按题材拷贝可微调的题材档案到 00_meta/
+    try:
+        from genre_profile import install_profile_for_genre
+        gp = install_profile_for_genre(workspace, genre)
+        print(f"   - 00_meta/genre_profile.json (题材档案：{gp.parent.name} 已按「{genre}」匹配)")
+    except Exception as e:
+        print(f"   ⚠️ 题材档案生成失败（不影响初始化）: {e}")
+
     # 7.5 State-inbox guide (structured mutation proposals)
     inbox = workspace / "04_timeline_and_state" / "state_inbox"
     inbox.mkdir(parents=True, exist_ok=True)

@@ -41,12 +41,29 @@ reconfigure_utf8()
 STYLE_FINGERPRINT_FILE = "04_timeline_and_state/style_fingerprint.json"
 STYLE_SCHEMA = "novel-studio.style-fingerprint/v1"
 
-# 黄金配比基线（来自 AGENTS.md 黄金均值法则）
-RATIO_BASELINE = {
-    "dialogue": (30, 45),     # 对白 30~45%（对话章可到 55%）
-    "action":   (35, 55),     # 推进/动作 35~55%
-    "describe": (10, 30),     # 静态描写 10~30%
-}
+
+def _genre_profile(workspace: Path) -> dict:
+    """加载题材档案（P3-4）；任何失败都回退到内置通用值，保证工具永不停摆。"""
+    try:
+        import genre_profile as gp
+        return gp.resolve_genre_profile(workspace)
+    except Exception:
+        return {}
+
+
+def _baseline(profile: dict) -> dict:
+    """从题材档案取配比基线；缺省回退通用基线。"""
+    rb = (profile or {}).get("ratio_baseline") or {}
+    def _rng(key, lo, hi):
+        v = rb.get(key)
+        if isinstance(v, (list, tuple)) and len(v) == 2:
+            return (v[0], v[1])
+        return (lo, hi)
+    return {
+        "dialogue": _rng("dialogue", 30, 45),
+        "action": _rng("action", 35, 55),
+        "describe": _rng("describe", 10, 30),
+    }
 # 静态描写信号词（环境/景物/外貌）
 _DESC_HINTS = ("天空", "阳光", "月光", "夜色", "街道", "建筑", "墙壁", "地面", "风", "雨",
                "云", "树", "花", "草", "山", "河", "海", "光", "影", "颜色", "穿着", "面容",
@@ -140,8 +157,11 @@ def _chapter_had_state_change(workspace: Path, num: int) -> bool:
     return False
 
 
-def detect_stall(workspace: Path, stall_window: int = 3) -> dict:
-    """连续 stall_window 章定稿但无任何状态变更 → 塌中段/注水。"""
+def detect_stall(workspace: Path, stall_window: int = None) -> dict:
+    """连续 stall_window 章定稿但无任何状态变更 → 塌中段/注水。
+    stall_window 缺省时从题材档案取（悬疑/规则怪谈更紧=2，其余=3）。"""
+    if stall_window is None:
+        stall_window = int((_genre_profile(workspace) or {}).get("stall_window", 3) or 3)
     ms_dir = workspace / "05_manuscript"
     files = sorted(find_manuscript_files(ms_dir) if ms_dir.exists() else [],
                    key=natural_chapter_sort_key)
@@ -222,23 +242,26 @@ def classify_ratio(text: str) -> dict:
     }
 
 
-def ratio_verdict(r: dict) -> dict:
-    """对照基线给三维评分与 WARNING（不硬阻断）。"""
+def ratio_verdict(r: dict, profile: dict = None) -> dict:
+    """对照题材基线给三维评分与 WARNING（不硬阻断）。"""
+    profile = profile or {}
+    baseline = _baseline(profile)
+    dialogue_floor = profile.get("dialogue_floor", 20)
+    describe_ceiling = profile.get("describe_ceiling", 40)
     warnings = []
     score = 100
-    for dim, (lo, hi) in RATIO_BASELINE.items():
+    for dim, (lo, hi) in baseline.items():
         v = r.get(dim, 0)
         if v < lo:
-            # 对白偏低允许（动作章）；描写过低其实是好事；这里只对明显失衡扣分
-            if dim == "dialogue" and v < lo - 10:
-                warnings.append(f"对白占比 {v}% 偏低（基线 {lo}~{hi}%），可能通篇旁白、缺乏人物交锋")
+            if dim == "dialogue" and v < dialogue_floor:
+                warnings.append(f"对白占比 {v}% 偏低（{profile.get('label','通用')} 地板 {dialogue_floor}%），可能通篇旁白、缺乏人物交锋")
                 score -= 12
             if dim == "action" and v < lo:
                 warnings.append(f"推进/动作占比 {v}% 偏低（基线 {lo}~{hi}%），疑似剧情停滞")
                 score -= 15
         elif v > hi + 10:
-            if dim == "describe":
-                warnings.append(f"静态描写占比 {v}% 过高（基线 ≤{hi}%），疑似注水/风景慢放")
+            if dim == "describe" and v > describe_ceiling:
+                warnings.append(f"静态描写占比 {v}% 过高（{profile.get('label','通用')} 天花板 {describe_ceiling}%），疑似注水/风景慢放")
                 score -= 15
             elif dim == "dialogue" and v > hi + 15:
                 warnings.append(f"对白占比 {v}% 偏高（基线 {lo}~{hi}%），注意是否空谈不推进")
@@ -247,6 +270,7 @@ def ratio_verdict(r: dict) -> dict:
 
 
 def golden_ratio_gate(workspace: Path, chapter: str = None) -> dict:
+    profile = _genre_profile(workspace)
     ms_dir = workspace / "05_manuscript"
     files = find_manuscript_files(ms_dir, target_chapter=chapter) if chapter else \
         sorted(find_manuscript_files(ms_dir), key=natural_chapter_sort_key)
@@ -257,7 +281,7 @@ def golden_ratio_gate(workspace: Path, chapter: str = None) -> dict:
         if num is None:
             continue
         r = classify_ratio(f.read_text(encoding="utf-8"))
-        v = ratio_verdict(r)
+        v = ratio_verdict(r, profile)
         chapters.append({
             "chapter": f"ch_{num:03d}", "ratio": r, "score": v["score"], "warnings": v["warnings"],
         })
@@ -278,7 +302,7 @@ def golden_ratio_gate(workspace: Path, chapter: str = None) -> dict:
 # ---------------------------------------------------------------------------
 # C. 文风蒸馏
 # ---------------------------------------------------------------------------
-def _style_features(text: str) -> dict:
+def _style_features(text: str, workspace: Path = None) -> dict:
     body = _strip_body(text)
     sents = _sentences(body)
     sent_lens = [_cjk_count(s) for s in sents]
@@ -287,7 +311,13 @@ def _style_features(text: str) -> dict:
     total = _cjk_count(body) or 1
     dialogue = _dialogue_chars(body)
 
-    tick_freq = {t: body.count(t) for t in _TICKS if body.count(t) > 0}
+    # 口癖词表 = 通用雷词 + 题材专属雷词（P3-4）
+    ticks = list(_TICKS)
+    prof = _genre_profile(workspace) if workspace else {}
+    for t in (prof or {}).get("extra_ticks", []):
+        if t not in ticks:
+            ticks.append(t)
+    tick_freq = {t: body.count(t) for t in ticks if body.count(t) > 0}
     # 每千字口癖出现次数
     tick_per_1k = {t: round(c / total * 1000, 2) for t, c in tick_freq.items()}
 
@@ -322,7 +352,7 @@ def distill_style(workspace: Path, chapter: str = None) -> dict:
         target = find_manuscript_files(ms_dir, target_chapter=chapter)
         if not target:
             return {"error": f"未找到章节 {chapter} 的定稿"}
-        feat = _style_features(target[0].read_text(encoding="utf-8"))
+        feat = _style_features(target[0].read_text(encoding="utf-8"), workspace)
         fp = _load_or_build_fingerprint(workspace)
         comparison = _compare_to_fingerprint(feat, fp)
         return {"chapter": chapter, "features": feat, "fingerprint": fp.get("features"),
@@ -331,7 +361,7 @@ def distill_style(workspace: Path, chapter: str = None) -> dict:
     # 全书蒸馏
     files = sorted(find_manuscript_files(ms_dir), key=natural_chapter_sort_key)
     corpus = "\n".join(f.read_text(encoding="utf-8") for f in files)
-    feat = _style_features(corpus)
+    feat = _style_features(corpus, workspace)
     fp = {
         "schema": STYLE_SCHEMA,
         "chapter_count": len(files),

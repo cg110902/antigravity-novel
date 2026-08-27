@@ -1,0 +1,13 @@
+{
+  "schema": "novel-studio.genre-profile/v1",
+  "id": "generic",
+  "label": "全题材通用",
+  "word_count": {"min": 2500, "recommended": 3200, "max": 5000},
+  "ratio_baseline": {"dialogue": [30, 45], "action": [35, 55], "describe": [10, 30]},
+  "stall_window": 3,
+  "scheduler": {"remind_lead": 3, "dormant_gap": 5, "longline_interval": [8, 12]},
+  "dialogue_floor": 20,
+  "describe_ceiling": 40,
+  "extra_ticks": [],
+  "director_notes": "遵循 4 大心流母则与黄金配比：对白讲人话、推进利落、描写随动线一笔带过、断章有钩。"
+}
