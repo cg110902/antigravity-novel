@@ -48,6 +48,14 @@ description: Universal long-range consistency sweep librarian and retroactive le
    - 每 10 章巡检：`python studio.py evidence candidates ch_XXX -w "workspace/<书名>"`；
    - 或卷末大修：`python studio.py reconcile vol_XX --write -w "workspace/<书名>"`；
 
+   > 🩺 **【v4.3.2 必读 · 卷末对账报告第五节】**：`reconcile vol_XX --write` 产出的报告
+   > **第五节「台账自洽体检（Level 2 靶点预筛）」** 是你唯一的机械冲突探测器
+   > （你被禁止运行 `check`，而 `evidence candidates` 只打捞未建档实体、**不查矛盾**）。
+   > 该节若列出条目，**逐条都必须**按 Level 2 标准靶点卡片抄进巡检报告并上报主控；
+   > 显示 `✅ 台账内部交叉引用自洽` 方可按正常放行回执交卷。
+   > 覆盖范围：生死状态与弧光互斥、道具 holder / 恩怨双方 / 关系双方的幽灵 ID 引用、
+   > 伏笔 resolved 缺回收章、锁定事实指向未入账章节。
+
 2. **步骤 2【单次全读核验档案 · 严禁切片】**：
    调用 `view_file` **单次全量读取**实体台账主表（`state/persons.json`, `items.json`）与章节梗概表 `state/synopsis.json`（卷末大修如需可追加 `factions.json` / `places.json`）；
    - 🔍 **求证限制（严格≤3次）**：需核查实体正文出处时，跑一行 `python studio.py ask "<名字>"`（**最多 3 次**）。
@@ -66,7 +74,7 @@ description: Universal long-range consistency sweep librarian and retroactive le
   - `python studio.py evidence candidates ch_XXX -w "workspace/<书名>"`；
   - `python studio.py reconcile vol_XX --write -w "workspace/<书名>"`；
   - `python studio.py ask "<名字>"`（选跑，**严格最多 3 次**）；
-- 📖 **准读文件**：`state/persons.json`、`items.json`、`synopsis.json`（单次全读，禁切片；严禁回读手册）；
+- 📖 **准读文件**：`state/persons.json`、`items.json`、`synopsis.json`（单次全读，禁切片；严禁回读手册）；卷末可回读自己刚产出的 `log/review/reconcile_vol_XX.md` 以誊抄第五节靶点；
 - ✍️ **准写工件**：调用 `write_to_file` 写入 `log/review/` 报告，自愈 Level 1 时在 `characters/` 或 `entities/` 补卡；调用 `replace_file_content` 修正微瑕（**严禁传递 `ArtifactMetadata`**）；
 - 🚫 **绝对红线**：
   - 严禁修改任何小说正文（`manuscript/`）；严禁手搓底层 JSON；

@@ -270,3 +270,69 @@ $ python3 tests/regression_test.py
 
 ### 回归
 `tests/regression_test.py` 扩至 **116 项断言全通过**（新增演进段 17 项）。
+
+---
+
+## 第 7 轮：细纲字段契约 / 空壳命令 / 测算深度 / Librarian 探测盲区
+
+### BUG#21 【P0 已修已验】细纲 state_deltas 字段契约三方不一致，台账静默漏账
+
+- **现象**：引擎 `engine/state.py` 实际消费 `state_deltas` 的 5 个子块
+  （character_status / debts / items / ledger / relation_deltas），但
+  ① `beats` 脚手架把 `items` 与 `ledger` 两整块**默认注释掉**；
+  ② screenwriter 手册**只点名 5 个顶层字段**，对 `items` / `ledger` /
+  `relation_deltas` / `narrative_spine` 提及次数为 **0**。
+- **后果**：编剧在细纲与正文里写足「消耗 1 次充能、花光 500 灵石」，
+  Frontmatter 却未声明 → `charges` 仍为 3、`ledger.pools` 仍为 `{}`，
+  而 `sync` 成功、`check` **0 errors**，全链路零告警（`/tmp/sw2` 复现）。
+- **修复**：① 手册补全四个子块说明（标注 items/ledger 默认注释需手动启用）、
+  补 `relation_deltas` 条目、新增「🔴 正文与台账同源铁律 v4.3.2」7 行对照表；
+  ② `engine/state.py` 新增 **10.5 节「细纲正文 ⇄ state_deltas 声明漂移探针」**，
+  剥离 HTML 注释后按关键词比对 items/ledger/relations 三类，命中且未声明则 warning
+  （只提醒，绝不猜数改账）。
+- **验证**：`/tmp/sw3` 正确报出 items 与 ledger 两条告警；已正确声明的
+  testbook ch_003 重跑 sync 零误报。
+
+### BUG#22 【P2 已修】`style` 空壳命令暴露谎称有效的 `--last` 参数
+
+- **现象**：`style` 自 v4.2 起退役为说明性命令（语义评估交由 Stage 3A/4A），
+  `engine/cli.py` 分支只 print 三行后 return 0，**不读任何文件**；
+  但 CLI 仍定义 `--last N`（默认 10）且**完全忽略**——传 `--last 3` 与不传输出逐字节相同。
+- **定性**：退役本身是设计决策，非缺陷；缺陷在于保留了一个按参数语义会让调用方
+  误以为「已分析最近 N 章」的无效开关。
+- **修复**：help 文本标注 `[已失效]`，命令首行显式声明「不读取任何章节、不产出统计数据」，
+  显式传入非默认 `--last` 时打印忽略告警，并给出应改派 Stage 3A/4A 的指引。
+
+### BUG#23 【P1 已修已验】`simulate impact` 漏计活跃伏笔的预定兑现章 `target_ch`
+
+- **现象**：波及面只计 `planted_ch` 与 `resolved_ch`。实测 GUN-002 预定兑现于 **ch_012**，
+  测算却只报埋设章 ch_003。
+- **后果**：活跃伏笔的 target_ch 是**未来已排产的剧情承诺**，改动该伏笔必然波及那一章。
+  Stage 4C (Evolution) 据此低估改动半径，漏改 ch_012 的规划。
+- **修复**：`engine/ops.py` 对 `status == "active"` 且有 `target_ch` 的伏笔计入波及章节，
+  并在清单中标注 `⏳预定兑现于 ch_XXX`。
+- **验证**：GUN-002 波及面 1 → 2（ch_003, ch_012）；p_001 波及面正确扩展至 5 章。
+
+### BUG#24 【P0 已修已验】Librarian 对自己职责范围内的冲突全盲
+
+- **现象**：Stage 4D (novel-librarian) 手册明列「生死矛盾」「法宝归属」「因果断裂」
+  属 Level 2 必须上报，但给它的准跑命令只有 `evidence candidates` 与 `reconcile`，
+  且**明令禁止运行 `check`**（"体检由主控统一执行"）。
+- **复现**（`/tmp/lib`）：注入「齐鸣 life_status 改回 alive（与 ch_004 死亡弧光互斥）」
+  与「it_001.holder 指向幽灵 p_999」两处冲突后——
+  `evidence candidates` 报 **"✅ 台账完备"**，`reconcile` 报告**只字未提**；
+  而被禁用的 `check` 两条都抓得一清二楚。
+- **后果**：librarian 根本无从发现它被要求上报的问题，**Level 2 → Stage 4C 的派发链在源头就断了**。
+  每 10 章与卷末的长程巡检成为走过场。
+- **修复**：
+  ① `engine/check.py` 将 3.4 节巡检抽取为可复用的 `scan_ledger_integrity(workspace)`，
+     `check` 与 `reconcile` 共用同一实现（遵循"语义词表/阈值单一真值源"铁律，禁止复制）；
+  ② `engine/ops.py` 的卷末对账报告新增 **第五节「🩺 台账自洽体检（Level 2 靶点预筛）」**；
+  ③ librarian 手册步骤 1 新增必读提示，说明该节是它唯一的机械冲突探测器，
+     列出条目须逐条按 Level 2 靶点卡片上报，并放开回读自产 reconcile 报告的权限。
+- **验证**：`/tmp/lib` 的 reconcile 报告现正确列出 2 项并标注 Level 2 处置路径；
+  干净的 `workspace/testbook` 显示 `✅ 台账内部交叉引用自洽`；`check` 行为不变（仍报 2 项）。
+- **注意**：`scan_ledger_integrity` 对坏表**上抛 RuntimeError**，由两个调用方各自降级
+  （check 记 warning 避免 exit 4 截断报告；reconcile 记一行说明），不得在函数内自行吞掉。
+
+**回归**：`python3 tests/regression_test.py` → **116 项全通过 / 0 失败**。

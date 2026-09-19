@@ -1218,6 +1218,46 @@ class StateManager:
                         })
         _save_json(self.entity_timeline_file, timeline_db)
 
+        # 10.5 细纲正文 ⇄ state_deltas 声明漂移探针（v4.3.2 缺陷#21）
+        #
+        # 背景：Stage 1 编剧手册此前只点名 chapter_type/present_characters/
+        # epistemology/foreshadowing_deltas/state_deltas 五项，对 items/ledger/
+        # relation_deltas 全程零提及；而脚手架里 items 与 ledger 两块默认是
+        # **注释状态**。于是编剧在剧情脉络里写了「耗尽一次充能」「花掉五百灵石」，
+        # Frontmatter 却没有对应声明——引擎只认 Frontmatter，台账静默停留在旧值，
+        # 且 sync 成功、check 0 errors，全链路零告警（实测复现）。
+        # 这类漏账往往几十章后才在充能对不上时爆发，且极难回溯到具体哪一章。
+        # 此处做一次廉价的关键词比对，命中即 warning 提示补声明（只提醒，不猜数改账）。
+        try:
+            if beats_body:
+                _body = re.sub(r"<!--.*?-->", "", beats_body, flags=re.DOTALL)
+                _probes = (
+                    ("items", bool(item_deltas),
+                     ("充能", "耗尽", "用掉", "点燃", "折断", "碎裂", "损毁", "夺走",
+                      "易主", "赠予", "交给", "丢失", "遗失", "报废", "熔毁"),
+                     "state_deltas.items（charges_delta / holder_change / status）"),
+                    ("ledger", bool(state_deltas.get("ledger")),
+                     ("灵石", "银两", "赏金", "花掉", "花光", "买下", "赔款", "报酬",
+                      "酬金", "付了", "收入", "进账", "债务"),
+                     "state_deltas.ledger（pool / delta / reason）"),
+                    ("relations", bool(raw_rels),
+                     ("反目", "决裂", "翻脸", "结盟", "和解", "背叛", "生分", "交心"),
+                     "relation_deltas（tension / dynamic / subtext）"),
+                )
+                for _name, _declared, _kws, _field in _probes:
+                    if _declared:
+                        continue
+                    _hits = sorted({k for k in _kws if k in _body})
+                    if _hits:
+                        warnings.append(
+                            f"细纲正文提到「{'、'.join(_hits[:4])}」等{_name}相关变动，"
+                            f"但 Frontmatter 未作任何声明，本章台账不会发生对应变更。"
+                            f"\n      💡 方案：若确有变动，请在细纲补写 {_field}"
+                            f"（脚手架中该块默认为注释状态，需取消注释）；若属误报可忽略。"
+                        )
+        except Exception:
+            pass
+
         # 11. 自动持久化当章全时空全息历史快照切片 (history/ch_XXX.json)
         self.save_chapter_snapshot(ch_id)
 

@@ -1555,6 +1555,34 @@ def reconcile_volume(workspace: Path, volume_id: str, write_file: bool = False) 
     for lf in locked_facts:
         report_lines.append(f"- [{lf.get('id')}] {lf.get('fact')} (第{lf.get('established_ch', '初始')}章确立)")
 
+    # v4.3.2 缺陷#24：台账自洽体检并入卷末对账报告。
+    #
+    # Stage 4D (novel-librarian) 的职责明列「生死矛盾」「法宝归属」「因果断裂」属
+    # Level 2 必须上报，但手册给它的准跑命令只有 evidence candidates 与 reconcile，
+    # 且**明令禁止它运行 check**（"体检由主控统一执行"）。实测注入「齐鸣复活」与
+    # 「道具持有者指向幽灵 p_999」两处冲突后，它这两条命令**全盲**——
+    # evidence 报"台账完备"，reconcile 只字未提。于是 librarian 根本无从发现它
+    # 被要求上报的问题，Level 2 → Stage 4C 的派发链在源头就断了。
+    # 此处复用 check 的台账交叉引用巡检，把结论直接写进它看得到的报告里。
+    _integrity_lines: List[str] = []
+    try:
+        from engine.check import scan_ledger_integrity
+
+        _integrity_lines = scan_ledger_integrity(workspace)
+    except Exception as _e:  # noqa: BLE001
+        _integrity_lines = [f"（台账自洽体检未能执行: {_e}）"]
+
+    report_lines.append(f"\n## 🩺 五、 台账自洽体检（Level 2 靶点预筛）")
+    if _integrity_lines:
+        report_lines.append(
+            f"- ⚠️ 检出 {len(_integrity_lines)} 项台账内部矛盾，"
+            f"**请按 Level 2 标准靶点卡片上报主控，委派 Stage 4C (Evolution) 处置**："
+        )
+        for _il in _integrity_lines:
+            report_lines.append(f"  - {_il}")
+    else:
+        report_lines.append("- ✅ 台账内部交叉引用自洽，未见生死矛盾、归属断裂或伏笔字段残缺。")
+
     report_md = "\n".join(report_lines) + "\n"
 
     target_path = None
@@ -1746,14 +1774,25 @@ def simulate_impact(workspace: Path, entity: str, action: str = "retcon") -> Dic
             for _c in (_chs or []):
                 _mark_ch(_c.get("chapter_id") if isinstance(_c, dict) else _c)
 
-    # 4. 伏笔（顺带把埋设/回收章计入波及面）
+    # 4. 伏笔（埋设章 / 回收章 / 预定兑现章均计入波及面）
     for lid, l in (lines or {}).items():
         if not isinstance(l, dict):
             continue
         if lid in aliases or _hit(l.get("name"), l.get("desc")):
-            affected_lines.append(f"{lid}: {l.get('name')} [{l.get('status')}]")
+            _tgt = str(l.get("target_ch", "") or "").strip()
+            _pending = l.get("status") == "active" and _tgt
+            affected_lines.append(
+                f"{lid}: {l.get('name')} [{l.get('status')}]"
+                + (f" ⏳预定兑现于 {_tgt}" if _pending else "")
+            )
             _mark_ch(l.get("planted_ch"))
             _mark_ch(l.get("resolved_ch"))
+            # v4.3.2 缺陷#23：旧版漏计 target_ch。活跃伏笔的「预定兑现章」是未来
+            # 已排产的剧情承诺——改动该伏笔必然波及那一章，却不出现在波及清单里。
+            # 实测 GUN-002 预定兑现于 ch_012，测算却只报埋设章 ch_003，
+            # evolution 会据此低估改动半径，漏改 ch_012 的规划。
+            if _pending:
+                _mark_ch(_tgt)
 
     # 5. 锁定事实
     for lf in (locked or []):

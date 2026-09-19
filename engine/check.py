@@ -49,6 +49,158 @@ def _scan_unfilled_slots(workspace: Path, warnings: List[str]) -> int:
     return total
 
 
+def scan_ledger_integrity(workspace: Path) -> List[str]:
+    """台账内部交叉引用自洽体检（v4.3.2 缺陷#20 / #24）。
+
+    独立成函数供两处复用：
+    - `run_full_check`（Stage 0C 主控体检，命中即阻断错误）；
+    - `reconcile_volume`（Stage 4D Librarian 的准跑命令——手册禁止它运行 check，
+      若不在对账报告里给出结论，它就无从发现自己被要求上报的 Level 2 冲突）。
+
+    返回人读结论列表；空列表表示台账自洽。本函数只读不写。
+    """
+    _out: List[str] = []
+    _sm = StateManager(workspace)
+    cfg = load_config(workspace)
+    #
+    # 背景：Stage 4C (novel-evolution) 处理作者中途改设定/改人设/砍角色/翻转生死时，
+    # 手册给它的全部机器能力只有 simulate impact / snapshot / check / ask 四条，
+    # 真正的台账改动**全靠手工编辑 state/*.json**——而此前 check 只校验
+    # 「细纲 ➔ 台账」单向引用，对台账**内部**的交叉引用零设防。实测注入 5 类
+    # 典型手改破绽（复活角色但遗留死亡弧光、删角色留引用、伏笔 resolved 无回收章、
+    # 道具持有者指向幽灵 ID、恩怨双方指向幽灵 ID）全部 0 error 放行。
+    # 这意味着 evolution 的唯一验收闸门形同虚设，平账结果没有任何机械兜底。
+    try:
+        _persons = _sm.get_persons()
+        _items = _sm.get_items()
+        _lines = _sm.get_lines()
+        _places = _sm.get_places()
+        _debts = _sm.get_debts()
+        _relations = _sm.get_relations()
+        # 复用 state.py 的唯一死亡语义词表——切勿在此内联复制一份，
+        # 两处词表漂移正是缺陷#15 的成因（回归测试中「病故于旧货店」一例即因
+        # check 侧内联词表未同步而漏判）。
+        from engine.state import is_deceased, get_death_chapter, _DEATH_KEYWORDS
+
+        # 引擎内置的泛指占位（pack.py/ops.py 均按此识别主角持有物），不算断裂引用
+        _generic_refs = {"主角", "protagonist", "未知", "无", "-"}
+        _proto_name = str(cfg.get("protagonist", "") or "").strip()
+
+        def _known_person(ref: Any) -> bool:
+            """判定人物引用是否可解析（接受物理 ID、姓名、别名或泛指占位）。"""
+            s = str(ref or "").strip()
+            if not s:
+                return True  # 空引用交由各自的必填校验处理，此处不重复报
+            if s in _generic_refs or (_proto_name and s == _proto_name):
+                return True
+            if s in _persons:
+                return True
+            for _pr in _persons.values():
+                if not isinstance(_pr, dict):
+                    continue
+                if s == str(_pr.get("name", "")).strip():
+                    return True
+                if s in [str(a).strip() for a in (_pr.get("aliases") or [])]:
+                    return True
+            return False
+
+        # a) 生死状态自洽：life_status 与 arc_history 死亡弧光互相打架
+        for _pid, _pr in _persons.items():
+            if not isinstance(_pr, dict):
+                continue
+            _death_ch = get_death_chapter(_pr) if any(
+                any(k in str(a.get("status_out", "")).lower() for k in _DEATH_KEYWORDS)
+                for a in (_pr.get("arc_history") or []) if isinstance(a, dict)
+            ) else ""
+            if _death_ch and not is_deceased(_pr):
+                _out.append(
+                    f"台账生死状态自相矛盾: 角色 [{_pr.get('name') or _pid}] ({_pid}) 的 "
+                    f"life_status 为 '{_pr.get('life_status', '未标注')}'（在世），"
+                    f"但弧光轨迹 arc_history 中第 {_death_ch} 章记录了死亡事实。"
+                    f"\n      💡 方案：若剧情确为复活/假死翻转，请同步清理或改写该章 arc_history 的 "
+                    f"status_out 并在 locked.json 登记翻转事实；若属误改，请将 life_status 改回 deceased。"
+                )
+
+        # b) 道具持有者引用
+        for _iid, _ir in _items.items():
+            if not isinstance(_ir, dict):
+                continue
+            _h = str(_ir.get("holder", "")).strip()
+            if _h and not _known_person(_h) and not re.match(r"^(loc_|fac_)", _h):
+                _out.append(
+                    f"台账引用断裂: 道具 [{_iid}] {_ir.get('name')} 的持有者 [{_h}] "
+                    f"在 state/persons.json 中不存在。"
+                    f"\n      💡 方案：请修正 holder 为已建档的角色 ID/姓名，或为该角色补建人物档案。"
+                )
+
+        # c) 恩怨链双方引用
+        for _d in (_debts or []):
+            if not isinstance(_d, dict):
+                continue
+            for _role, _key in (("发起方", "source_char"), ("承受方", "target_char")):
+                _ref = str(_d.get(_key, "")).strip()
+                if _ref and not _known_person(_ref):
+                    _out.append(
+                        f"台账引用断裂: 恩怨 [{_d.get('id', 'DEBT')}] 的{_role} [{_ref}] "
+                        f"在 state/persons.json 中不存在（事由: {_d.get('desc', '')}）。"
+                        f"\n      💡 方案：请修正该恩怨条目的 {_key}，或为其补建人物档案；"
+                        f"若该角色已被剧情移除，请一并删除此恩怨记录。"
+                    )
+
+        # d) 关系网双方引用
+        for _pair, _r in (_relations or {}).items():
+            if not isinstance(_r, dict):
+                continue
+            for _key in ("source_id", "target_id"):
+                _ref = str(_r.get(_key, "")).strip()
+                if _ref and not _known_person(_ref):
+                    _out.append(
+                        f"台账引用断裂: 关系对 [{_pair}] 的 {_key} [{_ref}] "
+                        f"在 state/persons.json 中不存在。"
+                        f"\n      💡 方案：请修正该关系条目，或为该角色补建档案；"
+                        f"若角色已移除，请删除此关系记录。"
+                    )
+
+        # e) 伏笔闭环字段自洽
+        for _lid, _lr in _lines.items():
+            if not isinstance(_lr, dict):
+                continue
+            if _lr.get("status") == "resolved" and not str(_lr.get("resolved_ch", "")).strip():
+                _out.append(
+                    f"台账伏笔字段残缺: 伏笔 [{_lid}] {_lr.get('name')} 状态已标记 resolved，"
+                    f"但缺少回收章 resolved_ch。"
+                    f"\n      💡 方案：请补填 resolved_ch（回收所在章号），"
+                    f"或将 status 改回 active 交由后续章节正常回收。"
+                )
+            if not str(_lr.get("planted_ch", "")).strip():
+                _out.append(
+                    f"台账伏笔字段残缺: 伏笔 [{_lid}] {_lr.get('name')} 缺少埋设章 planted_ch。"
+                    f"\n      💡 方案：请补填 planted_ch 以支持卷末对账按卷归属统计。"
+                )
+
+        # f) 锁定事实指向的章节应当真实存在于时间线
+        _tl_chs = {str(t.get("chapter_id", "")) for t in (_sm.get_timeline() or [])}
+        if _tl_chs:
+            for _lf in (_sm.get_locked_facts() or []):
+                if not isinstance(_lf, dict):
+                    continue
+                _ech = str(_lf.get("established_ch", "")).strip()
+                if _ech and _ech not in _tl_chs:
+                    _out.append(
+                        f"台账锁定事实指向未入账章节: [{_lf.get('id')}] 确立于 {_ech}，"
+                        f"但该章不在 state/timeline.json 中。"
+                        f"\n      💡 方案：若该章已被回滚或删除，请一并清理此条锁定事实。"
+                    )
+    except RuntimeError:
+        # 坏表/蒸发态交由调用方降级处置（check 已在 2.5 节以 error 报告过，
+        # 此处若自行上抛 exit 4 会截断完整报告；reconcile 则记为一行说明）。
+        raise
+    except Exception:
+        pass
+
+    return _out
+
+
 def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[str, Any]:
     errors: List[str] = []
     warnings: List[str] = []
@@ -181,145 +333,21 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
     except Exception:
         pass
 
-    # 3.4 台账内部交叉引用完整性巡检（v4.3.2 缺陷#20）
+    # 3.4 台账内部交叉引用完整性巡检（v4.3.2 缺陷#20，实现见 scan_ledger_integrity）
     #
-    # 背景：Stage 4C (novel-evolution) 处理作者中途改设定/改人设/砍角色/翻转生死时，
-    # 手册给它的全部机器能力只有 simulate impact / snapshot / check / ask 四条，
-    # 真正的台账改动**全靠手工编辑 state/*.json**——而此前 check 只校验
-    # 「细纲 ➔ 台账」单向引用，对台账**内部**的交叉引用零设防。实测注入 5 类
-    # 典型手改破绽（复活角色但遗留死亡弧光、删角色留引用、伏笔 resolved 无回收章、
-    # 道具持有者指向幽灵 ID、恩怨双方指向幽灵 ID）全部 0 error 放行。
-    # 这意味着 evolution 的唯一验收闸门形同虚设，平账结果没有任何机械兜底。
+    # 背景：Stage 4C (novel-evolution) 平账时全靠手工编辑 state/*.json，而此前
+    # check 只校验「细纲 ➔ 台账」单向引用，对台账内部交叉引用零设防——实测 5 类
+    # 典型手改破绽全部 0 error 放行，evolution 的唯一验收闸门形同虚设。
     try:
-        _persons = state_mgr.get_persons()
-        _items = state_mgr.get_items()
-        _lines = state_mgr.get_lines()
-        _places = state_mgr.get_places()
-        _debts = state_mgr.get_debts()
-        _relations = state_mgr.get_relations()
-        # 复用 state.py 的唯一死亡语义词表——切勿在此内联复制一份，
-        # 两处词表漂移正是缺陷#15 的成因（回归测试中「病故于旧货店」一例即因
-        # check 侧内联词表未同步而漏判）。
-        from engine.state import is_deceased, get_death_chapter, _DEATH_KEYWORDS
-
-        # 引擎内置的泛指占位（pack.py/ops.py 均按此识别主角持有物），不算断裂引用
-        _generic_refs = {"主角", "protagonist", "未知", "无", "-"}
-        _proto_name = str(cfg.get("protagonist", "") or "").strip()
-
-        def _known_person(ref: Any) -> bool:
-            """判定人物引用是否可解析（接受物理 ID、姓名、别名或泛指占位）。"""
-            s = str(ref or "").strip()
-            if not s:
-                return True  # 空引用交由各自的必填校验处理，此处不重复报
-            if s in _generic_refs or (_proto_name and s == _proto_name):
-                return True
-            if s in _persons:
-                return True
-            for _pr in _persons.values():
-                if not isinstance(_pr, dict):
-                    continue
-                if s == str(_pr.get("name", "")).strip():
-                    return True
-                if s in [str(a).strip() for a in (_pr.get("aliases") or [])]:
-                    return True
-            return False
-
-        # a) 生死状态自洽：life_status 与 arc_history 死亡弧光互相打架
-        for _pid, _pr in _persons.items():
-            if not isinstance(_pr, dict):
-                continue
-            _death_ch = get_death_chapter(_pr) if any(
-                any(k in str(a.get("status_out", "")).lower() for k in _DEATH_KEYWORDS)
-                for a in (_pr.get("arc_history") or []) if isinstance(a, dict)
-            ) else ""
-            if _death_ch and not is_deceased(_pr):
-                errors.append(
-                    f"台账生死状态自相矛盾: 角色 [{_pr.get('name') or _pid}] ({_pid}) 的 "
-                    f"life_status 为 '{_pr.get('life_status', '未标注')}'（在世），"
-                    f"但弧光轨迹 arc_history 中第 {_death_ch} 章记录了死亡事实。"
-                    f"\n      💡 方案：若剧情确为复活/假死翻转，请同步清理或改写该章 arc_history 的 "
-                    f"status_out 并在 locked.json 登记翻转事实；若属误改，请将 life_status 改回 deceased。"
-                )
-
-        # b) 道具持有者引用
-        for _iid, _ir in _items.items():
-            if not isinstance(_ir, dict):
-                continue
-            _h = str(_ir.get("holder", "")).strip()
-            if _h and not _known_person(_h) and not re.match(r"^(loc_|fac_)", _h):
-                errors.append(
-                    f"台账引用断裂: 道具 [{_iid}] {_ir.get('name')} 的持有者 [{_h}] "
-                    f"在 state/persons.json 中不存在。"
-                    f"\n      💡 方案：请修正 holder 为已建档的角色 ID/姓名，或为该角色补建人物档案。"
-                )
-
-        # c) 恩怨链双方引用
-        for _d in (_debts or []):
-            if not isinstance(_d, dict):
-                continue
-            for _role, _key in (("发起方", "source_char"), ("承受方", "target_char")):
-                _ref = str(_d.get(_key, "")).strip()
-                if _ref and not _known_person(_ref):
-                    errors.append(
-                        f"台账引用断裂: 恩怨 [{_d.get('id', 'DEBT')}] 的{_role} [{_ref}] "
-                        f"在 state/persons.json 中不存在（事由: {_d.get('desc', '')}）。"
-                        f"\n      💡 方案：请修正该恩怨条目的 {_key}，或为其补建人物档案；"
-                        f"若该角色已被剧情移除，请一并删除此恩怨记录。"
-                    )
-
-        # d) 关系网双方引用
-        for _pair, _r in (_relations or {}).items():
-            if not isinstance(_r, dict):
-                continue
-            for _key in ("source_id", "target_id"):
-                _ref = str(_r.get(_key, "")).strip()
-                if _ref and not _known_person(_ref):
-                    errors.append(
-                        f"台账引用断裂: 关系对 [{_pair}] 的 {_key} [{_ref}] "
-                        f"在 state/persons.json 中不存在。"
-                        f"\n      💡 方案：请修正该关系条目，或为该角色补建档案；"
-                        f"若角色已移除，请删除此关系记录。"
-                    )
-
-        # e) 伏笔闭环字段自洽
-        for _lid, _lr in _lines.items():
-            if not isinstance(_lr, dict):
-                continue
-            if _lr.get("status") == "resolved" and not str(_lr.get("resolved_ch", "")).strip():
-                errors.append(
-                    f"台账伏笔字段残缺: 伏笔 [{_lid}] {_lr.get('name')} 状态已标记 resolved，"
-                    f"但缺少回收章 resolved_ch。"
-                    f"\n      💡 方案：请补填 resolved_ch（回收所在章号），"
-                    f"或将 status 改回 active 交由后续章节正常回收。"
-                )
-            if not str(_lr.get("planted_ch", "")).strip():
-                warnings.append(
-                    f"台账伏笔字段残缺: 伏笔 [{_lid}] {_lr.get('name')} 缺少埋设章 planted_ch。"
-                    f"\n      💡 方案：请补填 planted_ch 以支持卷末对账按卷归属统计。"
-                )
-
-        # f) 锁定事实指向的章节应当真实存在于时间线
-        _tl_chs = {str(t.get("chapter_id", "")) for t in (state_mgr.get_timeline() or [])}
-        if _tl_chs:
-            for _lf in (state_mgr.get_locked_facts() or []):
-                if not isinstance(_lf, dict):
-                    continue
-                _ech = str(_lf.get("established_ch", "")).strip()
-                if _ech and _ech not in _tl_chs:
-                    warnings.append(
-                        f"台账锁定事实指向未入账章节: [{_lf.get('id')}] 确立于 {_ech}，"
-                        f"但该章不在 state/timeline.json 中。"
-                        f"\n      💡 方案：若该章已被回滚或删除，请一并清理此条锁定事实。"
-                    )
+        errors.extend(scan_ledger_integrity(workspace))
     except RuntimeError as e:
-        # 坏表/蒸发态已在 2.5 节以 error 形式报告过，此处只做降级说明，
-        # 不再向上抛——否则体检会以 exit 4 中断，作者反而看不到完整报告。
         warnings.append(
             f"台账交叉引用巡检因状态表不可用而跳过: {e}"
             "\n      💡 方案：请先按上文指引恢复状态表，再重新体检。"
         )
     except Exception:
         pass
+
 
     # 4. 实体与线索 ID 因果引用（损坏表已在 2.5 报告，此处兜底防崩溃）
     try:

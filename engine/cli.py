@@ -341,8 +341,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_exp.add_argument("-w", "--workspace", default=None)
 
     # style (跨章文风重复度)
-    p_style = subparsers.add_parser("style", help="跨章文风重复度报告")
-    p_style.add_argument("--last", dest="last", type=int, default=10, help="分析最近 N 章定稿（默认 10）")
+    # v4.3.2 缺陷#22：style 已于 v4.2 退役为说明性命令（语义评估交由 Stage 3A/4A），
+    # 但 CLI 仍保留 --last N 参数且被完全忽略——调用方按参数语义以为"分析了最近 N 章"，
+    # 实际一个文件都没读。保留参数以兼容既有调用，但显式标注已失效，帮助文本同步更正。
+    p_style = subparsers.add_parser("style", help="文风评估说明（语义评估已交由 Stage 3A/4A）")
+    p_style.add_argument("--last", dest="last", type=int, default=10,
+                         help="[已失效] 该参数自 v4.2 起被忽略，本命令不再做统计分析")
     p_style.add_argument("-w", "--workspace", default=None)
 
     # config (引擎配置中心)
@@ -687,8 +691,12 @@ def main(argv: Optional[List[str]] = None) -> int:
 
         elif args.command == "style":
             print("🎨 【文风与招牌动作评估说明】")
+            print("   ℹ️ 本命令自 v4.2 起为说明性命令，不读取任何章节、不产出统计数据。")
             print("   跨章文风重复度与 AI 味招牌动作已全量交由 Stage 3A (Dehydrator) 与 Stage 4 (Auditor) 语义评估；")
             print("   确定性引擎已彻底移除死板的停用词表与粗粒度 n-gram 统计。")
+            if getattr(args, "last", None) not in (None, 10):
+                print(f"   ⚠️ 已忽略 --last {args.last}：该参数自 v4.2 起失效，本命令不做章节分析。")
+            print("   💡 需要跨章文风体检，请派发 Stage 3A (novel-dehydrator) 或 Stage 4A (novel-auditor)。")
             return 0
 
         elif args.command == "config":
