@@ -747,14 +747,17 @@ def check_id_integrity(workspace: Path, chapter_id: Optional[str] = None) -> Dic
                 declared_new_ids.add(str(ne["id"]).strip())
 
         # 1. 人物在场校验 (present_characters)
+        from engine.state import is_deceased
         raw_pres = fm.get("present_characters") or []
         pres_list = [raw_pres] if isinstance(raw_pres, (str, dict)) else (raw_pres if isinstance(raw_pres, list) else [])
         for p_item in pres_list:
             pid = ""
+            pname = ""
             if isinstance(p_item, str):
                 pid = p_item.strip()
             elif isinstance(p_item, dict):
                 pid = str(p_item.get("id", "")).strip()
+                pname = str(p_item.get("name", "")).strip()
             if not pid or "{{" in pid:
                 continue
             # 若符合人物物理 ID 规范 (p_XXX)
@@ -763,6 +766,32 @@ def check_id_integrity(workspace: Path, chapter_id: Optional[str] = None) -> Dic
                     errors.append(f"第 {ch} 章细纲人物 ID 格式非法: [{pid}]（标准格式: p_001）。\n      💡 方案：请将细纲 present_characters 中的人物 ID 改为标准编号格式。")
                 elif pid not in persons_db and pid not in declared_new_ids and pid not in declared_card_ids:
                     errors.append(f"第 {ch} 章细纲引用未定义的人物 ID: [{pid}]（未在 state/persons.json 登记，且未在当章 new_entities 或实体卡声明）。\n      💡 方案：可运行 `python studio.py id list person` 查看已有人物；若属新登场角色，请在细纲 new_entities 声明登记，或在 characters/ 建立人物卡。")
+
+            # 死者登场硬阻断 (Anti-Resurrection Guard · 时序因果校验)
+            # 仅当当章章节号晚于角色阵亡章节时阻断（在阵亡当章登场属于合法生理事实）
+            from engine.state import get_death_chapter
+
+            def _ch_num(cid_str: str) -> int:
+                m = re.search(r"(\d+)$", str(cid_str))
+                return int(m.group(1)) if m else 0
+
+            # 1) 按 ID 检查
+            if pid in persons_db and is_deceased(persons_db[pid]):
+                d_ch = get_death_chapter(persons_db[pid])
+                if _ch_num(ch) > _ch_num(d_ch):
+                    dead_name = persons_db[pid].get("name") or pid
+                    errors.append(f"第 {ch} 章细纲因果严重冲突：角色 [{dead_name}] ({pid}) 已于第 {d_ch} 章阵亡，禁止在后续章节登场！\n      💡 方案：请从 present_characters 中移除该角色，或委派 Stage 4C (novel-evolution) 处理剧情反转。")
+            # 2) 按 Name 检查（防止用临时 ID 或中文名登场死者）
+            probe_name = pname or (pid if not pid.startswith("p_") else "")
+            if probe_name:
+                for _d_id, _d_p in persons_db.items():
+                    if is_deceased(_d_p):
+                        d_ch = get_death_chapter(_d_p)
+                        if _ch_num(ch) > _ch_num(d_ch):
+                            _d_base = re.sub(r"[（\(].*?[）\)]", "", _d_p.get("name", "")).strip()
+                            if probe_name == _d_p.get("name") or (probe_name == _d_base and len(probe_name) >= 2):
+                                errors.append(f"第 {ch} 章细纲因果严重冲突：角色 [{probe_name}] ({_d_id}) 已于第 {d_ch} 章阵亡，禁止在后续章节登场！\n      💡 方案：请从 present_characters 中移除该角色，或委派 Stage 4C (novel-evolution) 处理剧情反转。")
+                                break
 
         # 2. 人物状态增量校验 (state_deltas.character_status)
         raw_sd = fm.get("state_deltas") or {}

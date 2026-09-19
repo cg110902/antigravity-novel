@@ -9,7 +9,7 @@ volume_id: "{{slot:volume_id|vol_01}}"
 title: "{{slot:title|章节名}}"
 chapter_type: "{{slot:chapter_type|破局}}" # 节奏遥测: 破局/铺垫/过渡/爆发/回收/余韵
 timeline: "{{slot:timeline|小说历纪年·时空时间}}"
-location: "{{slot:location|核心场景名}}"
+location: "{{slot:location|核心场景名}}" # 场景名建议使用“主场景·微观现场”格式（如：黑石矿区·三号矿道），便于引擎自动对齐层级、提取空间规则与感官物象
 
 # 0. 航标锚定：本章在全书与本卷宏观版图中的定位
 narrative_spine:
@@ -54,12 +54,14 @@ foreshadowing_deltas:
 state_deltas:
   character_status:
     "{{slot:char_1_id|p_001}}": "{{slot:char_1_status_out|出场状态：如 位阶突破 / 身体受创 / 心境升华}}"
-  # 选填：道具流转与充能扣减（无变动可省略或保留空）
+  # 选填：道具流转、充能与状态损耗（无变动可省略或保留空）
   # items:
   #   - id: "it_001"
   #     name: "道具名"
   #     holder_change: "p_001 -> p_002"  # 持有者流转
   #     charges_delta: -1                 # 充能消耗（负数为扣减，正数为充能）
+  #     status: "active"                  # active(活跃) | consumed(消耗) | destroyed(损毁) | lost(遗失)
+  #     durability: "完好"                # 耐久状态或损耗描述
   # 选填：经济流水增减（无变动可省略）
   # ledger:
   #   pool: "通用资金池"
@@ -80,8 +82,17 @@ relation_deltas:
     dynamic: "{{slot:rel_dynamic|表面客套·暗中博弈}}"
     subtext: "{{slot:rel_subtext|利益争端/未挑明的死结}}"
 
-# 6. 新登场实体与不可逆事实锁定（选填）
+# 6. 新登场实体与不可逆事实锁定（选填：正文新涌现的人物/道具/地点可在此声明，或由 Stage 4A Auditor 提纯后自动回填）
+# new_entities:
+#   - id: "p_003"                       # 人物以 p_ 开头，道具 it_，地点 loc_，势力 fac_（缺省由引擎发号）
+#     type: "character"                 # character | item | place | faction
+#     name: "角色名"
+#     role: "supporting"                # supporting | antagonist | minor
+#     tier_name: "实力阶层/品阶"
+#     summary: "一句话身份或背景定位"
+#     sensory_anchor: "核心外貌特征或标志性物象"
 new_entities: []
+# locked_facts: 不可逆法定事实（如角色阵亡、宗门覆灭、立下誓约；一经锁定全书不可变造）
 locked_facts: []
 ---
 

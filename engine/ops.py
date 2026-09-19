@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from engine.config import load_config
 from engine.errors import BusinessError, GuardError
 from engine.ledger import StateLedger, _ensure_dir, _load_json, _save_json
-from engine.parser import parse_frontmatter, parse_volume_outline
+from engine.parser import dump_mini_yaml, parse_frontmatter, parse_volume_outline
 
 
 def _count_words(text: str) -> int:
@@ -211,6 +211,19 @@ def init_workspace(workspace: Path, title: str, genre: str, protagonist: str,
     }
     _save_json(ledger.current_file, curr_data)
     _save_json(workspace / "state" / "milestones.json", [])
+    _save_json(ledger.items_file, {})
+    _save_json(ledger.places_file, {})
+    _save_json(ledger.factions_file, {})
+    _save_json(ledger.lines_file, {})
+    _save_json(ledger.locked_file, [])
+    _save_json(ledger.debts_file, [])
+    _save_json(ledger.relations_file, {})
+    _save_json(ledger.ledger_file, {"pools": {}, "pools_baseline": {}, "transactions": []})
+    _save_json(ledger.timeline_file, [])
+    _save_json(ledger.synopsis_file, {})
+    _save_json(ledger.co_occurrence_file, {})
+    _save_json(ledger.entity_timeline_file, {})
+    _save_json(workspace / "state" / "sync_log.json", {})
 
     # 初始化种子人物台账 (p_001 主角, p_002 核心反派)，与 characters/ 模板对齐
     persons_init = {
@@ -350,11 +363,17 @@ def get_beats_scaffold(workspace: Path, chapter_id: str, write_file: bool = True
     if not prev_tail:
         prev_tail = "（全书开篇首章，开门见山直接切入核心冲突或初始情境）"
 
-    # 2. 提取在场候选角色速查
+    # 2. 提取在场候选角色速查、离场心境与死亡黑名单
+    from engine.state import is_deceased
     persons_db = ledger.get_persons()
     char_lines = []
+    dead_lines = []
+    mood_lines = []
     for pid, prec in sorted(persons_db.items()):
         pname = prec.get("name", pid)
+        if is_deceased(prec):
+            dead_lines.append(f"   - [{pid}] {pname}（⚠️ 已阵亡/死亡，严禁作为在场人登场！）")
+            continue
         prole = prec.get("role", "配角")
         ptier = prec.get("tier_name", "") or f"Tier {prec.get('tier_rank', 1)}"
         patt = prec.get("attitude", "")
@@ -364,7 +383,53 @@ def get_beats_scaffold(workspace: Path, chapter_id: str, write_file: bool = True
             line += f" ｜ 对主角态度: {patt}"
         line += "）"
         char_lines.append(line)
+
+        # 提取最新离场心境与生理状态 (status_out)
+        arc_hist = prec.get("arc_history") or []
+        last_s_out = ""
+        if arc_hist:
+            last_s_out = arc_hist[-1].get("status_out", "")
+        if not last_s_out:
+            last_s_out = pcond
+        if last_s_out and last_s_out != "完好":
+            mood_lines.append(f"   - [{pid}] {pname}：{last_s_out}")
+
     char_block = "\n".join(char_lines[:8]) if char_lines else "   - 暂无建档人物，按大纲规划出场"
+    dead_block = "\n".join(dead_lines) if dead_lines else "   - 全书当前暂无阵亡角色"
+    mood_block = "\n".join(mood_lines[:6]) if mood_lines else "   - 各候选角色当前状态平稳"
+
+    # 2.5 提取主角随身物资与关键装备一览 (Protagonist Inventory & Assets)
+    items_db = ledger.get_items()
+    proto_item_lines = []
+    for iid, irec in sorted(items_db.items()):
+        if irec.get("status", "active") == "active":
+            h = str(irec.get("holder", ""))
+            if any(k in h for k in (protagonist, "主角", "p_001")):
+                c_val = irec.get("charges", -1)
+                c_str = f"储量/充能: {c_val}" if c_val >= 0 else "无上限/核心装备"
+                dur = irec.get("durability", "完好")
+                loc = irec.get("location", "随身")
+                proto_item_lines.append(f"   - [{iid}] {irec.get('name')}（{c_str} ｜ 耐久: {dur} ｜ 携带: {loc}）")
+    proto_item_block = "\n".join(proto_item_lines) if proto_item_lines else "   - 主角当前无特殊随身道具登记"
+
+    # 2.6 提取当前空间场景规则与感官物象
+    places_db = ledger.get_places()
+    loc_sensory = ""
+    loc_rules = ""
+    loc_danger = "普通"
+    for pid, prec in places_db.items():
+        pname = str(prec.get("name", ""))
+        if pname and (pname in curr_loc or curr_loc in pname):
+            loc_sensory = prec.get("sensory_anchor", "")
+            _tab = prec.get("environment_rules") or prec.get("rules_taboos") or ""
+            loc_rules = "；".join(_tab) if isinstance(_tab, list) else str(_tab)
+            loc_danger = prec.get("danger_level", "普通")
+            break
+    loc_detail_block = f"   - 空间发生地：{curr_loc}（危险等级: {loc_danger}）"
+    if loc_sensory:
+        loc_detail_block += f"\n   - 感官物象渲染：{loc_sensory}"
+    if loc_rules:
+        loc_detail_block += f"\n   - 环境规则/禁忌：{loc_rules}"
 
     # 3. 提取活跃伏笔雷达
     f_lines = []
@@ -377,14 +442,16 @@ def get_beats_scaffold(workspace: Path, chapter_id: str, write_file: bool = True
         f_lines.append(f"   - [{fid}] {fname} {due}：{fdesc}")
     f_block = "\n".join(f_lines) if f_lines else "   - 暂无活跃未决伏笔，剧情平稳推进"
 
-    # 4. 提取未清算恩怨情仇账
+    # 4. 提取未清算恩怨情仇账（双向展开）
     debts = ledger.get_debts()
     d_lines = []
     for d in debts:
-        target = d.get("target_char") or d.get("target", "")
-        dtype = d.get("type", "grudge")
-        desc = d.get("desc", "")
-        d_lines.append(f"   - 恩怨对象 [{target}] ({dtype})：{desc}")
+        if d.get("status", "unpaid") == "unpaid":
+            source = d.get("source_char") or "未知"
+            target = d.get("target_char") or d.get("target", "未知")
+            dtype = d.get("type", "grudge")
+            desc = d.get("desc", "")
+            d_lines.append(f"   - [{dtype}] `{source}` ➔ `{target}`：{desc}")
     debt_block = "\n".join(d_lines) if d_lines else "   - 暂无未清算因果血仇或重大誓言债务"
 
     # 4.5 下一可用物理 ID 速查（v4.3 缺陷#C14：编剧零命令/零 JSON，取号防 collision 唯一途径）
@@ -410,18 +477,29 @@ def get_beats_scaffold(workspace: Path, chapter_id: str, write_file: bool = True
    - 任务标识：分卷 {vol_id} / 章节 {chapter_id} 《{title}》
    - 卷纲预排看点：{event}
    - 卷纲预排断章：{cliff}
-   - 当前时空地点：{curr_time} ｜ {curr_loc}
+
+📍 【当前空间场景规则与感官物象】
+{loc_detail_block}
 
 🌊 【上一章收尾余温（接戏动量 · 严禁情节脱节）】
    {prev_tail}
 
+🎒 【主角随身物资与关键装备一览 (Carried Inventory)】
+{proto_item_block}
+
 👥 【在场人物速查候选（无需翻看外部卡片）】
 {char_block}
+
+🎭 【候选角色前序离场心境与生理状态（接戏情绪台阶）】
+{mood_block}
+
+🚫 【已故/阵亡人物黑名单（严禁作为在场人登场！）】
+{dead_block}
 
 💣 【活跃伏笔雷达（暗线时钟）】
 {f_block}
 
-⚖️ 【未清算恩怨情仇账（暗流张力）】
+⚖️ 【未清算恩怨情仇账（暗流张力 · 双向关联）】
 {debt_block}
 
 🆔 【下一可用物理 ID 速查（新埋线索/新登场实体/新恩怨请从此取号，严禁自编撞号 ID）】
@@ -434,6 +512,7 @@ def get_beats_scaffold(workspace: Path, chapter_id: str, write_file: bool = True
         parts = scaffold.split("---", 2)
         if len(parts) >= 3:
             scaffold = f"---{parts[1]}---\n\n{dossier_text}\n\n{parts[2].lstrip()}"
+
 
     target_path = workspace / "outlines" / vol_id / "beats" / f"{chapter_id}.md"
     if write_file:
@@ -485,7 +564,7 @@ def audit_chapter(workspace: Path, chapter_id: str, write_file: bool = True) -> 
 
 
     cfg = load_config(workspace)
-    wc_min, wc_max = cfg.get("words_per_chapter", [1500, 2500])
+    wc_min, wc_max = cfg.get("words_per_chapter", [1500, 2600])
 
     # 提取细纲与设定台账供 7 大确定性物理探针体检
     beats_file = workspace / "outlines" / vol_id / "beats" / f"{chapter_id}.md"
@@ -500,7 +579,9 @@ def audit_chapter(workspace: Path, chapter_id: str, write_file: bool = True) -> 
     state_mgr = StateManager(workspace)
     persons_db = state_mgr.get_persons() if (workspace / "state" / "persons.json").exists() else {}
 
-    probe_results = run_all_probes(prose, fm, persons_db=persons_db, config=cfg)
+    audit_file = workspace / "log" / "audit" / f"{chapter_id}.md"
+    audit_txt = audit_file.read_text(encoding="utf-8-sig", errors="replace") if audit_file.exists() else ""
+    probe_results = run_all_probes(prose, fm, persons_db=persons_db, config=cfg, audit_text=audit_txt)
     s = probe_results["summary"]
 
     recipe_blocks_text = """<!-- Auditor 单次全读 raw_v3.md 与任务卡后，在此将所有硬伤、事实出入及存疑备忘转化为修补配方：
@@ -534,9 +615,19 @@ status: pending_auditor
 - **认知盲区防透视**：{s['epistemology']['detail']}
 - **法定称谓落地**：{s['address']['detail']}
 - **道具与伏笔落地**：{s['grounding']['detail']}
+- **生死与新实体探测**：{s.get('fatalities_and_entities', {}).get('detail', '正常')}
 
 ## 🧠 二、 语义逻辑、存疑备忘与修补配方（Auditor 专用）
 {recipe_blocks_text}
+
+## 🧬 三、 正文涌现事实与实体变更（Auditor 专用 · 驱动台账与细纲双向闭环）
+<!-- Auditor 通读正文后，若正文自然涌现了细纲未登记的关键事实（如人物阵亡、新角色登场、道具获得），在此结构化登记：
+Stage 5 proposal auto 将自动提取并反向回填至细纲与台账：
+- [阵亡/死亡] 角色: 待填写角色名 ｜ 说明: 死亡原因/场景
+- [新登场] 类型: person ｜ 名称: 待填写新角色名 ｜ 描述: 定位与特征
+- [道具变动] 道具: 待填写道具名 ｜ 变动: 持有者流转或耐久变动
+若全篇无未登记事实，保留本行注释即可。
+-->
 """
     target_audit = workspace / "log" / "audit" / f"{chapter_id}.md"
     if write_file:
@@ -606,21 +697,23 @@ def finalize_chapter(workspace: Path, chapter_id: str) -> Dict[str, Any]:
             elif tc:
                 missed_targets.append(tc[:40])
 
-        # 1. 提取多行三反引号格式配方（支持 0~多空格缩进）
-        pattern_block = r"TargetContent:\s*```(?:text)?[ \t]*\r?\n(.*?)[ \t]*\r?\n\s*```[ \t]*\r?\n\s*-?\s*ReplacementContent:\s*```(?:text)?[ \t]*\r?\n(.*?)[ \t]*\r?\n\s*```"
-        for m in re.finditer(pattern_block, audit_text, re.DOTALL):
+        # 1. 提取多行三反引号格式配方（支持 0~多空格缩进、支持加粗、中文冒号、中英文别名）
+        pattern_block = (
+            r"(?:\*\*)?(?:TargetContent|原句|原文|待修改原句)(?:\*\*)?[:：]\s*"
+            r"```(?:text|markdown|txt)?[ \t]*\r?\n(.*?)[ \t]*\r?\n\s*```[ \t]*\r?\n\s*-?\s*"
+            r"(?:\*\*)?(?:ReplacementContent|修改后|通俗修改后原句|修改后原句|替换为)(?:\*\*)?[:：]\s*"
+            r"```(?:text|markdown|txt)?[ \t]*\r?\n(.*?)[ \t]*\r?\n\s*```"
+        )
+        for m in re.finditer(pattern_block, audit_text, re.DOTALL | re.IGNORECASE):
             _apply_recipe(m.group(1).strip(), m.group(2).strip())
 
-        # 2. 提取行内格式配方: TargetContent: `...` ｜ ReplacementContent: `...`
-        pattern_inline = r"TargetContent:\s*`([^`]+)`\s*[|｜]\s*ReplacementContent:\s*`([^`]+)`"
-        for m in re.finditer(pattern_inline, audit_text):
-            _apply_recipe(m.group(1).strip(), m.group(2).strip())
-
-        # 3. 提取双行单反引号格式配方:
-        # - TargetContent: `...`
-        # - ReplacementContent: `...`
-        pattern_multiline_inline = r"TargetContent:\s*`([^`\r\n]+)`\s*\r?\n\s*-?\s*ReplacementContent:\s*`([^`\r\n]+)`"
-        for m in re.finditer(pattern_multiline_inline, audit_text):
+        # 2. 提取行内反引号与引号格式配方（支持行内、双行、加粗与中英文别名）
+        pattern_inline = (
+            r"(?:\*\*)?(?:TargetContent|原句|原文|待修改原句)(?:\*\*)?[:：]\s*[`“\"]([^`”\"\r\n]+)[`”\"]\s*"
+            r"[|｜\n\s]+-?\s*"
+            r"(?:\*\*)?(?:ReplacementContent|修改后|通俗修改后原句|修改后原句|替换为)(?:\*\*)?[:：]\s*[`“\"]([^`”\"\r\n]+)[`”\"]"
+        )
+        for m in re.finditer(pattern_inline, audit_text, re.IGNORECASE):
             _apply_recipe(m.group(1).strip(), m.group(2).strip())
 
     final_file = manuscript_dir / "final" / f"{chapter_id}.md"
@@ -641,21 +734,223 @@ def finalize_chapter(workspace: Path, chapter_id: str) -> Dict[str, Any]:
 
 
 def proposal_auto(workspace: Path, chapter_id: str) -> Dict[str, Any]:
-    """生成本章状态变更提案 (proposal auto)。"""
+    """生成本章状态变更提案 (proposal auto)，并自动吸收 Auditor 提纯的正文涌现事实与实体变更。"""
     _, vol_id = _find_volume_outline(workspace, chapter_id)
     beats_file = workspace / "outlines" / vol_id / "beats" / f"{chapter_id}.md"
     if not beats_file.exists():
         beats_file = workspace / "outlines" / f"{chapter_id}.md"
 
     proposal_data: Dict[str, Any] = {"chapter_id": chapter_id}
+    frontmatter: Dict[str, Any] = {}
+    body_text: str = ""
+    cfg = load_config(workspace)
+    protagonist = cfg.get("protagonist", "主角")
     if beats_file.exists():
-        frontmatter, _ = parse_frontmatter(beats_file.read_text(encoding="utf-8-sig", errors="replace"))
+        frontmatter, body_text = parse_frontmatter(beats_file.read_text(encoding="utf-8-sig", errors="replace"))
         proposal_data["frontmatter"] = frontmatter
+
+    # 自动吸收 Auditor 质检报告中的正文涌现事实 (Emergent Facts Absorption)
+    audit_file = workspace / "log" / "audit" / f"{chapter_id}.md"
+    emergent_deaths: List[Dict[str, str]] = []
+    emergent_entities: List[Dict[str, str]] = []
+    emergent_items: List[Dict[str, str]] = []
+
+    if audit_file.exists():
+        audit_text = audit_file.read_text(encoding="utf-8-sig", errors="replace")
+
+        # 弹性行解析器：无论 Auditor 使用何种标签、何种键名顺序、何种标点，均能精准捕获涌现事实
+        for raw_line in audit_text.splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("<!--") or line.startswith("-->") or line.startswith("#"):
+                continue
+            line = re.sub(r"^[-*+]\s*", "", line).strip()
+
+            cat = None
+            tag = ""
+            tag_match = re.match(r"^\[(.*?)\]|^【(.*?)】", line)
+            if tag_match:
+                tag = (tag_match.group(1) or tag_match.group(2)).strip()
+                rem = line[tag_match.end():].lstrip(" :：|｜")
+                if any(k in tag for k in ("阵亡", "死亡", "牺牲")):
+                    cat = "death"
+                elif any(k in tag for k in ("新登场", "新实体", "新角色", "新人物")):
+                    cat = "entity"
+                elif any(k in tag for k in ("道具", "物品", "装备")):
+                    cat = "item"
+            else:
+                rem = line
+                if any(rem.startswith(k) for k in ("阵亡:", "阵亡：", "死亡:", "死亡：", "角色阵亡:", "角色阵亡：", "人物阵亡:", "人物阵亡：")):
+                    cat = "death"
+                    rem = re.sub(r"^(?:角色|人物)?(?:阵亡|死亡|牺牲)[:：]\s*", "", rem)
+                elif any(rem.startswith(k) for k in ("新登场:", "新登场：", "新实体:", "新实体：", "新角色:", "新角色：", "新人物:", "新人物：")):
+                    cat = "entity"
+                    rem = re.sub(r"^新(?:登场|实体|角色|人物)[:：]\s*", "", rem)
+                elif any(rem.startswith(k) for k in ("道具变动:", "道具变动：", "道具获得:", "道具获得：", "道具损毁:", "道具损毁：", "道具:", "道具：")):
+                    cat = "item"
+                    rem = re.sub(r"^道具(?:变动|获得|损毁)?[:：]\s*", "", rem)
+
+            if not cat:
+                continue
+
+            chunks = [c.strip() for c in re.split(r"[|｜;；]", rem) if c.strip()]
+            kv: Dict[str, str] = {}
+            pos: List[str] = []
+            for c in chunks:
+                if ":" in c or "：" in c:
+                    k_part, v_part = re.split(r"[:：]", c, maxsplit=1)
+                    kv[k_part.strip().lower()] = v_part.strip()
+                else:
+                    pos.append(c)
+
+            if cat == "death":
+                cname = kv.get("角色") or kv.get("人物") or kv.get("姓名") or kv.get("名称") or kv.get("name") or (pos[0] if pos else "")
+                desc = kv.get("说明") or kv.get("原因") or kv.get("场景") or kv.get("事实") or kv.get("描述") or (pos[1] if len(pos) > 1 else "正文确认阵亡")
+                cname = cname.strip()
+                if cname and cname not in ("待填写", "示例", "待填写角色名", "无"):
+                    emergent_deaths.append({"name": cname, "desc": desc.strip()})
+
+            elif cat == "entity":
+                etype = kv.get("类型") or kv.get("类别") or kv.get("type") or kv.get("cat") or "person"
+                ename = kv.get("名称") or kv.get("姓名") or kv.get("角色") or kv.get("实体") or kv.get("name") or (pos[0] if pos else "")
+                edesc = kv.get("描述") or kv.get("说明") or kv.get("定位") or kv.get("特征") or (pos[1] if len(pos) > 1 else "")
+                ename = ename.strip()
+                if ename and ename not in ("待填写", "示例", "待填写新角色名", "无"):
+                    emergent_entities.append({"type": etype.strip(), "name": ename, "summary": edesc.strip()})
+
+            elif cat == "item":
+                iname = kv.get("名称") or kv.get("道具") or kv.get("物品") or kv.get("装备") or kv.get("name") or (pos[0] if pos else "")
+                istatus_or_holder = (
+                    kv.get("持有人") or kv.get("持有者") or kv.get("支配人") or kv.get("归属")
+                    or kv.get("获得者") or kv.get("状态") or kv.get("holder") or kv.get("status")
+                )
+                if not istatus_or_holder:
+                    if "损毁" in tag:
+                        istatus_or_holder = "destroyed"
+                    elif "获得" in tag:
+                        istatus_or_holder = protagonist
+                    else:
+                        istatus_or_holder = pos[1] if len(pos) > 1 else "active"
+                idesc = kv.get("说明") or kv.get("描述") or (pos[2] if len(pos) > 2 else "")
+                iname = iname.strip()
+                if iname and iname not in ("待填写", "示例", "无"):
+                    emergent_items.append({"name": iname, "holder_or_status": istatus_or_holder.strip(), "desc": idesc.strip()})
+
+    # 将涌现事实合并至提案与细纲
+    updated_beats = False
+    if "frontmatter" in proposal_data and isinstance(proposal_data["frontmatter"], dict):
+        fm = proposal_data["frontmatter"]
+        sd = fm.setdefault("state_deltas", {})
+        if not isinstance(sd, dict):
+            sd = {}
+            fm["state_deltas"] = sd
+        c_status = sd.setdefault("character_status", {})
+        if not isinstance(c_status, dict):
+            c_status = {}
+            sd["character_status"] = c_status
+
+        from engine.id_tracker import IdTracker
+        from engine.state import StateManager, _resolve_person_id, _resolve_item_id
+        state_mgr = StateManager(workspace)
+        tracker = IdTracker(workspace)
+        persons_db = state_mgr.get_persons()
+
+        for d in emergent_deaths:
+            dname = d["name"]
+            matched_pid = _resolve_person_id(dname, persons_db)
+            if not matched_pid:
+                for pc in fm.get("present_characters", []):
+                    if isinstance(pc, dict) and pc.get("name") == dname:
+                        matched_pid = pc.get("id")
+                        break
+                    elif isinstance(pc, str) and pc == dname:
+                        matched_pid = pc
+                        break
+
+            target_key = matched_pid or dname
+            if target_key not in c_status:
+                c_status[target_key] = {
+                    "life_status": "deceased",
+                    "condition": f"正文阵亡·{d['desc']}",
+                }
+                updated_beats = True
+
+        for ne in emergent_entities:
+            raw_new = fm.setdefault("new_entities", [])
+            if isinstance(raw_new, list):
+                if not any(x.get("name") == ne["name"] for x in raw_new if isinstance(x, dict)):
+                    etype = ne.get("type", "person").lower()
+                    if etype in ("person", "character"):
+                        cat = "person"
+                    elif etype in ("item", "weapon", "tool"):
+                        cat = "item"
+                    elif etype in ("place", "location"):
+                        cat = "location"
+                    elif etype in ("faction", "org"):
+                        cat = "faction"
+                    else:
+                        cat = "person"
+                    # 分配标准合法 ID（杜绝中文名 ID）
+                    assigned_id = ne.get("id")
+                    if not assigned_id or not re.match(r"^[a-z]+_\d+$", str(assigned_id)):
+                        assigned_id = tracker.get_next_id(cat)
+                    raw_new.append({
+                        "id": assigned_id,
+                        "type": cat,
+                        "name": ne["name"],
+                        "summary": ne["summary"],
+                    })
+                    updated_beats = True
+
+        for ei in emergent_items:
+            items_db = state_mgr.get_items()
+            raw_items_delta = sd.setdefault("items", [])
+            if not isinstance(raw_items_delta, list):
+                raw_items_delta = [raw_items_delta] if isinstance(raw_items_delta, dict) else []
+                sd["items"] = raw_items_delta
+            matched_iid = _resolve_item_id(ei["name"], items_db)
+            if matched_iid:
+                val = ei["holder_or_status"]
+                delta_entry: Dict[str, Any] = {"id": matched_iid, "name": ei["name"]}
+                if val in ("destroyed", "consumed", "lost", "active"):
+                    delta_entry["status"] = val
+                else:
+                    delta_entry["holder_change"] = val
+                if not any(x.get("id") == matched_iid or x.get("name") == ei["name"] for x in raw_items_delta if isinstance(x, dict)):
+                    raw_items_delta.append(delta_entry)
+                    updated_beats = True
+            else:
+                raw_new = fm.setdefault("new_entities", [])
+                if isinstance(raw_new, list):
+                    if not any(x.get("name") == ei["name"] for x in raw_new if isinstance(x, dict)):
+                        new_iid = tracker.get_next_id("item")
+                        val = ei["holder_or_status"]
+                        default_holder = protagonist if val in ("destroyed", "consumed", "lost", "active") else val
+                        raw_new.append({
+                            "id": new_iid,
+                            "type": "item",
+                            "name": ei["name"],
+                            "holder": default_holder,
+                            "status": val if val in ("destroyed", "consumed", "lost", "active") else "active",
+                            "summary": ei["desc"],
+                        })
+                        updated_beats = True
+
+    # 真实物理回填 beats 细纲文件 (Physical Backfill)
+    if updated_beats and beats_file.exists():
+        new_beats_text = f"---\n{dump_mini_yaml(fm)}\n---\n{body_text}"
+        beats_file.write_text(new_beats_text, encoding="utf-8")
 
     inbox_file = workspace / "state" / "inbox" / f"proposal_{chapter_id}.json"
     _ensure_dir(inbox_file.parent)
     _save_json(inbox_file, proposal_data)
-    return {"chapter_id": chapter_id, "proposal_file": str(inbox_file)}
+    return {
+        "chapter_id": chapter_id,
+        "proposal_file": str(inbox_file),
+        "emergent_deaths": len(emergent_deaths),
+        "emergent_entities": len(emergent_entities),
+        "beats_backfilled": updated_beats,
+    }
+
 
 
 def sync_chapter(workspace: Path, chapter_id: str, force: bool = False, refresh: bool = False) -> Dict[str, Any]:
@@ -731,7 +1026,7 @@ def sync_chapter(workspace: Path, chapter_id: str, force: bool = False, refresh:
             solution=f"请先完成 Stage 2~4 起草正文并执行 `python studio.py finalize {chapter_id}` 完成定稿。",
         )
     cfg = load_config(workspace)
-    wc_min = cfg.get("words_per_chapter", [1500, 2500])[0]
+    wc_min = cfg.get("words_per_chapter", [1500, 2600])[0]
     sync_low_words = word_count < int(wc_min * 0.5)
 
     # v4.2 幂等守卫：以封存正文 sha1 为指纹，重复 sync 不二次入账
@@ -766,7 +1061,31 @@ def sync_chapter(workspace: Path, chapter_id: str, force: bool = False, refresh:
             f"第 {chapter_id} 章曾以不同版本正文同步过（旧指纹 {str(prev.get('final_sha1'))[:8]}…）。",
             solution=f"如确需按新版本正文重入账，请先使用 `snapshot create` 备份后运行 `python studio.py sync {chapter_id} --force`；若仅是文笔润色未改动细纲事实，请运行 `python studio.py sync {chapter_id} --refresh`。",
         )
-
+    # 提案待办双源对账：若存在 proposal_{chapter_id}.json，融合未入账的涌现事实
+    inbox_file = workspace / "state" / "inbox" / f"proposal_{chapter_id}.json"
+    if inbox_file.exists():
+        p_inbox = _load_json(inbox_file, default={})
+        p_fm = p_inbox.get("frontmatter") or {}
+        if isinstance(p_fm, dict):
+            # 融合新实体
+            p_new = p_fm.get("new_entities") or []
+            fm_new = frontmatter.setdefault("new_entities", [])
+            for ne in p_new:
+                if isinstance(ne, dict) and not any(x.get("id") == ne.get("id") for x in fm_new if isinstance(x, dict)):
+                    fm_new.append(ne)
+            # 融合角色状态
+            p_c_status = p_fm.get("state_deltas", {}).get("character_status") or {}
+            fm_sd = frontmatter.setdefault("state_deltas", {})
+            fm_c_status = fm_sd.setdefault("character_status", {})
+            for cid, sval in p_c_status.items():
+                if cid not in fm_c_status:
+                    fm_c_status[cid] = sval
+            # 融合道具变动
+            p_items = p_fm.get("state_deltas", {}).get("items") or []
+            fm_items = fm_sd.setdefault("items", [])
+            for it in p_items:
+                if isinstance(it, dict) and not any(x.get("id") == it.get("id") for x in fm_items if isinstance(x, dict)):
+                    fm_items.append(it)
 
     ledger = StateLedger(workspace)
     sync_report = ledger.apply_chapter_delta(frontmatter, word_count=word_count, beats_body=body_text)

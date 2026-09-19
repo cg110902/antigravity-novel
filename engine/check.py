@@ -128,6 +128,44 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
         if not isinstance(charges, int) or charges < -1:
             warnings.append(f"道具 [{iid}] charges 值非法: {charges!r}（合法范围: >= -1，-1 为非计数型）。\n      💡 方案：请在 state/items.json 中将 charges 修正为合法整数。")
 
+    # 3.1 道具归属与死者平账巡检
+    try:
+        persons_scan = state_mgr.get_persons()
+        from engine.state import is_deceased
+        for iid, it in items_scan.items():
+            if it.get("status", "active") == "active":
+                h = it.get("holder", "")
+                for pid, prec in persons_scan.items():
+                    if is_deceased(prec):
+                        pnames = {prec.get("name", ""), pid}
+                        if h in pnames:
+                            warnings.append(f"道具归属异常: 活跃道具 [{iid}] {it.get('name')} 的持有者 [{h}] ({pid}) 已阵亡。\n      💡 方案：请在剧情或细纲中声明该道具转移、掉落拾取或损毁。")
+    except Exception:
+        pass
+
+    # 3.2 伏笔时钟超期巡检
+    try:
+        lines_scan = state_mgr.get_lines()
+        curr_ch = state_mgr.get_current().get("current_ch", "ch_001")
+        m_curr = re.search(r"(\d+)$", curr_ch)
+        curr_num = int(m_curr.group(1)) if m_curr else 0
+        for lid, lrec in lines_scan.items():
+            if lrec.get("status") == "active" and lrec.get("target_ch"):
+                m_t = re.search(r"(\d+)$", lrec["target_ch"])
+                if m_t and curr_num > int(m_t.group(1)):
+                    warnings.append(f"伏笔超期未决: 伏笔 [{lid}] {lrec.get('name')} 预排目标为第 {lrec['target_ch']} 章，当前已推进至 {curr_ch} 仍未闭环。\n      💡 方案：请在后续细纲中规划伏笔推进 (reveal) 或回收 (resolve)。")
+    except Exception:
+        pass
+
+    # 3.3 地点残缺巡检
+    try:
+        places_scan = state_mgr.get_places()
+        for pid, prec in places_scan.items():
+            if not prec.get("sensory_anchor") and not prec.get("environment_rules") and not prec.get("summary"):
+                warnings.append(f"地点数据残缺: 地点 [{pid}] {prec.get('name')} 缺少感官物象 (sensory_anchor) 与环境规则 (environment_rules)。\n      💡 方案：请在 state/places.json 中补充环境物象以支持写手渲染空间感。")
+    except Exception:
+        pass
+
     # 4. 实体与线索 ID 因果引用（损坏表已在 2.5 报告，此处兜底防崩溃）
     try:
         id_res = check_id_integrity(workspace, chapter_id)
@@ -175,13 +213,17 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
                     warnings.append(f"第 {chapter_id} 章尚无正文草稿/定稿，跳过正文探针。\n      💡 方案：如需体检正文，请先派发 Stage 2 (novel-drafter) 起草正文。")
                 else:
                     p_txt = target_prose.read_text(encoding="utf-8-sig", errors="replace")
-                    probe_results = run_all_probes(p_txt, fm, persons_db=state_mgr.get_persons(), config=cfg)
+                    audit_file = workspace / "log" / "audit" / f"{chapter_id}.md"
+                    audit_txt = audit_file.read_text(encoding="utf-8-sig", errors="replace") if audit_file.exists() else ""
+                    probe_results = run_all_probes(p_txt, fm, persons_db=state_mgr.get_persons(), config=cfg, audit_text=audit_txt)
                     s = probe_results["summary"]
                     if not probe_results["all_passed"]:
                         if not s["words"]["passed"]:
                             errors.append(f"正文内容为空（0 字）。\n      💡 方案：请派发 Stage 2 (novel-drafter) 起草正文 {target_prose.name}。")
                         if not s["epistemology"]["passed"]:
                             errors.append(f"正文发生确认级角色认知泄露: {s['epistemology']['leaks']}。\n      💡 方案：角色知晓了不该知道的信息，请修改泄露段落，或在 log/audit/{chapter_id}.md 中写入替换配方。")
+                        if not s.get("fatalities_and_entities", {}).get("passed", True):
+                            errors.append(f"正文发生未登记角色阵亡: {s['fatalities_and_entities']['detail']}。\n      💡 方案：请在细纲 locked_facts、state_deltas 或 log/audit/{chapter_id}.md 第 3 节中显式登记该死亡事实，杜绝死者幽灵复活！")
                     # 提醒级汇总
                     if s["epistemology"].get("suspected_count"):
                         warnings.append(f"认知盲区疑似命中 ×{s['epistemology']['suspected_count']}（非阻断，请 Auditor 复核）: {s['epistemology']['suspected']}")
@@ -189,6 +231,8 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
                         warnings.append(f"物象落地提醒: {s['grounding']['detail']}")
                     if not s["address"]["passed"]:
                         warnings.append(f"称谓落地提醒: {s['address']['detail']}")
+                    if s.get("fatalities_and_entities", {}).get("unregistered_speakers"):
+                        warnings.append(f"未建档新出场角色提醒: {', '.join(s['fatalities_and_entities']['unregistered_speakers'])}（请 Auditor 确认是否需在审计报告第 3 节建档）")
 
 
     passed = len(errors) == 0

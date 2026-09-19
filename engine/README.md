@@ -37,19 +37,3 @@
 6. **配置唯一真值源**：新旋钮必须进 `config.py DEFAULT_CONFIG` + `CONFIG_GUIDE`，禁止在业务模块硬编码；
 7. **版本一致性**：`engine/__init__.__version__` 是唯一版本号，cli/cockpit 均动态引用。
 
-## v4.3.0 修订注记（2026-09 全案交叉审查修复轮 + 二轮精审）
-
-两轮全量修复（清单与实证见仓库根 `REVIEW_REPORT.md` FIXLOG 章节），引擎侧关键变更：
-- **SSOT 咽喉加闸**：`sync` 槽位闸门（细纲残留 `{{slot:}}` 即封存阻断）＋ `_load_json` 顶层结构类型契约；
-- **导出与回滚对齐真相**：export 只认 sync_log 封存集（未封存章显式跳过）、rollback 解压后对齐清除快照外受管文件（保 `.bak`/`.corrupt-*`）、导出不再吃正文首行；
-- **台账精度**：资金池 `pools_baseline` 基线重放（初始资金不蒸发）、流水可记 `reason`、life_status 归一化补 `missing`、地点双向匹配、present 紧凑形态名/别名解析 + 归一化后按 ID 去重；
-- **追踪与检索**：trace 补 faction/milestone/chapter 分支与里程碑标题逆查、sync_log 封存条目带 title/word_count 元数据、ask 覆盖势力/地点档案与 final 正文证据；
-- **认知探针**：对白正则兼容直引号 `"…"`，说话人归属重写（后置式句首名+言语动词优先，弃用误配根源的前置宽松兜底）；
-- **ID 发号**：扫描前剥 HTML 注释与槽位键名（防简报🆔 速查块自我污染水位）；
-- **巡航与 CLI**：卷末判定忽略纯槽位行、超时 `status:"timeout"` + exit 1、argparse 全域 ❌+💡 错误盒 exit 2、cockpit 资金池遥测与航标槽位清洗、export/rollback 回执打印跳过量与清除清单。
-
-### v4.3.1 增量注记（2026-09 三轮 · 文档驱动精审）
-
-- **跨卷巡航定位**：`cruise --start-ch`（或直接 `cruise ch_XXX`）现在按该章在 `outlines/` 中的**实际所属卷**解析目标卷——0E 交付新卷卷纲后、首章 `sync` 刷新 `project.json` 之前，巡航新卷首章不再误把旧卷卷末当终点触发卷末刹车链；
-- **地点禁忌字段口径统一**：pack P1「当前空间场景氛围锚点」改读台账法定字段 `environment_rules`（与 `schema.PlaceRecord`、`templates/README §4`、`entities/location_card` 卡三方对齐），同时向下兼容早期工作区手写的 `rules_taboos` 旧键。
-

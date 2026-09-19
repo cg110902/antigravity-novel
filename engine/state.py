@@ -51,6 +51,81 @@ _LIFE_STATUS_NORM: Dict[str, str] = {
 }
 
 
+def _resolve_person_id(name_or_id: str, persons_db: Dict[str, Any]) -> Optional[str]:
+    """智能解析角色 ID，支持 ID 直通、全名、去除括号基准名以及别名解析。"""
+    if not name_or_id:
+        return None
+    nid = str(name_or_id).strip()
+    if nid in persons_db:
+        return nid
+    base_nid = re.sub(r"[（\(].*?[）\)]", "", nid).strip()
+    for pid, prec in persons_db.items():
+        if not isinstance(prec, dict):
+            continue
+        pname = str(prec.get("name", "")).strip()
+        pbase = re.sub(r"[（\(].*?[）\)]", "", pname).strip()
+        aliases = [str(a).strip() for a in prec.get("aliases", []) if a]
+        if nid in (pname, pbase) or (base_nid and base_nid in (pname, pbase)) or nid in aliases or (base_nid and base_nid in aliases):
+            return pid
+    return None
+
+
+def _resolve_item_id(name_or_id: str, items_db: Dict[str, Any]) -> Optional[str]:
+    """智能解析道具 ID，支持 ID 直通、全名、去除括号基准名以及别名解析。"""
+    if not name_or_id:
+        return None
+    iid = str(name_or_id).strip()
+    if iid in items_db:
+        return iid
+    base_iid = re.sub(r"[（\(].*?[）\)]", "", iid).strip()
+    for db_id, irec in items_db.items():
+        if not isinstance(irec, dict):
+            continue
+        iname = str(irec.get("name", "")).strip()
+        ibase = re.sub(r"[（\(].*?[）\)]", "", iname).strip()
+        aliases = [str(a).strip() for a in irec.get("aliases", []) if a]
+        if iid in (iname, ibase) or (base_iid and base_iid in (iname, ibase)) or iid in aliases or (base_iid and base_iid in aliases):
+            return db_id
+    return None
+
+
+def is_deceased(char_data: Any) -> bool:
+    """判定角色是否已阵亡/死亡（支持全格式与语义推断）。"""
+    if not isinstance(char_data, dict):
+        return False
+    life = str(char_data.get("life_status", "")).strip().lower()
+    status = str(char_data.get("status", "")).strip().lower()
+    cond = str(char_data.get("condition", "")).strip().lower()
+    if _LIFE_STATUS_NORM.get(life) == "deceased":
+        return True
+    if _LIFE_STATUS_NORM.get(status) == "deceased":
+        return True
+    if life in ("dead", "deceased") or status in ("dead", "deceased"):
+        return True
+    if any(k in cond for k in ("阵亡", "永久湮灭", "身死", "气绝身亡", "被斩杀")):
+        return True
+    return False
+
+
+def _chapter_num(chapter_id: str) -> int:
+    """提取章节数字编号。"""
+    m = re.search(r"(\d+)$", str(chapter_id))
+    return int(m.group(1)) if m else 0
+
+
+def get_death_chapter(char_data: Any) -> str:
+    """获取角色的阵亡章节。"""
+    if not isinstance(char_data, dict):
+        return ""
+    for a in char_data.get("arc_history", []):
+        if not isinstance(a, dict):
+            continue
+        s_out = str(a.get("status_out", "")).lower()
+        if any(k in s_out for k in ("阵亡", "永久湮灭", "身死", "气绝身亡", "被斩杀", "deceased", "dead")):
+            return str(a.get("chapter", ""))
+    return str(char_data.get("last_seen_ch", ""))
+
+
 def _ensure_dir(p: Path) -> Path:
     p.mkdir(parents=True, exist_ok=True)
     return p
@@ -278,6 +353,11 @@ class StateManager:
                             "name": ename or eid,
                             "role": ne.get("role", "supporting"),
                             "tier_name": ne.get("tier_name", ""),
+                            "condition": ne.get("condition", "完好"),
+                            "sensory_anchor": ne.get("sensory_anchor", ""),
+                            "address_matrix": ne.get("address_matrix", {}),
+                            "want": ne.get("want", "未锁定"),
+                            "fear": ne.get("fear", "未锁定"),
                             "summary": ne.get("summary", ""),
                             "established_ch": ch_id,
                             "last_seen_ch": ch_id,
@@ -285,16 +365,21 @@ class StateManager:
                             "arc_history": [],
                         }
                         new_ent_count += 1
-                elif etype == "item":
+                elif etype in ("item", "weapon", "tool"):
                     if eid not in items_db:
                         items_db[eid] = {
                             "id": eid,
                             "name": ename or eid,
-                            "holder": ne.get("holder", "主角"),
+                            "holder": ne.get("holder", cfg.get("protagonist", "主角")),
                             "charges": ne.get("charges", -1),
+                            "status": ne.get("status", "active"),
+                            "durability": ne.get("durability", "完好"),
+                            "sensory_anchor": ne.get("sensory_anchor", ""),
+                            "location": ne.get("location", "随身"),
                             "summary": ne.get("summary", ""),
                             "established_ch": ch_id,
                             "last_seen_ch": ch_id,
+                            "transfer_history": [],
                         }
                         new_ent_count += 1
                 elif etype in ("place", "location"):
@@ -302,8 +387,12 @@ class StateManager:
                         places_db[eid] = {
                             "id": eid,
                             "name": ename or eid,
+                            "danger_level": ne.get("danger_level", "基础安全区"),
+                            "sensory_anchor": ne.get("sensory_anchor", ""),
+                            "environment_rules": ne.get("environment_rules", []),
                             "summary": ne.get("summary", ""),
                             "established_ch": ch_id,
+                            "visited_chapters": [ch_id],
                         }
                         new_ent_count += 1
                 elif etype in ("faction", "organization"):
@@ -344,6 +433,10 @@ class StateManager:
                         continue
                     _names = {str(_prec.get("name", "")).strip()} | {str(a).strip() for a in (_prec.get("aliases") or [])}
                     if probe in _names:
+                        return _pid, (_prec.get("name") or probe)
+                    # 补充：括号别名剥离（如 "王莽（狂刀开荒队队长）" 匹配 "王莽"）
+                    _base_name = re.sub(r"[（\(].*?[）\)]", "", _prec.get("name", "")).strip()
+                    if _base_name and probe == _base_name:
                         return _pid, (_prec.get("name") or probe)
             return rid, rname
 
@@ -387,9 +480,37 @@ class StateManager:
             if not isinstance(cc, dict):
                 continue
             _cid = str(cc.get("id", "")).strip()
-            if _cid and persons_db.get(_cid, {}).get("life_status") == "deceased":
+            _cname = str(cc.get("name", "")).strip()
+
+            # 1. 直接按 ID 判定死者
+            _is_dead = False
+            _d_ch = ""
+            _prec = persons_db.get(_cid)
+            if _prec and is_deceased(_prec):
+                _d_ch = get_death_chapter(_prec)
+                if _chapter_num(ch_id) > _chapter_num(_d_ch):
+                    _is_dead = True
+
+            # 2. 若 ID 未命中，按名称/别名全库检索死者（防止编剧自编临时 ID 携死者复活）
+            if not _is_dead and _cname:
+                for _d_id, _d_prec in persons_db.items():
+                    if not is_deceased(_d_prec):
+                        continue
+                    _cand_ch = get_death_chapter(_d_prec)
+                    if _chapter_num(ch_id) <= _chapter_num(_cand_ch):
+                        continue
+                    _d_names = {str(_d_prec.get("name", "")).strip()} | {str(a).strip() for a in (_d_prec.get("aliases") or [])}
+                    _d_base = re.sub(r"[（\(].*?[）\)]", "", _d_prec.get("name", "")).strip()
+                    if _cname in _d_names or (_d_base and _cname == _d_base):
+                        _is_dead = True
+                        _cid = _d_id
+                        _d_ch = _cand_ch
+                        break
+
+            if _is_dead:
+                _disp_name = cc.get("name") or (_prec.get("name") if _prec else _cid)
                 _fatal.append(
-                    f"因果冲突阻断：角色 [{cc.get('name') or _cid}] ({_cid}) 已在既定事实中阵亡，不能作为在场人登场！\n"
+                    f"因果冲突阻断：角色 [{_disp_name}] ({_cid}) 已于第 {_d_ch} 章阵亡，不能在后续章节作为在场人登场！\n"
                     f"💡 方案：请在细纲 beats/ch_XXX.md 的 present_characters 中移除该角色；若确系复活反转剧情，请先委派 Stage 4C (novel-evolution) 重构人物档案。"
                 )
         if isinstance(item_deltas, list):
@@ -475,23 +596,27 @@ class StateManager:
         # 人物状态增量 (state_deltas.character_status)
         if isinstance(char_status_deltas, dict):
             for cid, s_val in char_status_deltas.items():
-                if cid not in persons_db:
-                    continue
+                target_pid = _resolve_person_id(cid, persons_db)
+                if not target_pid:
+                    # 若未建档，自动打捞为临时角色建档，坚决不静默丢失状态！
+                    target_pid = cid
+                    persons_db[target_pid] = CharacterRecord(id=cid, name=cid).to_dict()
+
                 # 显式契约优先：支持字典形态 {life_status: "deceased", condition: "..."}
                 if isinstance(s_val, dict):
                     explicit_life = str(s_val.get("life_status", "")).strip().lower()
                     cond_text = str(s_val.get("condition") or s_val.get("status") or s_val.get("desc") or "").strip()
                     if cond_text:
-                        persons_db[cid]["condition"] = cond_text
+                        persons_db[target_pid]["condition"] = cond_text
                     if explicit_life in _LIFE_STATUS_NORM:
-                        persons_db[cid]["life_status"] = _LIFE_STATUS_NORM[explicit_life]
+                        persons_db[target_pid]["life_status"] = _LIFE_STATUS_NORM[explicit_life]
                     elif cond_text.lower() in _LIFE_STATUS_NORM:
-                        persons_db[cid]["life_status"] = _LIFE_STATUS_NORM[cond_text.lower()]
+                        persons_db[target_pid]["life_status"] = _LIFE_STATUS_NORM[cond_text.lower()]
                 else:
                     s_desc = str(s_val).strip()
-                    persons_db[cid]["condition"] = s_desc
+                    persons_db[target_pid]["condition"] = s_desc
                     if s_desc.lower() in _LIFE_STATUS_NORM:
-                        persons_db[cid]["life_status"] = _LIFE_STATUS_NORM[s_desc.lower()]
+                        persons_db[target_pid]["life_status"] = _LIFE_STATUS_NORM[s_desc.lower()]
 
         _save_json(self.persons_file, persons_db)
 
@@ -501,13 +626,28 @@ class StateManager:
             for it in item_deltas:
                 if not isinstance(it, dict):
                     continue
-                iid = it.get("id", "").strip()
+                raw_id = it.get("id", "").strip()
                 iname = it.get("name", "").strip()
+                iid = _resolve_item_id(raw_id or iname, items_db) or raw_id or iname
                 if not iid:
                     continue
-                irecord = items_db.get(iid, ItemRecord(id=iid, name=iname).to_dict())
+                irecord = items_db.get(iid, ItemRecord(id=iid, name=iname or iid).to_dict())
                 if iname:
                     irecord["name"] = iname
+
+                # 状态流转 (status): active, consumed, destroyed, lost
+                raw_status = str(it.get("status") or it.get("action") or "").lower().strip()
+                if raw_status in ("destroyed", "destroy", "损毁", "碎裂"):
+                    irecord["status"] = "destroyed"
+                elif raw_status in ("consumed", "consume", "消耗", "使用"):
+                    irecord["status"] = "consumed"
+                elif raw_status in ("lost", "遗失", "丢失"):
+                    irecord["status"] = "lost"
+                elif raw_status in ("active", "完好", "正常"):
+                    irecord["status"] = "active"
+
+                if it.get("durability"):
+                    irecord["durability"] = str(it["durability"]).strip()
 
                 # 持有者流转: "p_001 -> p_002"
                 h_change = str(it.get("holder_change", ""))
@@ -546,6 +686,7 @@ class StateManager:
                     "holder_change": h_change or f"{old_h} -> {new_h}",
                     "charges_delta": delta_int,
                     "remaining_charges": irecord.get("charges", -1),
+                    "status": irecord.get("status", "active"),
                 })
                 items_db[iid] = irecord
 
@@ -557,11 +698,13 @@ class StateManager:
             loc_match = re.search(r"(loc_\d+)", location_str)
             found_id = loc_match.group(1) if loc_match else None
             if not found_id:
-                # v4.3 缺陷#C8：双向匹配对齐 pack.py——"黑诊所二楼" 应复用 loc_001 黑诊所，
-                # 而非重复建档（旧版仅 location ⊆ name 单向，方向反了即重复建卡）
-                for pid, prec in places_db.items():
-                    pname = str(prec.get("name", "") or "")
-                    if pname and (pname == location_str or location_str in pname or pname in location_str):
+                # 核心层级匹配：优先匹配已有顶级或已知地点（按名称长度倒序），杜绝微观修饰词造成空壳地点暴增
+                for pid, prec in sorted(places_db.items(), key=lambda x: len(str(x[1].get("name", ""))), reverse=True):
+                    pname = str(prec.get("name", "") or "").strip()
+                    if not pname:
+                        continue
+                    p_core = re.sub(r"^[0-9]+号?", "", pname).strip()
+                    if pname == location_str or pname in location_str or location_str in pname or (p_core and len(p_core) >= 3 and p_core in location_str):
                         found_id = pid
                         break
             if found_id:
@@ -573,6 +716,9 @@ class StateManager:
                     places_db[found_id] = {
                         "id": found_id,
                         "name": location_str,
+                        "danger_level": "普通",
+                        "sensory_anchor": "",
+                        "environment_rules": [],
                         "summary": "",
                         "visited_chapters": [ch_id],
                     }
@@ -583,6 +729,9 @@ class StateManager:
                 places_db[new_lid] = {
                     "id": new_lid,
                     "name": location_str,
+                    "danger_level": "普通",
+                    "sensory_anchor": "",
+                    "environment_rules": [],
                     "summary": "",
                     "visited_chapters": [ch_id],
                 }

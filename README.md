@@ -17,7 +17,7 @@ python studio.py init -w workspace/我的书 -t "我的书" -g "玄幻脑洞" -p
 # 3. 单章工业化流水线（由 Director 主控调度）
 python studio.py beats new ch_001 --write -w workspace/我的书   # 生成细纲任务书
 python studio.py pack ch_001 --write -w workspace/我的书        # 装配自完备创作包
-#    …（起草/重塑/抛光/质检 四道文字工序由智能体完成落盘）…
+#    …（起草/重塑/顺滑/质检 四道文字工序由智能体完成落盘）…
 python studio.py audit ch_001 --write -w workspace/我的书       # 引擎初审
 python studio.py finalize ch_001 -w workspace/我的书            # 确定性定稿
 python studio.py sync ch_001 -w workspace/我的书                # 八表合账封存
@@ -31,7 +31,7 @@ python studio.py sync ch_001 -w workspace/我的书                # 八表合�
 | [`.agents/skills/`](.agents/skills/) | 10 份子智能体专属手册（Director / Architect / Screenwriter / Drafter / Dehydrator / Tuner / Auditor / Librarian / Evolution / Profiler） |
 | [`templates/README.md`](templates/README.md) | 模板总目录、实体 ID 矩阵与强类型字段白名单（法定字段口径） |
 | [`engine/README.md`](engine/README.md) | 引擎命令手册与 v4.3 修订注记 |
-| [`REVIEW_REPORT.md`](REVIEW_REPORT.md) | 逐轮缺陷审计与修复台账（R1/R2/R3） |
+
 
 ## ⚙️ 引擎关键能力（确定性 · 零幻觉）
 
@@ -49,4 +49,3 @@ python studio.py check -w <你的书工作区>   # 0 errors 即健康
 
 ---
 
-*许可与协作：本仓库为个人创作工作台；引擎与模板链的缺陷修复记录见 `REVIEW_REPORT.md`。*

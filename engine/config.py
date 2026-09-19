@@ -22,7 +22,7 @@ from engine.errors import BusinessError
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     # 正文字数指引（每章推荐参考体量，用于细纲与写手提示词参考，不做硬性拦截）
-    "words_per_chapter": [1500, 2500],
+    "words_per_chapter": [1500, 2600],
     # 装配包 Token 预算上限
     "token_cap": 15000,
     # 细纲 state_deltas.ledger 未声明 pool 时使用的默认货币池名（全题材中性，可按书改为 灵石/人民币/积分…）
@@ -114,8 +114,8 @@ def set_config_value(workspace: Path, key: str, value: Any) -> Dict[str, Any]:
             parsed = value
         if not isinstance(parsed, list):
             raise BusinessError(
-                f"配置项 '{key}' 格式错误: 应为列表（如 '[1500, 2500]' 或逗号分隔）",
-                solution=f"正确示例: python studio.py config set {key} \"[1500, 2500]\"",
+                f"配置项 '{key}' 格式错误: 应为列表（如 '[1500, 2600]' 或逗号分隔）",
+                solution=f"正确示例: python studio.py config set {key} \"[1500, 2600]\"",
             )
         value = parsed
 

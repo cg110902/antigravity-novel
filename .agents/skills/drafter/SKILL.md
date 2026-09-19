@@ -51,7 +51,7 @@ description: Universal plot drafting and creative narrative generator for Novel 
 
 1. **第 1 步【单次全读】**：调用 `view_file` 一次性读完装配包 `workspace/<书名>/pack.md`（严禁切片翻读）；
 2. **第 2 步【撰写正文初稿落盘】**：
-   - 依据 `pack.md` 展开剧情，达到任务要求的字数标尺（默认 1500~2500 字）；
+   - 依据 `pack.md` 展开剧情，达到任务要求的字数标尺（默认 1500~2600 字）；
    - 直接调用 `write_to_file`（`Overwrite: true`）写入 `manuscript/vol_XX/raw/ch_XXX_v1.md`（**严禁传递 `ArtifactMetadata`**）；
 3. **第 3 步【交卷即走】**：输出 3 行标准完工回执，立即彻底停机。
 

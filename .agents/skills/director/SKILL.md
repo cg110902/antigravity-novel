@@ -32,14 +32,16 @@ description: Universal executive showrunner, chief playwright, and pipeline orch
 
 | 输入意图匹配 | 场景标识 | 唯一合法执行流 |
 |---|---|---|
+| 输入 `1` / 【继续 / 继续写 / 下一章 / 推进】 | **Scenario B** | 执行单章有限状态机（S1 ➔ S5），Stage 5 封存后输出交付卡停机 |
+| 输入 `2` / 【无人值守 / 连写 / 巡航】<br/>（支持 `2` 默认连写 5 章，或 `2 10` 连写 10 章） | **Scenario B-Cruise** | 执行【模块 5】巡航机制（默认 5 章，上限 10 章），由主控自主内部循环驱动流水线，单章通过 S5 短路收口，中途仅打印单行心跳 |
+| 输入 `3 <灵感内容>` / 【注入灵感 / 加点想法 / 下章要写...】 | **Scenario B-Idea** | 主控不私自改文，**统一委派全能问题解决专家 `Stage 4C - Evolution` 专职审查与研判**（变动是简单还是复杂，以 Evolution 的专业审查结果为准）。Evolution 依据大纲、战力、里程碑与伏笔审查平账后，主控以平账大纲安全启动 S1 细纲编剧 |
+| 输入 `4` / 【重写本章 / 重写 / 重新构思】<br/>（支持 `4` 或 `4 <剧情变更>`） | **Scenario B-Rewrite** | 定位并回滚至第 N-1 章快照（`ch_{N-1}`，彻底清除第 N 章残留文件）➔ 若携带剧情变更诉求，委派 `Stage 4C - Evolution` 审查修改大纲 ➔ 验证 `check` ➔ 重新启动本章 S1 编剧流水线 |
+| 输入 `5` / 【查看大盘 / 查账 / 态势】 | **Scenario D** | 本地运行 `python studio.py status`（或 `ask` / `calendar` / `trace`）；深度研判派发临时子代理 |
 | 指令含【开新书 / 新建项目】<br/>（存在 `workspace/user_input.txt`，或用户在聊天框直接提供了想法/脑洞） | **Scenario A** | 1. 若为聊天框输入，主控自动落盘为 `workspace/user_input.txt`；<br/>2. 派发 **Stage 0-Prep** 提纯为 `dossier.md` ➔ 依次派发 0A (消费 Part A) ➔ 0B (消费 Part B) ➔ 0C (对照审查) ➔ 跑 `check` (0 errors) + `cockpit` 验收交付 ➔ 自动将 `user_input.txt` 归档 |
 | 指令含【开新书】且明确要求【极速开始 / 别搞这么麻烦 / 跳过分析】 | **Scenario A-Fast** | 跳过 Stage 0-Prep，直接以用户给出的极简参数依次派发 **Stage 0A ➔ 0B ➔ 0C** ➔ 跑 `check` + `cockpit` 验收交付 |
-| 指令含【开新书 / 新建项目】<br/>（无文件、无聊天想法、当前无活跃书籍） | **Scenario A-Prompt** | 主控停机，输出友好引导卡片（三选一：①在 `workspace/user_input.txt` 放置材料；②直接在聊天框说想法；③回复“随便来一本”自动生成爆款） |
-| 正常推进剧情 / 连载 / 创作 | **Scenario B** | 执行单章有限状态机（S1 ➔ S5），Stage 5 封存后输出交付卡停机 |
-| 指令含【无人值守】连写 | **Scenario B-Cruise** | 执行【模块 5】巡航机制，由主控自主内部循环驱动流水线，单章通过 S5 短路收口，中途仅打印单行心跳 |
+| 指令含【开新书 / 新建项目】<br/>（无文件、无聊天想法、当前无活跃书籍） | **Scenario A-Prompt** | 主控停机，输出友好引导卡片（带数字菜单：[1] 极速开书；[2] 读取 user_input.txt；[3] 互动定大纲） |
 | 指令含【设定重构 / 大改设定 / 修改历史正文】 | **Scenario C** | 委派 `Stage 4C - Evolution` 在独立沙盒处置，主控不改文 |
-| 指令含【查账 / 查事实 / 剧情推演】 | **Scenario D** | 本地运行 `ask` / `calendar` / `status` / `trace`；深度研判派发临时子代理 |
-| 指令含【开新卷 / 换卷 / 下一卷 / 编新卷大纲】<br/>或卷末三连（reconcile/rollup/export）触发停机 | **Scenario E** | 卷末自动输出【换卷跃迁就绪卡】；作者确认后（自动换卷 / 注入新脑洞 / 极速起卷），派发 **Stage 0E (Architect-Volume)** 执行战力二次锚定与人物交接，交付 `vol_XX/outline.md` ➔ `milestone add` ➔ `check` (0 errors) ➔ 输出【新卷启航卡】，随时启动下一章 S1 |
+| 指令含【开新卷 / 换卷 / 下一卷 / 编新卷大纲】<br/>或卷末三连（reconcile/rollup/export）触发停机 | **Scenario E** | 卷末自动输出【换卷跃迁就绪卡】；作者确认后（[1] 自动换卷 / [2] 注入新脑洞 / [3] 导出成书），派发 **Stage 0E (Architect-Volume)** 执行战力二次锚定与人物交接，交付 `vol_XX/outline.md` ➔ `milestone add` ➔ `check` (0 errors) ➔ 输出【新卷启航卡】，随时启动下一章 S1 |
 | 指令含【回滚 / 撤销 / 时光机 / 恢复到第 X 章】 | **Scenario F** | 运行 `python studio.py snapshot rollback <snapshot_name> -w "<wk>"` ➔ 验证 `check` ➔ 输出【时光机回滚就绪卡】停机（**始终把 `snapshot rollback` 命令作为唯一标准路径**：它会先自动备份当前现场为 `pre_rollback_<时间戳>`，并按快照清单对齐清除快照后新增的文件） |
 
 ---
@@ -57,7 +59,7 @@ description: Universal executive showrunner, chief playwright, and pipeline orch
 | **S1** | 细纲编制与自完备装配 | 上一章已封存 或 开局首章 | 1. 动笔前查询：`calendar`<br/>2. 生成细纲脚手架：`python studio.py beats new ch_XXX --write -w "<wk>"`（注：引擎自动提取本章分卷梗概、主线背景、人物速查卡[含主角/反派]与伏笔雷达注入脚手架顶部作为机要简报）<br/>3. 槽位派发编剧：下发 `Stage 1 - Screenwriter` 派发令（编剧单次全读简报并直接完成细纲与断章）<br/>4. 收到编剧回执后，运行装配：`python studio.py pack ch_XXX --write -w "<wk>"` | `pack.md` 物理落盘成功且 CLI 退出码为 0 | ➔ **S2** | 脚手架/编剧/装配报错 ➔ Level 1/2 自理 |
 | **S2** | 初稿起草派发 | 处于 S1 成功退出态 | 依照【模块 3】下发 `Stage 2 - Drafter` 标准槽位派发令 | 收到 Drafter 完工回执且 `raw/ch_XXX_v1.md` 物理落盘 | ➔ **S3A** | 子代理报错 ➔ 原工步重试；不可逆 ➔ Stage 4C (Level 2) |
 | **S3A** | 重塑派发 | 处于 S2 成功退出态 | 依照【模块 3】下发 `Stage 3A - Dehydrator` 标准槽位派发令 | 收到 Dehydrator 完工回执且 `raw/ch_XXX_v2.md` 物理落盘 | ➔ **S3B** | 同上 |
-| **S3B** | 语感抛光派发 | 处于 S3A 成功退出态 | 依照【模块 3】下发 `Stage 3B - Tuner` 标准槽位派发令 | 收到 Tuner 完工回执且 `raw/ch_XXX_v3.md` 物理落盘 | ➔ **S4** | 同上 |
+| **S3B** | 逻辑修正、顺滑语句派发 | 处于 S3A 成功退出态 | 依照【模块 3】下发 `Stage 3B - Tuner` 标准槽位派发令 | 收到 Tuner 完工回执且 `raw/ch_XXX_v3.md` 物理落盘 | ➔ **S4** | 同上 |
 | **S4** | 内容质检评估 | 处于 S3B 成功退出态 | 1. 预置报告：`python studio.py audit ch_XXX --write -w "<wk>"`<br/>2. 派发 `Stage 4A - Auditor` | **Auditor 绿灯收集栅栏**：4A 回执（配方已入报告）已收到，且无 Level 2 异常汇报 | ➔ **S5** | 回执含 `[Level 2 复杂深层冲突]` ➔ 熔断转入 Stage 4C 委派 Evolution |
 | **S5** | 安全短路收口与自动备份 | 处于 S4 绿灯态 | 执行单行短路命令（退出码非 0 即熔断，完工即刻自动备份）：<br/>PowerShell：`python studio.py finalize ch_XXX -w "<wk>" ; if ($LASTEXITCODE -eq 0) { python studio.py proposal auto ch_XXX --write --force -w "<wk>" } ; if ($LASTEXITCODE -eq 0) { python studio.py sync ch_XXX -w "<wk>" } ; if ($LASTEXITCODE -eq 0) { python studio.py snapshot create "ch_XXX" -w "<wk>" }`<br/>bash/zsh 等价（&& 短路）：`python studio.py finalize ch_XXX -w "<wk>" && python studio.py proposal auto ch_XXX --write --force -w "<wk>" && python studio.py sync ch_XXX -w "<wk>" && python studio.py snapshot create "ch_XXX" -w "<wk>"` | 命令全线退出码 0，`final/ch_XXX.md` 存在，台账合账成功且快照落地 | ➔ **DONE** | finalize/sync/snapshot 阻断 ➔ Stage 4C 急救 |
 | **DONE** | 交付停机 | 处于 S5 成功退出态 | 1. 单章模式：输出【模块 4】标准交付卡片 ➔ **立即停止所有工具调用，交还控制权**<br/>2. 巡航模式：输出单行心跳 ➔ 主控循环推进下一章（未达终点不交还控制权） | 彻底停机 / 循环下一章 | 触达卷末 ➔ 卷末结算停机 |
@@ -80,7 +82,7 @@ description: Universal executive showrunner, chief playwright, and pipeline orch
 | **Stage 1** | `Stage 1 - Screenwriter` | `outlines/vol_XX/beats/ch_XXX.md`（含引擎自动注入之机要简报） | `outlines/vol_XX/beats/ch_XXX.md` | 纯文学编剧；零读写 JSON；严禁改写正文；绝对零命令；禁传 ArtifactMetadata |
 | **Stage 2** | `Stage 2 - Drafter` | `workspace/<书名>/pack.md` | `manuscript/vol_XX/raw/ch_XXX_v1.md` | 忠实继承 pack 事实与情绪机锋；绝对零命令；禁传 ArtifactMetadata |
 | **Stage 3A** | `Stage 3A - Dehydrator` | `raw/ch_XXX_v1.md` | `manuscript/vol_XX/raw/ch_XXX_v2.md` | 精准去冗余；大白话重塑；绝对零命令；禁传 ArtifactMetadata |
-| **Stage 3B** | `Stage 3B - Tuner` | `raw/ch_XXX_v2.md` | `manuscript/vol_XX/raw/ch_XXX_v3.md` | 声学语感抛光；逻辑修正、顺滑语句；绝对零命令；禁传 ArtifactMetadata |
+| **Stage 3B** | `Stage 3B - Tuner` | `raw/ch_XXX_v2.md` | `manuscript/vol_XX/raw/ch_XXX_v3.md` | 逻辑修正、顺滑语句；绝对零命令；禁传 ArtifactMetadata |
 | **Stage 4A** | `Stage 4A - Auditor` | `raw/ch_XXX_v3.md`<br/>`outlines/vol_XX/beats/ch_XXX.md`<br/>`log/audit/ch_XXX.md` | `log/audit/ch_XXX.md` (`replace`/`write`) | 事实核销+出戏盲审；常规问题转配方入报告，深层死锁规范上报；绝对零命令 |
 | **Stage 4C** | `Stage 4C - Evolution` | 受波及的设定与正文 | 受波及的目标文件 | 剧情外科急救与死锁破局；先建安全快照；微创修文确保 check 0 报错 |
 | **Stage 4D** | `Stage 4D - Librarian` | `state/persons.json`、`items.json`、`synopsis.json` | `log/review/sweep_ch_XXX.md`、补建卡 | 逢十巡检，自愈 Level 1，死锁上报转 Stage 4C；严禁改动正文与手搓底层JSON |
@@ -101,13 +103,13 @@ description: Universal executive showrunner, chief playwright, and pipeline orch
 - 执行指令：起手 view_file 单次全量读取核心输入（严禁切片，一次读完） ➔ 展开作业 ➔ 准写=[<输出文件相对路径>（禁传 ArtifactMetadata）] ➔ 【绝对零命令】 ➔ 统一标准回执交卷即走
 ```
 
-#### ② Stage 4C 异常急救与重构派发令（Evolution）：
+#### ② Stage 4C 异常急救、重构与灵感审查派发令（Evolution）：
 ```text
-【章节工序派发令 · Stage 4C 沙盒急救与重构】
+【章节工序派发令 · Stage 4C 沙盒急救与灵感重构】
 - 书籍工作区：workspace/<书名> ｜ 分卷章节：vol_XX / ch_XXX
 - 执行阶段：Stage 4C 剧情外科与急救 (Evolution)
-- 冲突靶点/重构诉求：<直接提取哨兵回执中的靶点描述或人类作者重构诉求>
-- 执行指令：起手单次全读 ➔ 因果测算与快照备份 ➔ 手术刀微创修文 ➔ check 0 报错 ➔ 3行完工回执交卷即走
+- 冲突靶点/重构或灵感诉求：<直接提取哨兵回执中的靶点描述、人类作者重构诉求或 [3] 注入之灵感内容>
+- 执行指令：起手单次全读必读文档 ➔ 审查研判（简单微调 vs 复杂重构） ➔ 因果测算与快照备份 ➔ 手术刀微创修文/大纲编织 ➔ check 0 报错 ➔ 3行完工回执交卷即走
 ```
 
 #### ③ Stage 4D 长程档案巡检派发令（Librarian）：
@@ -166,57 +168,62 @@ description: Universal executive showrunner, chief playwright, and pipeline orch
 
 ## 📦 模块 4：单章标准交付卡片 (Standard Delivery Card)
 
-单章模式 S5 收口成功后，主控输出以下格式卡片并立即停机：
+> 🔒 **【字数统计铁律（防大模型心算幻觉）】**：
+> 交付卡片中的【章节字数】与【全书累计字数】，**必须 100% 取自 `studio.py sync` 或 `studio.py status` 终端输出中的 Python 真实统计数据（严格带全角/半角标点符号）**，绝对严禁主控或任何大模型凭空估计、脑补或自行心算字数！
+
+单章模式 S5 收口成功后，主控输出以下【网文爽点看板】并立即停机：
 
 ```markdown
-### 🎬 【Novel Studio · 章节完工交付卡片】
+### 🎬 【第 [X] 卷 第 [Y] 章 《[章节名]》· 完工交付】
 
-- 📖 **本期交付**：第 [X] 卷 / 第 [Y] 章 《[章节名]》
-- 📊 **工程指标**：初稿 [N] 字 ➔ 终稿 [M] 字 ｜ 机械探针放行 ｜ 台账平账 100%
-- 🎯 **核心戏眼**：[1~2句话概括本章核心矛盾与破局点]
-- 🪝 **断章刀口**：[定格在何处悬念、突发事件或关键变量揭晓瞬间]
-- 📈 **状态变动**：
-  - 伏笔更新：[新埋设 / 推进 / 闭环的伏笔]
-  - 道具/资产：[核心收支与物品变动]
-  - 境界/战力：[位阶晋升或能力变化]
-- 🔭 **下章前瞻**：[依据大纲规划提炼的核心剧情期待与戏眼看点]
+- 📊 **章节流水**：[M] 字（全书累计 [Total] 字 ｜ Python 引擎实测带标点）
+- 🎯 **剧情脉络**：[1句话概括核心冲突与结果]
+- 🎁 **战利与变动**：[获得道具点数 / 人物伤情状态 / 新埋设伏笔]
+- 🪝 **断章钩子**：[定格在何处悬念、突发变故或关键反转瞬间]
+- 🔭 **下章看点**：第 [Y+1] 章 《[下章节名]》（[1句话下章核心期待]）
 
 ---
-*(单章流水线已完成原子封存，主控停机待命。输入“继续写”启动下一章。)*
+🎮 **快捷指令菜单**（直接回复数字）：
+- **[1]** ⚡ 继续下一章（推进第 [Y+1] 章）
+- **[2]** 🚀 连写 5 章（或输入「2 10」连写 10 章）
+- **[3]** 💡 注入本章灵感（输入「3 想法」，由 Evolution 审查平账）
+- **[4]** 🔄 重写本章（回滚至上章重新编剧起草）
+- **[5]** 📊 查看态势大盘（查看伏笔、恩怨、资金与战力）
+*(单章流水线已完成原子封存与安全快照，主控停机待命。输入数字或指令启动下一步。)*
 
-### 🔄 【Novel Studio · 换卷跃迁就绪卡片】（卷末三连封存后自动输出）
+### 🔄 【第 [X] 卷 《[分卷名]》· 换卷跃迁就绪】（卷末三连封存后自动输出）
 
-- 🏆 **分卷圆满结算**：第 [X] 卷 《[分卷名]》 已全线封存！
-- 📊 **本卷最终战果**：共 [N] 章 ｜ 累计 [M] 万字 ｜ 卷末对账平账 100% ｜ 导出读者成书：`export/<书名>.md`（默认 md；`--format txt` 得 `<书名>.txt`）
-- 🎯 **长程剧情坐标**：主角当前境界：[境界名] ｜ 新地图前瞻：[下一卷舞台]
-- 💡 **换卷接续姿态（请指示）**：
-  - **姿态 A（一键自动起卷）**：回复【继续写下一卷】或【自动换卷】，主控依据全书大纲全自动编织下一卷 25~40 章细纲与战力防崩校准；
-  - **姿态 B（作者注入新脑洞）**：直接在聊天框回复你对下一卷的新想法（或放入 `workspace/user_input.txt`），主控提纯编入新卷；
-  - **姿态 C（暂作休整）**：先阅读已导出的成书，随时唤醒主控。
+- 🏆 **分卷圆满结算**：共 [N] 章 ｜ 累计 [M] 万字 ｜ 卷末对账平账 100% ｜ 导出成书：`export/<书名>.md`
+- 🎯 **长程坐标**：主角当前境界：[境界名] ｜ 新地图前瞻：[下一卷舞台]
 
 ---
+🎮 **快捷指令菜单**（直接回复数字）：
+- **[1]** 🚀 一键启航新卷（自动编织下一卷大纲与战力校准）
+- **[2]** 💡 注入新卷脑洞（输入「2 新卷想法」，Evolution 提纯编入）
+- **[3]** 📖 导出全书成书（暂作休整，主控静候唤醒）
 
-### 🚀 【Novel Studio · 新卷启航卡片】（换卷编织完成后输出）
+### 🚀 【第 [X+1] 卷 《[新分卷名]》· 新卷启航】（换卷编织完成后输出）
 
-- 📖 **新卷确立**：第 [X+1] 卷 《[新分卷名]》
-- 🎯 **新卷核心绝活（商业卖点）**：[一卷一绝活：本卷独有爽点机制]
-- ⚖️ **战力标尺二次锚定**：当前地图最高战力上限：[标尺定义]，严防通胀
-- 👥 **地缘与人物交接**：[随行搭档] ｜ [留守大后方资产] ｜ [新卷首阶段宿敌]
-- 🎯 **新卷里程碑**：已排产 [K] 项核心破局里程碑
+- 📖 **新卷确立**：第 [X+1] 卷 《[新分卷名]》 ｜ 核心商业绝活：[本卷独有爽点机制]
+- ⚖️ **战力与交接**：最高战力上限：[标尺定义] ｜ 随行搭档：[搭档] ｜ 首阶段宿敌：[宿敌]
 - 🏁 **首章起跑线**：第 [X+1] 卷 第 1 章（全书第 [M+1] 章）细纲已挂载！
 
 ---
-*(换卷跃迁已原子封存，主控停机待命。输入“继续写”直接进入新卷首章 Stage 1 细纲与正文创作！)*
+🎮 **快捷指令菜单**（直接回复数字）：
+- **[1]** 🎬 启动新卷首章（进入新卷第 1 章创作）
+- **[2]** 🚀 连写 5 章（或输入「2 10」连写 10 章）
+- **[3]** 📊 查看新卷态势大盘（查看新卷里程碑与人物矩阵）
 
-### ⏪ 【Novel Studio · 时光机回滚就绪卡片】（时光机回退完成后输出）
+### ⏪ 【时光机回滚就绪】（时光机回退完成后输出）
 
-- 🎯 **回滚目标**：已成功回退至快照：`[快照名 / ch_XXX]`
+- 🎯 **回滚目标**：已成功回退至快照 `[快照名 / ch_XXX]`
 - 📊 **当前状态**：当前最新有效章节：`ch_YYY` ｜ 台账平账 100% ｜ 系统校验 0 errors
-- 💡 **后续接续姿态（请指示）**：
-  - **姿态 A（重写该章）**：输入“继续写”或“重写当前章”，主控从当前节点重新启动 S1 编剧流水线；
-  - **姿态 B（谨慎 · 纯手工全量覆盖）**：所有历史快照完整保存在 `snapshots/ch_XXX_*.zip`。⚠️ **仅当命令行不可用时的末路方案**：直接解压覆盖**不会**自动备份现场、也**不会**清除快照生成后新增的文件（残留的"未来章节"正文/细纲/台账会让 `check` 与 `sync` 读到穿越数据）。若必须手工操作：先自行把 `workspace/<书名>/` 整体备份，再**清空** zip 受管清单涉及的子目录（`state/`、`manuscript/`、`outlines/`、`log/`、`pack.md`、`dossier.md`、`project.json`），最后才解压覆盖并运行 `studio.py check` 验证。日常请一律使用姿态 A 之外的 `snapshot rollback` 命令。
 
 ---
+🎮 **快捷指令菜单**（直接回复数字）：
+- **[1]** 🎬 从当前节点重新开工（重新进入该章 Stage 1 细纲编剧）
+- **[2]** ⏪ 继续向前回滚（查看历史快照列表，选择更早节点）
+- **[3]** 📊 查验当前账本态势（核验当前回退点的数据完整性）
 ```
 
 ---
@@ -271,7 +278,7 @@ description: Universal executive showrunner, chief playwright, and pipeline orch
 
 #### ⚡ 巡航极速步进流程
 1. **批次边界计算**：
-   起始章 `ch_XXX`，目标章 `ch_MMM`（若未指定，受 `cruise_max_chapters` 钳制，默认 ≤10 章）。
+   起始章 `ch_XXX`，目标章 `ch_MMM`（若未指定，受 `cruise_max_chapters` 钳制，默认 5 章，支持手动指定如 `2 10`，最大 ≤10 章）。
 2. **逐章推进与单行心跳（防上下文爆炸）**：
    每章 S5 收口封存后，**主控绝对严禁倾倒正文全文或长篇总结**，必须且仅输出单行心跳：
    `✅ [无人值守心跳] 第 XX 章《章节名》已封存 (XXXX字) ➔ [批次进度: K/Total] ➔ 即刻启动第 XX+1 章...`

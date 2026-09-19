@@ -258,3 +258,108 @@ def parse_volume_outline(outline_text: str, chapter_id: str) -> Optional[Dict[st
                 info["cliffhanger"] = val
 
     return info
+
+
+def _yaml_str(s: str) -> str:
+    """对 YAML 字符串做严格转义（含反斜杠、双引号与换行符），防止破坏格式。"""
+    cleaned = str(s).replace("\\", "\\\\").replace('"', '\\"').replace("\r", "").replace("\n", "\\n")
+    return f'"{cleaned}"'
+
+
+def _yaml_key(k: str) -> str:
+    """对包含特殊符号或空格的键添加引号包裹。"""
+    s = str(k).strip()
+    if any(c in s for c in (':', ' ', '\t', '[', ']', '{', '}', ',', '#', '&', '*', '!', '|', '>', "'", '"', '%', '@', '`')):
+        cleaned = s.replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{cleaned}"'
+    return s
+
+
+def dump_mini_yaml(data: Any, indent: int = 0) -> str:
+    """将基础 Python 对象安全序列化为格式规范的轻量级 YAML 文本。"""
+    if data == {} and indent == 0:
+        return "{}"
+    if data == [] and indent == 0:
+        return "[]"
+    lines: List[str] = []
+    prefix = " " * indent
+    if isinstance(data, dict):
+        for k, v in data.items():
+            yk = _yaml_key(str(k))
+            if v is None:
+                lines.append(f"{prefix}{yk}: null")
+            elif isinstance(v, bool):
+                lines.append(f"{prefix}{yk}: {'true' if v else 'false'}")
+            elif isinstance(v, (int, float)):
+                lines.append(f"{prefix}{yk}: {v}")
+            elif isinstance(v, str):
+                lines.append(f'{prefix}{yk}: {_yaml_str(v)}')
+            elif isinstance(v, list):
+                if not v:
+                    lines.append(f"{prefix}{yk}: []")
+                else:
+                    lines.append(f"{prefix}{yk}:")
+                    for item in v:
+                        if isinstance(item, dict):
+                            item_keys = list(item.keys())
+                            if not item_keys:
+                                lines.append(f"{prefix}  - {{}}")
+                            else:
+                                first_k = item_keys[0]
+                                first_y_k = _yaml_key(str(first_k))
+                                first_v = item[first_k]
+                                if isinstance(first_v, bool):
+                                    lines.append(f"{prefix}  - {first_y_k}: {'true' if first_v else 'false'}")
+                                elif isinstance(first_v, (int, float)):
+                                    lines.append(f"{prefix}  - {first_y_k}: {first_v}")
+                                elif isinstance(first_v, str):
+                                    lines.append(f'{prefix}  - {first_y_k}: {_yaml_str(first_v)}')
+                                elif first_v is None:
+                                    lines.append(f"{prefix}  - {first_y_k}: null")
+                                else:
+                                    lines.append(f"{prefix}  - {first_y_k}:")
+                                    lines.append(dump_mini_yaml(first_v, indent + 6))
+                                for rem_k in item_keys[1:]:
+                                    rem_y_k = _yaml_key(str(rem_k))
+                                    rem_v = item[rem_k]
+                                    if isinstance(rem_v, bool):
+                                        lines.append(f"{prefix}    {rem_y_k}: {'true' if rem_v else 'false'}")
+                                    elif isinstance(rem_v, (int, float)):
+                                        lines.append(f"{prefix}    {rem_y_k}: {rem_v}")
+                                    elif isinstance(rem_v, str):
+                                        lines.append(f'{prefix}    {rem_y_k}: {_yaml_str(rem_v)}')
+                                    elif rem_v is None:
+                                        lines.append(f"{prefix}    {rem_y_k}: null")
+                                    else:
+                                        lines.append(f"{prefix}    {rem_y_k}:")
+                                        lines.append(dump_mini_yaml(rem_v, indent + 6))
+                        elif isinstance(item, bool):
+                            lines.append(f"{prefix}  - {'true' if item else 'false'}")
+                        elif isinstance(item, (int, float)):
+                            lines.append(f"{prefix}  - {item}")
+                        elif isinstance(item, str):
+                            lines.append(f'{prefix}  - {_yaml_str(item)}')
+                        elif item is None:
+                            lines.append(f"{prefix}  - null")
+                        else:
+                            lines.append(f"{prefix}  -")
+                            lines.append(dump_mini_yaml(item, indent + 4))
+            elif isinstance(v, dict):
+                if not v:
+                    lines.append(f"{prefix}{yk}: {{}}")
+                else:
+                    lines.append(f"{prefix}{yk}:")
+                    lines.append(dump_mini_yaml(v, indent + 2))
+    elif isinstance(data, list):
+        for item in data:
+            if isinstance(item, str):
+                lines.append(f'{prefix}- {_yaml_str(item)}')
+            elif isinstance(item, (int, float)):
+                lines.append(f"{prefix}- {item}")
+            elif isinstance(item, bool):
+                lines.append(f"{prefix}- {'true' if item else 'false'}")
+            else:
+                lines.append(f"{prefix}-")
+                lines.append(dump_mini_yaml(item, indent + 2))
+    return "\n".join(lines)
+

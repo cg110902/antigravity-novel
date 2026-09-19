@@ -249,9 +249,201 @@ def probe_grounding(text: str, frontmatter: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+# 结构化死亡描写语义范式（取代僵化的成语枚举列表）
+# 涵盖：系统通告、生理生机终止、致命物理毁灭、明确终结状态、尸体遗骸
+_SYSTEM_DEATH_PATTERNS = [
+    r"【[^】\n]{0,30}(?:生命体征归零|生命信号.*?(?:消失|湮灭|中断|归零)|已(?:死亡|阵亡|被杀|击杀|抹杀|牺牲|淘汰)|已确认死亡|判定死亡)[^】\n]{0,30}】",
+    r"(?:生命体征归零|生命信号.*?(?:消失|湮灭|中断|归零)|已确认死亡|判定死亡)",
+]
+
+_VITAL_CESSATION_PATTERNS = [
+    r"(?:彻底|完全|已经|早已|瞬间)?(?:失去|停止|毫无|散尽|断绝|没了|断了).{0,4}(?:心跳|呼吸|生机|脉搏|生命迹象|生命体征|生息|气息)",
+    r"(?:心跳|呼吸|脉搏|生机|生息).{0,4}(?:停止|断绝|散尽|全无|死绝)",
+    r"瞳孔.{0,4}(?:涣散|散大|失去焦距|彻底散开)",
+]
+
+_PHYSICAL_DESTRUCTION_PATTERNS = [
+    r"(?:碾碎|咬碎|捏碎|轰碎|穿透|贯穿|刺穿|削下|斩落|斩断|撕成|粉碎|拍碎|绞碎|撕碎|砸碎).{0,6}(?:脖颈|咽喉|头颅|心脏|身躯|天灵盖|胸膛|神魂|生机)",
+    r"(?:被|遭).{0,8}(?:一击必杀|一击毙命|轰杀|格杀|斩杀|斩首|碎尸|分尸|撕成两半|拍成肉泥|挫骨扬灰|形神俱灭|身首异处|爆头身亡)",
+]
+
+_TERMINAL_STATE_PATTERNS = [
+    r"(?:当场|彻底|立即|随之|旋即|直接|重重)?(?:气绝|身亡|毙命|暴毙|横尸|断气|咽气|殒命|丧命|丧生|身死|亡故|死透|阵亡|咽下最后一口气|命丧|死于)",
+]
+
+_CORPSE_PATTERNS = [
+    r"(?:尸体|尸身|残躯|断肢|遗体).{0,10}(?:倒|躺|跌落|僵硬|冰冷|横陈|跌入)",
+]
+
+# 排除非死亡修辞与虚假语境（守卫：杜绝误报）
+_NON_DEATH_GUARDS = [
+    r"死死", r"找死", r"该死", r"不死", r"生死", r"要死", r"怕死",
+    r"垂死", r"假死", r"濒死", r"想死", r"去死", r"死心", r"死角",
+    r"死寂", r"死一般", r"送死", r"死党", r"起死回生", r"誓死",
+    r"不知死活", r"哪怕死", r"宁可死", r"纵死", r"就算死",
+    r"如果.{0,6}死", r"万一.{0,6}死", r"若是.{0,6}死", r"以为.{0,6}死",
+]
+
+
+def probe_unregistered_fatalities(
+    text: str,
+    frontmatter: Dict[str, Any],
+    persons_db: Optional[Dict[str, Any]] = None,
+    audit_text: str = "",
+) -> Dict[str, Any]:
+    """未登记死亡与新实体预警探针（v4.3）。
+
+    扫描正文中的生死事件与新有名角色：
+    1. 若正文中出现有名角色的明确死亡描写，但细纲 (beats)、审计报告 (audit) 与台账均未登记，触发告警；
+    2. 若正文中高频出现未建档的对白说话人，提示 Auditor 关注建档。
+    """
+    misses: List[str] = []
+    unregistered_speakers: List[str] = []
+
+    # 1. 收集已知在世角色候选列表（包含括号清理后的 base_name 与别名）
+    known_chars: Dict[str, Dict[str, Any]] = {}
+    name_to_bases: Dict[str, List[str]] = {}
+
+    for pid, prec in (persons_db or {}).items():
+        if isinstance(prec, dict):
+            pname = prec.get("name") or pid
+            known_chars[pname] = prec
+            known_chars[pid] = prec
+            base = re.sub(r"[（\(].*?[）\)]", "", pname).strip()
+            bases = [pname]
+            if base and base != pname:
+                bases.append(base)
+            for alias in prec.get("aliases", []):
+                if alias and alias not in bases:
+                    bases.append(alias)
+            name_to_bases[pname] = bases
+
+    raw_pc = frontmatter.get("present_characters") or []
+    pc_list = [raw_pc] if isinstance(raw_pc, (str, dict)) else (raw_pc if isinstance(raw_pc, list) else [])
+    for c in pc_list:
+        if isinstance(c, dict) and c.get("name"):
+            cname = c["name"]
+            known_chars[cname] = c
+            base = re.sub(r"[（\(].*?[）\)]", "", cname).strip()
+            bases = [cname]
+            if base and base != cname:
+                bases.append(base)
+            name_to_bases[cname] = bases
+        elif isinstance(c, str):
+            known_chars[c] = {"name": c}
+            base = re.sub(r"[（\(].*?[）\)]", "", c).strip()
+            name_to_bases[c] = [c] if base == c else [c, base]
+
+    # 已声明死亡的角色（在 locked_facts、character_status 或 audit_text 中）
+    acknowledged_deaths = set()
+    for lf in (frontmatter.get("locked_facts") or []):
+        lf_str = str(lf)
+        if any(k in lf_str for k in ("阵亡", "死亡", "身亡", "击杀", "被杀", "死")):
+            for cname, bases in name_to_bases.items():
+                if any(len(b) >= 2 and b in lf_str for b in bases):
+                    acknowledged_deaths.add(cname)
+
+    c_status = (frontmatter.get("state_deltas") or {}).get("character_status") or {}
+    for k, v in c_status.items():
+        v_str = str(v).lower()
+        if any(w in v_str for w in ("deceased", "dead", "阵亡", "死亡", "身亡", "气绝")):
+            acknowledged_deaths.add(k)
+            if k in known_chars:
+                acknowledged_deaths.add(known_chars[k].get("name", k))
+
+    if audit_text:
+        # 弹性打捞：审计报告中提及阵亡/死亡/牺牲且包含角色名的任何行均视为已登记
+        for line in audit_text.splitlines():
+            line_s = line.strip()
+            if any(k in line_s for k in ("阵亡", "死亡", "牺牲")):
+                for cname, bases in name_to_bases.items():
+                    if any(len(b) >= 2 and b in line_s for b in bases):
+                        acknowledged_deaths.add(cname)
+
+    # 扫描正文：运用多范式语义分析器，精准捕捉角色阵亡描述
+    all_semantic_patterns = (
+        _SYSTEM_DEATH_PATTERNS
+        + _VITAL_CESSATION_PATTERNS
+        + _PHYSICAL_DESTRUCTION_PATTERNS
+        + _TERMINAL_STATE_PATTERNS
+        + _CORPSE_PATTERNS
+    )
+
+    for cname, crec in known_chars.items():
+        if len(cname) < 2 or cname in acknowledged_deaths:
+            continue
+        # 已经死过的角色不在此重复抓
+        life = str(crec.get("life_status", "")).lower()
+        status = str(crec.get("status", "")).lower()
+        if life in ("deceased", "dead") or status in ("deceased", "dead"):
+            continue
+
+        bases = name_to_bases.get(cname, [cname])
+        found_death = False
+
+        for target_name in bases:
+            if len(target_name) < 2 or target_name not in text:
+                continue
+
+            for pat in all_semantic_patterns:
+                # 匹配同一分句（35字内，不跨标点句尾）中角色名与死亡语义共现
+                pattern = rf"(?:{re.escape(target_name)}[^\n。！？]{{0,35}}(?:{pat})|(?:{pat})[^\n。！？]{{0,35}}{re.escape(target_name)})"
+                for m in re.finditer(pattern, text):
+                    matched_snippet = m.group(0)
+                    # 守卫检查：若包含比喻/非死亡语境，跳过
+                    if any(re.search(guard, matched_snippet) for guard in _NON_DEATH_GUARDS):
+                        continue
+                    misses.append(f"正文描写中【{cname}】疑似阵亡（触发片段: 「{matched_snippet[:30]}」），但细纲与审计报告均未声明登记")
+                    acknowledged_deaths.add(cname)
+                    found_death = True
+                    break
+                if found_death:
+                    break
+            if found_death:
+                break
+
+    # 2. 扫描高频对白说话人是否未建档
+    known_name_set = set(known_chars.keys())
+    for bases in name_to_bases.values():
+        known_name_set.update(bases)
+    dialogues = _extract_dialogues_with_speakers(text, list(known_name_set))
+    speaker_counts: Dict[str, int] = {}
+    for spk, _ in dialogues:
+        if spk and spk not in known_name_set and len(spk) in (2, 3, 4):
+            if not any(stop in spk for stop in ("那人", "对方", "众人", "他们", "我们", "声音", "女子", "男子", "老者", "少年", "修士")):
+                speaker_counts[spk] = speaker_counts.get(spk, 0) + 1
+
+    for spk, cnt in speaker_counts.items():
+        if cnt >= 2:
+            in_new = any(
+                isinstance(ne, dict) and ne.get("name") == spk
+                for ne in (frontmatter.get("new_entities") or [])
+            )
+            in_audit = audit_text and spk in audit_text
+            if not in_new and not in_audit:
+                unregistered_speakers.append(f"【{spk}】(发言{cnt}次)")
+
+    detail_parts = []
+    if misses:
+        detail_parts.append("🚨 " + "；".join(misses))
+    if unregistered_speakers:
+        detail_parts.append("💡 疑似新出场说话人未建档: " + "、".join(unregistered_speakers[:3]))
+    if not detail_parts:
+        detail_parts.append("正文生死与在场实体均已合账")
+
+    return {
+        "name": "未登记死亡与新实体预警探针",
+        "passed": len(misses) == 0,
+        "misses": misses,
+        "unregistered_speakers": unregistered_speakers,
+        "detail": " ｜ ".join(detail_parts),
+    }
+
+
 def run_all_probes(text: str, frontmatter: Dict[str, Any],
                    persons_db: Optional[Dict[str, Any]] = None,
-                   config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                   config: Optional[Dict[str, Any]] = None,
+                   audit_text: str = "") -> Dict[str, Any]:
     """运行确定性物理事实与数据探针，输出体检与字数遥测结果。"""
     name_by_id = {}
     for pid, p in (persons_db or {}).items():
@@ -273,9 +465,10 @@ def run_all_probes(text: str, frontmatter: Dict[str, Any],
     p_epistemology = probe_epistemology_leaks(text, blind_spots, name_by_id=name_by_id, present_ids=present_ids)
     p_address = probe_address_matrix(text, persons_db)
     p_grounding = probe_grounding(text, frontmatter)
+    p_fatalities = probe_unregistered_fatalities(text, frontmatter, persons_db=persons_db, audit_text=audit_text)
 
-    # 阻断级错误唯二：空正文 (0字)、确认级角色认知泄露
-    all_passed = (total_words > 0) and p_epistemology["passed"]
+    # 阻断级错误：空正文 (0字)、确认级角色认知泄露、未登记角色死亡
+    all_passed = (total_words > 0) and p_epistemology["passed"] and p_fatalities["passed"]
     return {
         "all_passed": all_passed,
         "word_count": total_words,
@@ -289,5 +482,6 @@ def run_all_probes(text: str, frontmatter: Dict[str, Any],
             "epistemology": p_epistemology,
             "address": p_address,
             "grounding": p_grounding,
+            "fatalities_and_entities": p_fatalities,
         },
     }

@@ -51,7 +51,7 @@ def _render_pack_content(
 
 > ⚡ **【起草先锋 Drafter 唯一事实源 · 杜绝全书漫游】**
 > 本装配包已集成当章细纲、时空因果、在场人档案、称谓约束与世界红线。
-> 起手单次全读本文件即可直接提笔撰写 1500~2500 字初稿，严禁查阅外部散乱文件！
+> 起手单次全读本文件即可直接提笔撰写 1500~2600 字初稿，严禁查阅外部散乱文件！
 {budget_badge}
 
 ---
@@ -130,6 +130,8 @@ def _render_pack_content(
 def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dict[str, Any]:
     state_mgr = StateManager(workspace)
     curr_state = state_mgr.get_current()
+    cfg = load_config(workspace)
+    protagonist = cfg.get("protagonist", "主角")
 
     # 1. 寻找并读取 beats 细纲 (P0)
     # v4.1 跨卷修复：改用全卷扫描定位（旧版只看 current_vol，换卷期会装配错卷或找不到细纲）
@@ -270,16 +272,17 @@ def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dic
             if tgt and addr:
                 address_rules.append(f"- **{cname}** 称呼 **{tgt}** 必须为：`{addr}`")
 
-    # 4.0 提取在场角色的未了恩怨人情账 (Debts & Grudges · P1)
+    # 4.0 提取在场角色的未了恩怨人情账 (Debts & Grudges · P1 · 双向检索)
     debts_db = state_mgr.get_debts()
     in_scene_names = {c.get("name") for c in present_chars if isinstance(c, dict)}
     in_scene_ids = {c.get("id") for c in present_chars if isinstance(c, dict)}
     debt_blocks: List[str] = []
     for d in debts_db:
-        if d.get("status") == "unpaid":
+        if d.get("status", "unpaid") == "unpaid":
             t = d.get("target_char", "")
-            if t in in_scene_names or t in in_scene_ids:
-                debt_blocks.append(f"- ⚔️ **[{d.get('type', '恩怨')}]** 涉及 `{t}`: {d.get('desc')} (立于第 {d.get('created_ch')} 章 ｜ 状态: 待清算)")
+            s = d.get("source_char", "")
+            if t in in_scene_names or t in in_scene_ids or s in in_scene_names or s in in_scene_ids:
+                debt_blocks.append(f"- ⚔️ **[{d.get('type', '恩怨')}]** `{s}` ➔ `{t}`: {d.get('desc')} (立于第 {d.get('created_ch')} 章 ｜ 状态: 待清算)")
 
     # 3.6 提取在场角色双向动态情感与心理 (Relations & Push-Pull Tension · P1)
     rel_db = state_mgr.get_relations()
@@ -396,8 +399,29 @@ def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dic
     # 4. 提取当章道具与持有者 (P1)
     items_db = state_mgr.get_items()
     item_blocks: List[str] = []
+
+    # 4.1 在场核心角色常驻随身装备与物品 (Active Carried Inventory)
+    carried_blocks: List[str] = []
+    in_scene_names = {c.get("name") for c in present_chars if isinstance(c, dict)}
+    in_scene_ids = {c.get("id") for c in present_chars if isinstance(c, dict)}
+    for iid, irec in sorted(items_db.items()):
+        if irec.get("status", "active") == "active":
+            h = str(irec.get("holder", ""))
+            if h in in_scene_names or h in in_scene_ids or any(k in h for k in (protagonist, "主角", "p_001")):
+                c_val = irec.get("charges", -1)
+                c_str = f"充能/储量: `{c_val}`" if c_val >= 0 else "无上限/装备"
+                dur = irec.get("durability", "完好")
+                sens = irec.get("sensory_anchor", "")
+                sens_str = f" ｜ 物象: {sens[:40]}…" if sens else ""
+                carried_blocks.append(f"- 🎒 **[{iid}] {irec.get('name')}** ｜ 支配人: `{h}` ｜ {c_str} ｜ 耐久: `{dur}`{sens_str}")
+
+    if carried_blocks:
+        item_blocks.append("### 🎒 在场角色随身常驻装备与物品 (Carried Inventory)")
+        item_blocks.extend(carried_blocks)
+
+    # 4.2 当章明确增量与充能变动 (Deltas)
+    delta_blocks: List[str] = []
     _raw_deltas = frontmatter.get("state_deltas", {}).get("items") or []
-    # v4.3：单 dict 形态统一包裹为列表（防 dict 键名被当条目遍历导致道具静默丢失）
     item_deltas = [_raw_deltas] if isinstance(_raw_deltas, dict) else (_raw_deltas if isinstance(_raw_deltas, list) else [])
     for it in item_deltas:
         if isinstance(it, dict):
@@ -406,7 +430,13 @@ def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dic
             irec = items_db.get(iid, {})
             holder = it.get("holder_change") or irec.get("holder", "主角")
             charges = irec.get("charges", "非计数")
-            item_blocks.append(f"- **[{iid}] {iname}** ｜ 当前支配人: `{holder}` ｜ 剩余充能: `{charges}`")
+            st = it.get("status") or irec.get("status", "active")
+            delta_blocks.append(f"- ⚡ **[{iid}] {iname}** ｜ 当前支配人: `{holder}` ｜ 变动后充能: `{charges}` ｜ 状态: `{st}`")
+
+    if delta_blocks:
+        item_blocks.append("\n### ⚡ 当章道具状态变动与充能消耗 (Deltas)")
+        item_blocks.extend(delta_blocks)
+
 
     # 5. 提取认知盲区警示 (Epistemology Guardrail · P0 铁律)
     epistemology = frontmatter.get("epistemology") or {}
