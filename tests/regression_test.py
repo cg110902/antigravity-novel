@@ -573,7 +573,67 @@ locked_facts: []
               subprocess.run([sys.executable, str(STUDIO), "--version"], capture_output=True,
                              text=True, cwd=str(ROOT)).stdout)
 
-        print("\n=== 10. 快照 ===")
+        print("\n=== 10. 长程无人值守巡航 ===")
+        cw = tmp / "cruisebook"
+        gen = ROOT / "tests" / "_cruise_fixture.py"
+        subprocess.run([sys.executable, str(gen), str(cw), "10", "vol_01", "1"],
+                       capture_output=True, text=True, cwd=str(ROOT))
+        r = run(cw, "cruise", "--once")
+        check("巡航 10 章一次跑通", r.returncode == 0 and r.stdout.count("✅ 封存") == 10,
+              f"exit={r.returncode} sealed={r.stdout.count('✅ 封存')}")
+        check("卷末自动刹车链触发", "卷末刹车完成" in r.stdout)
+
+        cl = lambda n: json.loads((cw / "state" / n).read_text(encoding="utf-8"))
+        check("长程台账零漂移·充能", cl("items.json")["it_001"]["charges"] == 5,
+              str(cl("items.json")["it_001"]["charges"]))
+        check("长程台账零漂移·资金池", cl("ledger.json")["pools"] == {"灵石": -100},
+              str(cl("ledger.json")["pools"]))
+        check("长程台账零漂移·人物", len(cl("persons.json")) == 11)
+        check("长程台账零漂移·恩怨", len(cl("debts.json")) == 10)
+        check("长程台账零漂移·锁定事实", len(cl("locked.json")) == 10)
+        _ln = cl("lines.json")
+        check("长程台账零漂移·伏笔收束",
+              len(_ln) == 10 and sum(1 for v in _ln.values() if v["status"] == "resolved") == 8)
+        check("长程台账零漂移·共现矩阵不虚增",
+              all(v["total_co_occurrences"] == 1 for v in cl("indices/co_occurrence.json").values()))
+        _arc = cl("persons.json")["p_001"]["arc_history"]
+        check("长程弧光按章去重", len(_arc) == 10 and len({a["chapter"] for a in _arc}) == 10)
+        check("长程总字数一致",
+              json.loads((cw / "project.json").read_text(encoding="utf-8"))
+              ["current_status"]["total_published_words"] == 1830)
+
+        before = {p2.name: p2.read_bytes() for p2 in sorted((cw / "state").rglob("*.json"))
+                  if p2.name != "rollup_vol_01.json"}
+        run(cw, "cruise", "--once")
+        after = {p2.name: p2.read_bytes() for p2 in sorted((cw / "state").rglob("*.json"))
+                 if p2.name != "rollup_vol_01.json"}
+        check("重复巡航完全幂等（台账逐字节不变）", before == after,
+              str([k for k in after if before.get(k) != after[k]]))
+
+        # 跨卷续航 + 刹车零污染
+        subprocess.run([sys.executable, str(gen), str(cw), "6", "vol_02", "11"],
+                       capture_output=True, text=True, cwd=str(ROOT))
+        r = run(cw, "cruise", "ch_011", "--once")
+        check("跨卷巡航自动定位新卷", "vol=vol_02" in r.stdout)
+        check("充能耗尽时正确刹车", "🛑" in r.stdout and "充能已耗尽" in r.stdout)
+        check("BUG#18 刹车章不污染人物台账（无幽灵 p_017）",
+              "p_017" not in cl("persons.json") and len(cl("persons.json")) == 16,
+              f"{len(cl('persons.json'))} 人")
+        check("BUG#18 刹车章不污染地点台账（无幽灵 loc_016）",
+              "loc_016" not in cl("places.json") and len(cl("places.json")) == 15)
+        check("BUG#18 刹车章不污染伏笔/锁定/恩怨",
+              len(cl("lines.json")) == 15 and len(cl("locked.json")) == 15
+              and len(cl("debts.json")) == 15)
+        check("刹车后 exit 1", run(cw, "cruise", "ch_016", "--once").returncode == 1)
+        check("孤儿 final 不入 sync_log", "ch_016" not in cl("sync_log.json"))
+        run(cw, "export")
+        exported2 = next((cw / "export").glob("*.md")).read_text(encoding="utf-8")
+        check("导出跨卷 15 章且跳过孤儿章",
+              exported2.count("### 第 ") == 15 and "第16关" not in exported2,
+              f"{exported2.count('### 第 ')} 章")
+        check("巡航后全书体检通过", run(cw, "check").returncode == 0)
+
+        print("\n=== 11. 快照 ===")
         r = run(ws, "snapshot", "create", "rt")
         check("快照创建", r.returncode == 0)
         snap = sorted((ws / "snapshots").glob("rt_*.zip"))[-1].stem

@@ -454,13 +454,25 @@ class StateManager:
                             "established_ch": ch_id,
                         }
                         new_ent_count += 1
-            _save_json(self.persons_file, persons_db)
-            _save_json(self.items_file, items_db)
-            _save_json(self.places_file, places_db)
-            _save_json(self.factions_file, factions_db)
+            # v4.3.2 缺陷#18（P0 · 阻断章仍污染台账）：旧版在此立即落盘 new_entities，
+            # 而事务预检（死者登场 / 充能透支）在下方第 2 节才执行 —— 一旦预检 raise，
+            # 本章的新人物/新道具/新地点/新势力已经写进台账且无人回滚。
+            # 实测：cruise 在 ch_016 因充能透支刹车，p_017「守关人16」与 loc_016 仍被建档，
+            # 于是台账里躺着一个"从未出现在任何已封存章"的幽灵人物，且占用了 ID 水位。
+            # 修正：新实体只在内存中暂存，推迟到预检通过后（第 1 节起始处）统一落盘，
+            # 与「事务预检先于任何写盘」的设计不变量对齐。
+            _pending_entity_writes = [
+                (self.persons_file, persons_db),
+                (self.items_file, items_db),
+                (self.places_file, places_db),
+                (self.factions_file, factions_db),
+            ]
+        else:
+            _pending_entity_writes = []
+            persons_db = self.get_persons()
 
         # 1. 同步人物与心理状态
-        persons_db = self.get_persons()
+        # 注意：此处不可重新 get_persons()——新实体尚未落盘，需沿用上方内存态。
         raw_pres = frontmatter.get("present_characters")
         raw_list = [raw_pres] if isinstance(raw_pres, (str, dict)) else (raw_pres if isinstance(raw_pres, list) else [])
         # v4.3 缺陷#B1：列表级归一化前移——字符串紧凑形态（present_characters: [p_001, p_003]）
@@ -593,8 +605,12 @@ class StateManager:
                         f"💡 方案：请在细纲 state_deltas.items 中调整 charges_delta 扣减值，或在前置剧情安排充能。"
                     )
         if _fatal:
+            # 预检不通过：此刻尚未发生任何写盘，新实体随内存一并丢弃（零污染）。
             raise GuardError("\n".join(_fatal))
 
+        # 预检通过，方可落盘本章新实体（v4.3.2 缺陷#18）
+        for _pf, _pdb in _pending_entity_writes:
+            _save_json(_pf, _pdb)
 
         for c in present_chars:
             # 字符串紧凑形态已在函数首部列表级归一化，此处仅剩 dict 形态
