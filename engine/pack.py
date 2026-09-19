@@ -345,7 +345,10 @@ def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dic
                     )
 
     # 查在场道具的历史登场流转
-    for it in (frontmatter.get("state_deltas", {}).get("items") or []):
+    # v4.3：单 dict 形态统一包裹为列表（与 state.py 归一化口径一致，防 dict 键名被当条目遍历）
+    _raw_it = frontmatter.get("state_deltas", {}).get("items") or []
+    _it_list = [_raw_it] if isinstance(_raw_it, dict) else (_raw_it if isinstance(_raw_it, list) else [])
+    for it in _it_list:
         if isinstance(it, dict):
             iid = it.get("id", "")
             iname = it.get("name", "")
@@ -370,7 +373,13 @@ def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dic
                 matched_place = prec
                 break
         sensory = matched_place.get("sensory_anchor", "") if matched_place else ""
-        taboos = matched_place.get("rules_taboos", "") if matched_place else ""
+        # v4.3.1：places 台账法定字段统一为 environment_rules（schema.PlaceRecord /
+        # templates/README §4 白名单 / entities/location_card 卡三方一致口径）；
+        # 兼容早期工作区手写的 rules_taboos 旧键。
+        taboos = ""
+        if matched_place:
+            _tab = matched_place.get("environment_rules") or matched_place.get("rules_taboos") or ""
+            taboos = "；".join(_tab) if isinstance(_tab, list) else str(_tab)
         summary = matched_place.get("summary", "") if matched_place else ""
         loc_desc = []
         if sensory:
@@ -387,7 +396,9 @@ def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dic
     # 4. 提取当章道具与持有者 (P1)
     items_db = state_mgr.get_items()
     item_blocks: List[str] = []
-    item_deltas = frontmatter.get("state_deltas", {}).get("items") or []
+    _raw_deltas = frontmatter.get("state_deltas", {}).get("items") or []
+    # v4.3：单 dict 形态统一包裹为列表（防 dict 键名被当条目遍历导致道具静默丢失）
+    item_deltas = [_raw_deltas] if isinstance(_raw_deltas, dict) else (_raw_deltas if isinstance(_raw_deltas, list) else [])
     for it in item_deltas:
         if isinstance(it, dict):
             iid = it.get("id", "")

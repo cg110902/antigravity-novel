@@ -5,8 +5,8 @@
   "protagonist": "{{slot:protagonist|主角名}}",
   "scope": {
     "target_words": 400000,
-    "target_volumes": 4,
-    "chapters_per_volume": 50,
+    "target_volumes": 5,
+    "chapters_per_volume": 40,
     "words_per_chapter": [
       1500,
       2500

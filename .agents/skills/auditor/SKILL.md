@@ -39,7 +39,7 @@ description: Universal content scanner and issue reporter for Novel Studio (Stag
 
 ## 📝 三、 报告填写与问题记录规范
 
-通读完毕后，将所有发现的问题记录在 `log/audit/ch_XXX.md` 的 `## 🧠 二、 语义逻辑与出戏审查（Auditor 专用）` 区域中（替换掉占位注释）：
+通读完毕后，将所有发现的问题记录在 `log/audit/ch_XXX.md` 的 `## 🧠 二、 语义逻辑、存疑备忘与修补配方（Auditor 专用）` 区域中（替换掉占位注释）：
 
 ### 1. 常规问题（必须给出具体修补配方）
 针对错别字、语病、前后动作打架、现代词出戏、细节出入，按标准格式提供修补配方：

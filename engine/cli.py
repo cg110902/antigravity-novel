@@ -50,6 +50,23 @@ from engine.ops import (
 from engine.pack import build_pack
 
 
+class _StudioArgumentParser(argparse.ArgumentParser):
+    """v4.3：argparse 语法错误统一走引擎错误盒（❌+💡 范式），退出码契约 exit 2。
+
+    旧版裸 argparse 只吐干瘪的 usage 一行，与引擎其余阻断信息风格割裂。
+    add_subparsers 的 parser_class 缺省继承父类，故全部子命令天然生效。
+    """
+
+    def error(self, message: str) -> None:
+        sys.stderr.write(
+            "\n============================================================\n"
+            f"❌ 【CLI 参数语法错误】{message}\n"
+            "💡 【解决方案】请核对命令名、必填位置参数与可选参数；完整契约可运行: python studio.py help\n"
+            "============================================================\n\n"
+        )
+        raise SystemExit(2)
+
+
 def _resolve_workspace(raw_w: Optional[str]) -> Optional[Path]:
     """定位书籍工作区。
 
@@ -91,7 +108,7 @@ def _build_help_data() -> dict:
         "contract": f"Novel Studio {__version__} 确定性长篇小说创作工业引擎官方 CLI 契约",
         "commands": {
             "init": {"usage": "python studio.py init -t <书名> -g <题材> -p <主角名> -w <工作区>", "desc": "工作区筑基初始化"},
-            "check": {"usage": "python studio.py check [ch_XXX] [--json] -w <工作区>", "desc": "全书与单章合规体检（七探针 + 未填槽位闸门）"},
+            "check": {"usage": "python studio.py check [ch_XXX] [--json] -w <工作区>", "desc": "全书与单章合规体检（四探针矩阵 + 未填槽位闸门 + 损坏隔离残留巡检）"},
             "cockpit": {"usage": "python studio.py cockpit -w <工作区>", "desc": "主控大盘态势感知（含近10章节奏遥测）"},
             "beats new": {"usage": "python studio.py beats new <ch_XXX> --write [--force] -w <工作区>", "desc": "生成单章细纲任务卡（已有内容时拒写，--force 重置并自动 .bak）"},
             "outline get": {"usage": "python studio.py outline get <ch_XXX> -w <工作区>", "desc": "只读预览细纲脚手架注入结果（不落盘）"},
@@ -104,13 +121,13 @@ def _build_help_data() -> dict:
             "milestone add": {"usage": "python studio.py milestone add --title <标题> --target-ch <章号> --desc <描述> -w <工作区>", "desc": "里程碑规划"},
             "milestone achieve": {"usage": "python studio.py milestone achieve <ms_XXX> -w <工作区>", "desc": "标记里程碑达成"},
             "ask": {"usage": "python studio.py ask \"<关键词>\" -w <工作区>", "desc": "跨章与设定事实查证"},
-            "evidence candidates": {"usage": "python studio.py evidence candidates <ch_XXX> -w <工作区>", "desc": "实体候选打捞（自动从细纲声明与正文对白中发现未登记实体）"},
+            "evidence candidates": {"usage": "python studio.py evidence candidates <ch_XXX> -w <工作区>", "desc": "实体候选打捞（扫描当章细纲 frontmatter 声明，发现未登记实体；正文检索请用 ask）"},
             "reconcile": {"usage": "python studio.py reconcile [vol_XX] --write -w <工作区>", "desc": "卷末对账与长程审计（含逾期伏笔必清清单）"},
             "state rollup": {"usage": "python studio.py state rollup [vol_XX] -w <工作区>", "desc": "分卷归档：折叠时间线为 rollup JSON 防长篇膨胀"},
             "simulate impact": {"usage": "python studio.py simulate impact --entity <实体名> --action <动作> -w <工作区>", "desc": "剧情波及测算"},
             "snapshot create": {"usage": "python studio.py snapshot create <快照名> -w <工作区>", "desc": "创建安全备份快照（含 log/ 与 pack.md）"},
             "snapshot list": {"usage": "python studio.py snapshot list -w <工作区>", "desc": "查看历史安全快照清单"},
-            "snapshot rollback": {"usage": "python studio.py snapshot rollback <快照名> -w <工作区>", "desc": "回滚工作区至指定快照（回滚前自动备份当前状态）"},
+            "snapshot rollback": {"usage": "python studio.py snapshot rollback <快照名> -w <工作区>", "desc": "回滚工作区至指定快照（回滚前自动备份当前状态 + 对齐清除快照后新增文件）"},
             "trace": {"usage": "python studio.py trace <ID> -w <工作区>", "desc": "物理 ID 全生命周期穿透追踪"},
             "id next": {"usage": "python studio.py id next <类型> -w <工作区>", "desc": "确定性分配下一个不冲突物理 ID"},
             "id list": {"usage": "python studio.py id list [类型] -w <工作区>", "desc": "查看全书物理资产与设定 ID 清单"},
@@ -127,7 +144,7 @@ def _build_help_data() -> dict:
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    parser = argparse.ArgumentParser(
+    parser = _StudioArgumentParser(
         prog="studio.py",
         description=f"Novel Studio {__version__} 确定性长篇小说工业化创作引擎",
     )
@@ -504,7 +521,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                 start_ch=getattr(args, "start_ch", None),
                 max_chapters=getattr(args, "max_chapters", None),
             )
-            braked = any(r.get("status") == "brake" for r in report.get("results", []))
+            # v4.3：等待超时同样视为阻断（此前只认 brake，超时会静默 exit 0）
+            braked = any(r.get("status") in ("brake", "timeout") for r in report.get("results", []))
             print("🚢 巡航报告: " + json.dumps(report, ensure_ascii=False, default=str)[:1500])
             return 1 if braked else 0
 
@@ -568,6 +586,9 @@ def main(argv: Optional[List[str]] = None) -> int:
                 rb_res = snapshot_rollback(ws, args.name)
                 print(f"🔄 快照已安全回滚: {rb_res.get('name')} (时间: {rb_res.get('timestamp')})")
                 print(f"   🛡️ 回滚前状态已自动备份: {rb_res.get('pre_rollback_snapshot')}")
+                if rb_res.get("removed_files"):
+                    print(f"   🧹 已对齐清除快照外未来文件 ×{len(rb_res['removed_files'])}: {', '.join(rb_res['removed_files'][:8])}"
+                          + (" …" if len(rb_res["removed_files"]) > 8 else ""))
             return 0
 
         elif args.command == "reconcile":
@@ -622,6 +643,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                                 include_digest=not args.no_digest)
             print(f"📚 成书导出完成: {e_res['outputs'][0]}")
             print(f"   格式: {e_res['format']} ｜ 章节 {e_res['chapters']} 章 ｜ 总字数 {e_res['total_words']} ｜ 卷: {', '.join(e_res['volumes_exported']) or '-'}")
+            if e_res.get("unsealed_chapters"):
+                print(f"   ⚠️ 已跳过 {len(e_res['unsealed_chapters'])} 个未封存章节（final 存在但 sync_log 未入账，不参与成书）: {', '.join(e_res['unsealed_chapters'])}")
             if e_res.get("empty_volumes"):
                 print(f"   ⚠️ 以下卷无定稿章节已跳过: {', '.join(e_res['empty_volumes'])}")
             return 0

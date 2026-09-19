@@ -70,7 +70,8 @@ description: Universal worldbuilding architect and setup generator for Novel Stu
      - `state/current.json`：填实开局第一现场（时间、地点、主角状态、在场人、初始四件套）；
      - `state/lines.json`：埋设首卷长线 `GUN-001`（反派危机倒计时/悬顶之剑）、知情差 `KNO-001`（反派阴谋信息差）、认知偏差 `MIS-001`；
      - `state/locked.json`：登记不可逆既定事实 `LOCK-001`；
-     - `state/ledger.json`：在 `debts` 中登记开局未清算血仇/恩怨 `DEBT-001`（主角 vs 反派），并在 `pools` 中声明本题材货币池（灵石、银两或积分）；
+     - `state/ledger.json`：仅在 `pools` 中声明本题材货币池（灵石、银两或积分；初始余额即按 `pools` 首次写入值固化为 `pools_baseline` 基线，引擎按「基线 + 流水重放」自动保真）；
+     - `state/debts.json`：独立顶层数组登记开局未清算血仇/恩怨 `DEBT-001`（主角 vs 反派，含 `id/type/source_char/target_char/desc/created_ch/status`；引擎**只认此文件**，写进 ledger.json 会被全景无视）；
      - 终端执行添加首卷破局里程碑：
        ```powershell
        python studio.py milestone add --title "标题" --target-ch 5 --desc "描述" -w "workspace/<书名>"

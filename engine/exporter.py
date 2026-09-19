@@ -57,9 +57,8 @@ def _read_project_meta(workspace: Path) -> Dict[str, Any]:
         return {}
 
 
-def _volume_digest(workspace: Path, volume_id: str, chapters: List[Path]) -> List[str]:
-    """从 synopsis.json 生成分卷前情提要行。"""
-    synopsis = _load_json(workspace / "state" / "synopsis.json", default={})
+def _volume_digest(synopsis: Dict[str, Any], volume_id: str, chapters: List[Path]) -> List[str]:
+    """从 synopsis 记录生成分卷前情提要行（v4.3 R2：调用方单次载入后注入，避免逐章重读）。"""
     lines: List[str] = []
     for cf in chapters:
         cid = cf.stem
@@ -100,6 +99,14 @@ def export_book(
                 solution=f"请确认卷号是否输入正确，或先通过创作流水线封存该卷章节。",
             )
 
+    # v4.3 封存校验：只导出已进入 sync_log 的封存章节。
+    # final 目录里的"裸文件"（未经 sync 入账，或 rollback 后的未来残留）一律跳过并显式点名，
+    # 杜绝「已回滚的章节继续出现在读者成书里」（旧版 export 只认 final 目录 glob）。
+    sync_log = _load_json(workspace / "state" / "sync_log.json", default={})
+    # v4.3 R2：synopsis 全书只读一次（旧版在逐章循环内反复 _load_json，N 章 N 次磁盘 IO）
+    synopsis_db = _load_json(workspace / "state" / "synopsis.json", default={})
+    unsealed: List[str] = []
+
 
     empty_vols: List[str] = []
     total_words = 0
@@ -121,13 +128,19 @@ def export_book(
         book.append("")
 
     for vol_dir in vol_dirs:
-        chapters = _list_final_chapters(vol_dir)
+        all_chapters = _list_final_chapters(vol_dir)
+        chapters = []
+        for _cf in all_chapters:
+            if _cf.stem in sync_log:
+                chapters.append(_cf)
+            else:
+                unsealed.append(f"{vol_dir.name}/{_cf.stem}")
         if not chapters:
             empty_vols.append(vol_dir.name)
             continue
 
         vol_label = vol_dir.name
-        digest = _volume_digest(workspace, vol_label, chapters) if include_digest else []
+        digest = _volume_digest(synopsis_db, vol_label, chapters) if include_digest else []
 
         if out_format == "md":
             book.append(f"\n\n## {vol_label}")
@@ -153,10 +166,15 @@ def export_book(
             for i, ln in enumerate(lines):
                 if ln.strip():
                     m = re.match(r"^#\s+(.+)$", ln.strip())
-                    heading = m.group(1).strip() if m else ""
-                    body_start = i + 1
+                    # v4.3 缺陷#A1 修复：仅当首个非空行确实是 # 标题时才跳过该行；
+                    # 旧版无条件 body_start=i+1，把无标题章节的【正文第一行】静默吃掉。
+                    if m:
+                        heading = m.group(1).strip()
+                        body_start = i + 1
+                    else:
+                        body_start = i
                     break
-            syn = _load_json(workspace / "state" / "synopsis.json", default={}).get(cf.stem, {})
+            syn = synopsis_db.get(cf.stem, {}) if isinstance(synopsis_db, dict) else {}
             display = syn.get("title") or heading or cf.stem
             num = _chapter_num(cf.stem)
             chapter_title = f"第 {num} 章 {display}" if num else display
@@ -173,8 +191,8 @@ def export_book(
 
     if total_chapters == 0:
         raise BusinessError(
-            "未发现任何已封存章节（manuscript/*/final/ch_*.md 为空）",
-            solution="成书导出需要至少有一章已定稿并封存的正文，请先完成 Stage 1~5 创作流水线并执行 sync 封存。",
+            "未发现任何已封存章节（manuscript/*/final/ch_*.md 为空或均未进入 sync_log）",
+            solution="成书导出需要至少有一章已定稿并封存（sync）的正文，请先完成 Stage 1~5 创作流水线并执行 `python studio.py sync <ch_XXX>` 封存。",
         )
 
 
@@ -186,4 +204,5 @@ def export_book(
         "total_words": total_words,
         "volumes_exported": [d.name for d in vol_dirs if d.name not in empty_vols],
         "empty_volumes": empty_vols,
+        "unsealed_chapters": unsealed,
     }

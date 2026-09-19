@@ -21,7 +21,7 @@ class CharacterRecord:
     id: str
     name: str
     type: str = "person"
-    role: str = "other"  # protagonist, deuteragonist, antagonist, ally, other
+    role: str = "supporting"  # protagonist, deuteragonist, antagonist, ally, supporting（引擎缺省；v4.3 R2 对齐 templates/README 白名单，旧默认 other 不在合法枚举内）
     aliases: List[str] = field(default_factory=list)
     card: str = ""  # characters/<name>.md
     summary: str = ""

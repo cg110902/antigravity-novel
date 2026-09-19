@@ -43,6 +43,11 @@ _LIFE_STATUS_NORM: Dict[str, str] = {
     "活": "alive",
     "存活": "alive",
     "在世": "alive",
+    # v4.3 缺陷#B6：补齐 schema/templates 白名单承诺的 missing（失踪）枚举
+    "missing": "missing",
+    "失踪": "missing",
+    "下落不明": "missing",
+    "失联": "missing",
 }
 
 
@@ -61,7 +66,7 @@ def _load_json(p: Path, default: Any = None) -> Any:
         return default if default is not None else {}
     try:
         with open(p, "r", encoding="utf-8-sig") as f:
-            return json.load(f)
+            data = json.load(f)
     except json.JSONDecodeError as e:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         corrupt = p.with_name(p.name + f".corrupt-{ts}")
@@ -77,6 +82,23 @@ def _load_json(p: Path, default: Any = None) -> Any:
         ) from e
     except OSError as e:
         raise RuntimeError(f"状态文件不可读: {p.name}（{e}）。请检查磁盘与权限后重试。") from e
+
+    # v4.3 缺陷#C17：顶层结构类型契约校验——0B 若把 dict 表（如 lines.json）误写成 list
+    # （或反之），旧版会延迟到业务层抛 AttributeError/TypeError，被笼统归入 exit 4 大盒子。
+    # 此处按 default 的声明类型即时拦截并给出结构化修复指引；不自动隔离，防台账静默蒸发。
+    if default is not None and data is not None and not isinstance(data, type(default)):
+        expect = "JSON 对象 {}（字典）" if isinstance(default, dict) else "JSON 数组 []（列表）"
+        actual = (
+            "JSON 数组 []（列表）" if isinstance(data, list)
+            else ("JSON 对象 {}（字典）" if isinstance(data, dict) else f"标量 {type(data).__name__}")
+        )
+        raise RuntimeError(
+            f"状态文件顶层结构类型错误: {p.name} —— 该表应为 {expect}，实际读到的是 {actual}。"
+            f"这通常是手工编辑状态表时写错了顶层括号。"
+            f"请对照 templates/README.md 的表示例将该文件顶层改回 {expect}，"
+            f"或用 `python studio.py snapshot list` + `snapshot rollback` 恢复最近快照后重试。"
+        )
+    return data
 
 
 def _save_json(p: Path, data: Any) -> None:
@@ -301,18 +323,67 @@ class StateManager:
         # 1. 同步人物与心理状态
         persons_db = self.get_persons()
         raw_pres = frontmatter.get("present_characters")
-        present_chars = [raw_pres] if isinstance(raw_pres, dict) else (raw_pres if isinstance(raw_pres, list) else [])
+        raw_list = [raw_pres] if isinstance(raw_pres, (str, dict)) else (raw_pres if isinstance(raw_pres, list) else [])
+        # v4.3 缺陷#B1：列表级归一化前移——字符串紧凑形态（present_characters: [p_001, p_003]）
+        # 在此一次性补全为 dict，下游（死亡预检/弧光/共现矩阵/实体时间线）全部受益。
+        # 旧版只在人物循环内做局部变量归一化，co_occurrence 与 entity_timeline 遍历原始
+        # 列表时把字符串条目整体跳过，造成共现统计静默丢失。
+        present_chars: List[Dict[str, Any]] = []
+        # v4.3 R2：紧凑形态按「名→ID」二次解析——字符串写角色名（如 "周楚"）或
+        # dict 只给 name 无 id 时，先按 name/aliases 反查已有建档（含别名），
+        # 查不到才按原值走自注册（旧版会把中文名直接当成物理 ID 建出幽灵人物）。
+        def _resolve_person_ref(raw_id: str, raw_name: str) -> Tuple[str, str]:
+            rid = (raw_id or "").strip()
+            rname = (raw_name or "").strip()
+            if rid in persons_db:
+                return rid, (persons_db[rid].get("name") or rname)
+            probe = rid or rname
+            if probe:
+                for _pid, _prec in persons_db.items():
+                    if not isinstance(_prec, dict):
+                        continue
+                    _names = {str(_prec.get("name", "")).strip()} | {str(a).strip() for a in (_prec.get("aliases") or [])}
+                    if probe in _names:
+                        return _pid, (_prec.get("name") or probe)
+            return rid, rname
+
+        for _c in raw_list:
+            if isinstance(_c, str):
+                _cid = _c.strip()
+                if not _cid:
+                    continue
+                _rid, _rname = _resolve_person_ref(_cid, "")
+                present_chars.append({"id": _rid, "name": _rname})
+            elif isinstance(_c, dict):
+                _rid, _rname = _resolve_person_ref(str(_c.get("id", "")), str(_c.get("name", "")))
+                _cc = dict(_c)
+                _cc["id"] = _rid
+                if _rname and not _cc.get("name"):
+                    _cc["name"] = _rname
+                present_chars.append(_cc)
+        # v4.3 R2：归一化后按 ID 去重——紧凑形态允许混写（"p_001" 与别名 "渊哥" 同章
+        # 并存时归一化后指向同一人），不去重会产生重复在场名单与 p_001<->p_001 自配对
+        _seen_pc: set = set()
+        _pc_dedup: List[Dict[str, Any]] = []
+        for _pc in present_chars:
+            _k = str(_pc.get("id", "")).strip() if isinstance(_pc, dict) else ""
+            if not _k or _k in _seen_pc:
+                continue
+            _seen_pc.add(_k)
+            _pc_dedup.append(_pc)
+        present_chars = _pc_dedup
         char_names_present: List[str] = []
         raw_sd = frontmatter.get("state_deltas")
         state_deltas = raw_sd if isinstance(raw_sd, dict) else {}
         char_status_deltas = state_deltas.get("character_status") if isinstance(state_deltas.get("character_status"), dict) else {}
-        item_deltas = state_deltas.get("items") or []  # v4.2: 提前声明，供事务预检与应用阶段共用
+        raw_items = (state_deltas.get("items") if isinstance(state_deltas, dict) else None) or []
+        # v4.3：items 增量兼容单 dict 形态（未写列表时不再静默丢弃）
+        item_deltas = [raw_items] if isinstance(raw_items, dict) else (raw_items if isinstance(raw_items, list) else [])
 
         # ── v4.2 缺陷#10 事务预检：硬约束违规必须在任何写盘前拦截 ──
         # （旧版先落盘后 raise，被阻断章节仍会污染台账：实测 ch_011 流转记录×3）
         _fatal: List[str] = []
-        for c in present_chars:
-            cc = {"id": c.strip(), "name": ""} if isinstance(c, str) else c
+        for cc in present_chars:
             if not isinstance(cc, dict):
                 continue
             _cid = str(cc.get("id", "")).strip()
@@ -345,12 +416,7 @@ class StateManager:
 
 
         for c in present_chars:
-            if isinstance(c, str):
-                # v4.2 修复：紧凑列表形态（present_characters: [p_001, p_006]）此前被
-                # 整体跳过——死亡阻断、出场事件、共现统计全部旁路（验收实弹复现）。
-                cid = c.strip()
-                cname = str(persons_db.get(cid, {}).get("name", "") or "")
-                c = {"id": cid, "name": cname}
+            # 字符串紧凑形态已在函数首部列表级归一化，此处仅剩 dict 形态
             if not isinstance(c, dict):
                 continue
             cid = c.get("id", "").strip()
@@ -491,8 +557,11 @@ class StateManager:
             loc_match = re.search(r"(loc_\d+)", location_str)
             found_id = loc_match.group(1) if loc_match else None
             if not found_id:
+                # v4.3 缺陷#C8：双向匹配对齐 pack.py——"黑诊所二楼" 应复用 loc_001 黑诊所，
+                # 而非重复建档（旧版仅 location ⊆ name 单向，方向反了即重复建卡）
                 for pid, prec in places_db.items():
-                    if prec.get("name") == location_str or location_str in prec.get("name", ""):
+                    pname = str(prec.get("name", "") or "")
+                    if pname and (pname == location_str or location_str in pname or pname in location_str):
                         found_id = pid
                         break
             if found_id:
@@ -567,10 +636,15 @@ class StateManager:
         _save_json(self.lines_file, lines_db)
 
         # 4. 同步经济流水账本 (ledger.json)
-        # v4.2 幂等数据层：同章同池流水替换而非追加，池余额 = 全部流水重放
+        # v4.3 缺陷#A3 修复（资金池静默蒸发）：
+        # 旧版 `state_deltas.get("ledger") or {}` 空 dict 也会进入账本块，导致每次 sync
+        # 都全量重放清零手工声明的初始池余额，并凭空创建默认池。现改为：
+        #  ① 仅当细纲真实声明了 ledger 增量（非空 dict）才处理；
+        #  ② 首次入账时把既有人工声明池值固化为 pools_baseline，
+        #     池余额恒 = baseline + 全部流水重放，初始资金永不蒸发。
         ledger_db = self.get_ledger()
         ledger_delta = state_deltas.get("ledger") or {}
-        if isinstance(ledger_delta, dict):
+        if isinstance(ledger_delta, dict) and ledger_delta:
             pool_name = ledger_delta.get("pool") or load_config(self.workspace).get("default_pool", "通用资金池")
             delta_val = str(ledger_delta.get("delta", "0")).strip()
             try:
@@ -580,18 +654,26 @@ class StateManager:
                 warnings.append(
                     f"ledger.delta 无法解析为整数: '{delta_val}'（本章经济增量已忽略，请检查细纲书写）"
                 )
-            if pool_name not in ledger_db.get("pools", {}):
-                ledger_db.setdefault("pools", {})[pool_name] = 0
+            pools = ledger_db.setdefault("pools", {})
+            baseline = ledger_db.setdefault("pools_baseline", {})
+            # 首次触账：把 Stage 0B 手工声明的既存池余额固化为基线（之后只增不改）
+            for _p, _b in list(pools.items()):
+                if _p not in baseline and isinstance(_b, (int, float)) and not isinstance(_b, bool):
+                    baseline[_p] = int(_b)
+            baseline.setdefault(pool_name, 0)
+            pools.setdefault(pool_name, baseline[pool_name])
             txs = [
                 t for t in ledger_db.get("transactions", [])
                 if not (t.get("chapter") == ch_id and t.get("pool") == pool_name)
             ]
             if d_num != 0:
-                txs.append({"chapter": ch_id, "pool": pool_name, "delta": d_num, "balance": 0})
+                # v4.3 R2：流水可选记录事由（细纲 ledger.reason/desc），供 cockpit 经济遥测与对账溯源
+                tx_reason = str(ledger_delta.get("reason", "") or ledger_delta.get("desc", "")).strip()
+                txs.append({"chapter": ch_id, "pool": pool_name, "delta": d_num, "reason": tx_reason})
             ledger_db["transactions"] = txs
-            all_pools = set(ledger_db.get("pools", {}).keys()) | {t.get("pool") for t in txs}
+            all_pools = set(baseline.keys()) | {t.get("pool") for t in txs}
             for p_name in all_pools:
-                ledger_db["pools"][p_name] = sum(t.get("delta", 0) for t in txs if t.get("pool") == p_name)
+                pools[p_name] = baseline.get(p_name, 0) + sum(t.get("delta", 0) for t in txs if t.get("pool") == p_name)
         _save_json(self.ledger_file, ledger_db)
 
         # 4.5 同步恩怨情仇账本 (debts.json)
@@ -858,7 +940,7 @@ class StateManager:
                         "fear": c.get("fear", ""),
                     })
 
-        item_deltas = state_deltas.get("items") or []
+        # item_deltas 已在函数首部完成单 dict/列表归一化，此处直接复用
         if isinstance(item_deltas, list):
             for it in item_deltas:
                 if isinstance(it, dict) and it.get("id"):

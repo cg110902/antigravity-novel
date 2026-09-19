@@ -48,14 +48,20 @@ def _chapter_id(num: int) -> str:
 
 
 def _volume_last_chapter(workspace: Path, vol_id: str) -> Optional[str]:
-    """从卷纲标题行解析卷内最大章号。"""
+    """从卷纲标题行解析卷内最大章号。
+
+    v4.3 缺陷#C13：标题行右侧仍是未填槽位（{{slot:...}}）的"纯槽位章"不参与
+    卷末判定——否则模板自带的占位行（如 ch_999 预留位）会把卷末钳到天外，
+    让巡航永远踩不到卷末刹车链。
+    """
     outline = workspace / "outlines" / vol_id / "outline.md"
     if not outline.exists():
         return None
-    nums = [
-        int(m.group(1))
-        for m in re.finditer(r"^###\s+ch_(\d+)[:\s]", outline.read_text(encoding="utf-8-sig", errors="replace"), re.M)
-    ]
+    nums = []
+    for line in outline.read_text(encoding="utf-8-sig", errors="replace").splitlines():
+        m = re.match(r"^###\s+ch_(\d+)[:\s]", line)
+        if m and "{{slot:" not in line:
+            nums.append(int(m.group(1)))
     return _chapter_id(max(nums)) if nums else None
 
 
@@ -94,6 +100,12 @@ def plan_cruise(
     target 语义：希望达成的"累计封存章数"（非增量），自动被卷末章数钳制。
     若未指定 target，缺省规划至当前卷卷末。
     """
+    if vol_id is None and start_ch:
+        # 跨卷巡航定位：工程主档 current_vol 只在 sync 后刷新——0E 交付新卷卷纲后、
+        # 首章 sync 之前，project.json 仍停留在旧卷。此时优先按 start_ch 在
+        # outlines/ 中的实际所属卷定位，防止误把旧卷卷末当作巡航终点而提前触发
+        # 卷末刹车链（rollup/reconcile/export）。
+        _outline, vol_id = _find_volume_outline(workspace, start_ch)
     if vol_id is None:
         project = _load_json(workspace / "project.json", default={})
         vol_id = project.get("current_status", {}).get("current_vol") or "vol_01"
@@ -216,6 +228,9 @@ def run_cruise(
                 draft = _draft_exists(workspace, plan["vol_id"], chapter_id)
             if draft is None:
                 say(f"🚢 [cruise] ⏱️ {chapter_id} 等待超时({wait_timeout:.0f}s)，刹车。")
+                # v4.3：超时留痕——批次报告标记 timeout，CLI 据此 exit 1（此前超时静默成功退出）
+                results.append({"chapter_id": chapter_id, "status": "timeout",
+                                "error": f"等待作者产出超时({wait_timeout:.0f}s)"})
                 break
 
         try:

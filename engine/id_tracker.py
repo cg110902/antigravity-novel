@@ -1,7 +1,8 @@
 """Novel Studio 实体与因果全生命周期 ID 追踪与发号引擎 (engine/id_tracker.py)。
 
 提供全书 30~50 万字超长篇连载的核心 ID 治理能力：
-1. trace_id: 全时空物理 ID 深度回溯与穿透追踪 (Person / Item / Line / Location / Debt / Lock)
+1. trace_id: 全时空物理 ID 深度回溯与穿透追踪
+   (Person / Item / Line / Location / Faction / Debt / Lock / Milestone / Chapter)
 2. id_next: 全局唯一物理 ID 确定性自动分配器 (防冲突、防断号)
 3. id_list: 全书活跃物理资产与设定 ID 总账清册
 4. check_id_integrity: 细纲与台账 ID 格式与因果强校验 (防悬空、防偷跑、防拼写笔误)
@@ -20,6 +21,21 @@ def _load_json(file_path: Path, default: Any = None) -> Any:
     from engine.state import _load_json as _hard_load
 
     return _hard_load(file_path, default=default if default is not None else {})
+
+
+def _strip_html_comments(txt: str) -> str:
+    """v4.3：发号扫描前的文本消毒。
+
+    双重自保：
+    1. 剥离 HTML 注释块——beats 任务卡的机要简报以 <!-- … --> 包裹注入，其中含
+       「🆔 下一可用物理 ID 速查」（如 fac_005）；若计入，速查块会把发号水位逐章顶高。
+    2. 抹除 {{slot:KEY|DEFAULT}} 的 KEY 段——模板槽位键名含伪 ID（如 fac_4_name 中的
+       fac_4），会被编号正则误计为已占号（实测新书势力直接跳到 fac_005）。
+       DEFAULT 段保留：它是作者可能采纳的建议 ID（如 GUN-001），保守计入防撞号。
+    """
+    txt = re.sub(r"<!--.*?-->", "", txt, flags=re.DOTALL)
+    txt = re.sub(r"\{\{slot:[^|}]*\|", "{{slot:|", txt)
+    return txt
 
 
 CANONICAL_PREFIXES = {
@@ -141,7 +157,7 @@ def id_next(workspace: Path, category: str, sub_type: str = "") -> Dict[str, Any
     outlines_dir = workspace / "outlines"
     if outlines_dir.exists():
         for bf in outlines_dir.glob("**/beats/*.md"):
-            txt = bf.read_text(encoding="utf-8-sig", errors="replace")
+            txt = _strip_html_comments(bf.read_text(encoding="utf-8-sig", errors="replace"))
             matches = re.findall(pattern, txt)
             for m in matches:
                 try:
@@ -154,7 +170,7 @@ def id_next(workspace: Path, category: str, sub_type: str = "") -> Dict[str, Any
         doc_dir = workspace / doc_dir_name
         if doc_dir.exists():
             for mf in doc_dir.glob("**/*.md"):
-                txt = mf.read_text(encoding="utf-8-sig", errors="replace")
+                txt = _strip_html_comments(mf.read_text(encoding="utf-8-sig", errors="replace"))
                 matches = re.findall(pattern, txt)
                 for m in matches:
                     try:
@@ -549,8 +565,92 @@ def trace_id(workspace: Path, target_id: str) -> Dict[str, Any]:
             report["human_readable"] = "\n".join(lines)
             return report
 
-    # 7. 全库逆查兜底 (精确匹配优先)
-    # 7.1 第一遍：全库精确匹配实体名称 (name == tid)
+    # 7. 势力追踪 (Faction Trace) —— v4.3 缺陷#B11：补齐缺失的专属分支
+    # （旧版按名逆查到 fac_XXX 后递归坠落兜底、永远报“未检索到”）
+    elif category == "faction":
+        fc_db = _load_json(state_dir / "factions.json", {})
+        fc_data = fc_db.get(tid)
+        if not fc_data:
+            fc_data = next((v for v in fc_db.values() if v.get("name") == tid), None)
+            if fc_data:
+                tid = fc_data.get("id", tid)
+
+        if fc_data:
+            report["found"] = True
+            report["id"] = tid
+            report["profile"] = fc_data
+            # 关联成员：人物台账中 faction/affiliation 指向本势力（ID 或名称）
+            p_db = _load_json(state_dir / "persons.json", {})
+            members = []
+            for pid, p in p_db.items():
+                aff = str(p.get("faction", "") or p.get("affiliation", "") or "").strip()
+                if aff and aff in (tid, fc_data.get("name", "")):
+                    members.append(f"[{pid}] {p.get('name', '')} ({p.get('role', 'supporting')})")
+            report["related_entities"]["members"] = members
+            lines = [
+                f"🏴 【ID 深度追踪报告：{tid} · {fc_data.get('name')}】",
+                f"   - 势力领袖：{fc_data.get('leader', '未知')} ｜ 本部坐标：{fc_data.get('headquarters', '未知')}",
+                f"   - 设定卡片：{fc_data.get('card') or '未建档'}",
+                f"   - 在编成员：共 {len(members)} 人" + (f"（{', '.join(members[:8])}）" if members else ""),
+            ]
+            report["human_readable"] = "\n".join(lines)
+            return report
+
+    # 8. 里程碑追踪 (Milestone Trace) —— v4.3 缺陷#B11：补齐缺失的专属分支
+    elif category == "milestone":
+        ms_db = _load_json(state_dir / "milestones.json", [])
+        ms_data = next((m for m in ms_db if m.get("id") == tid), None)
+        if not ms_data:
+            ms_data = next((m for m in ms_db if m.get("title") == tid or m.get("name") == tid), None)
+            if ms_data:
+                tid = ms_data.get("id", tid)
+
+        if ms_data:
+            report["found"] = True
+            report["id"] = tid
+            report["profile"] = ms_data
+            lines = [
+                f"🚩 【ID 深度追踪报告：{tid} · {ms_data.get('title') or ms_data.get('name', '')}】",
+                f"   - 战略定位：第 {ms_data.get('target_ch', '待定')} 章关键节点 ｜ 当前状态：{ms_data.get('status', 'pending')}",
+                f"   - 事件描述：{ms_data.get('desc', '无')}",
+            ]
+            if ms_data.get("achieved_ch"):
+                lines.append(f"   - 达成记录：已于第 {ms_data.get('achieved_ch')} 章兑现")
+            report["human_readable"] = "\n".join(lines)
+            return report
+
+    # 9. 章节追踪 (Chapter Trace) —— v4.3 缺陷#B11：补齐缺失的专属分支
+    elif category == "chapter":
+        sync_log = _load_json(state_dir / "sync_log.json", {})
+        entry = sync_log.get(tid)
+        manuscript = list(workspace.glob(f"manuscript/*/final/{tid}.md"))
+        prose_exists = bool(manuscript)
+        beats = list(workspace.glob(f"outlines/**/beats/{tid}.md"))
+        report["found"] = bool(entry or prose_exists or beats)
+        if report["found"]:
+            # v4.3 R2：优先读 sync_log 元数据（v4.3 起封存条目已带 title/word_count），
+            # 兼容旧格式封存日志——回源 synopsis.json 补全
+            title = (entry or {}).get("title", "")
+            word_count = (entry or {}).get("word_count", 0) or 0
+            if not title and not word_count:
+                syn = _load_json(state_dir / "synopsis.json", {}).get(tid, {})
+                title = syn.get("title", "")
+                word_count = syn.get("word_count", 0) or 0
+            lines = [
+                f"📖 【ID 深度追踪报告：{tid} · {title or '章节归档'}】",
+                f"   - 封存状态：{'✅ 已入账（sync_log 登记）' if entry else '⚠️ 未入账（final/beats 存在但 sync_log 无记录）'}",
+                f"   - 正文定稿：{'存在: ' + str(manuscript[0].relative_to(workspace)) if prose_exists else '未找到 final 定稿'}",
+                f"   - 章节细纲：{'存在: ' + str(beats[0].relative_to(workspace)) if beats else '未装配'}",
+            ]
+            if word_count:
+                wc_line = f"   - 入账字数：{word_count} 字"
+                wc_line += f" ｜ 入账时间：{entry.get('synced_at', '未知')}" if entry else "（来自剧梗记录，尚未入账）"
+                lines.append(wc_line)
+            report["human_readable"] = "\n".join(lines)
+            return report
+
+    # 10. 全库逆查兜底 (精确匹配优先)
+    # 10.1 第一遍：全库精确匹配实体名称 (name == tid)
     for p_id, p in _load_json(state_dir / "persons.json", {}).items():
         if p.get("name") == tid:
             return trace_id(workspace, p_id)
@@ -566,8 +666,12 @@ def trace_id(workspace: Path, target_id: str) -> Dict[str, Any]:
     for fc_id, fc in _load_json(state_dir / "factions.json", {}).items():
         if fc.get("name") == tid:
             return trace_id(workspace, fc_id)
+    # v4.3 缺陷#B11：里程碑按标题逆查纳入兜底（旧版会让 trace "首杀立威" 找不到）
+    for ms in _load_json(state_dir / "milestones.json", []):
+        if tid in (ms.get("title"), ms.get("name")):
+            return trace_id(workspace, ms.get("id", tid))
 
-    # 7.2 第二遍：模糊包含匹配 (要求搜索词长度 >= 2，防单字泛化误伤)
+    # 10.2 第二遍：模糊包含匹配 (要求搜索词长度 >= 2，防单字泛化误伤)
     if len(tid) >= 2:
         for p_id, p in _load_json(state_dir / "persons.json", {}).items():
             if tid in p_id or tid in p.get("name", ""):

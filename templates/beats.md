@@ -64,8 +64,10 @@ state_deltas:
   # ledger:
   #   pool: "通用资金池"
   #   delta: "+500"                       # 增减数值（+收入 / -支出）
+  #   reason: "押运赏金入账"               # 选填：本笔事由（供资金池遥测与卷末对账溯源）
   debts:
-    - target: "{{slot:debt_target|恩怨对象名}}"
+    - source: "{{slot:debt_source|p_001}}"   # 结怨发起方（缺省自动按 p_001 主角记账）
+      target: "{{slot:debt_target|恩怨对象名}}"
       type: "{{slot:debt_type|grudge}}" # grudge(仇怨) | favor(人情) | promise(誓约)
       desc: "{{slot:debt_desc|具体过节或恩义内容}}"
       action: "{{slot:debt_action|record}}" # record(新结成) | settle(彻底平账)
