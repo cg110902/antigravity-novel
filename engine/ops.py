@@ -1,0 +1,1264 @@
+"""Novel Studio 核心业务操作引擎 (Operations)。
+
+提供全流水线底层能力支持：
+- init, check, cockpit
+- beats new, pack
+- audit, finalize, proposal auto, sync
+- milestone, calendar, ask, evidence, reconcile, snapshot, simulate
+"""
+from __future__ import annotations
+
+import json
+import re
+import hashlib
+import shutil
+import zipfile
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+from engine.config import load_config
+from engine.errors import BusinessError, GuardError
+from engine.ledger import StateLedger, _ensure_dir, _load_json, _save_json
+from engine.parser import parse_frontmatter, parse_volume_outline
+
+
+def _count_words(text: str) -> int:
+    """统计汉字数与英文单词数（网文通用字数算法）。"""
+    chinese_chars = len(re.findall(r"[\u4e00-\u9fff]", text))
+    english_words = len(re.findall(r"\b[a-zA-Z]+\b", text))
+    numbers = len(re.findall(r"\b\d+\b", text))
+    return chinese_chars + english_words + numbers
+
+
+def _chapter_num(chapter_id: str) -> int:
+    m = re.search(r"(\d+)$", chapter_id)
+    return int(m.group(1)) if m else 0
+
+
+def _find_volume_outline(workspace: Path, chapter_id: str) -> Tuple[Optional[Path], str]:
+    """寻找包含该章节的分卷大纲路径及所属卷号。"""
+    cnum = _chapter_num(chapter_id)
+    outlines_dir = workspace / "outlines"
+    if outlines_dir.exists():
+        pattern = rf"^###\s+(?:{re.escape(chapter_id)}|ch_0*{cnum})\b" if cnum > 0 else rf"^###\s+{re.escape(chapter_id)}\b"
+        for vol_dir in sorted(outlines_dir.glob("vol_*")):
+            if vol_dir.is_dir():
+                v_outline = vol_dir / "outline.md"
+                if v_outline.exists():
+                    text = v_outline.read_text(encoding="utf-8-sig", errors="replace")
+                    if re.search(pattern, text, re.MULTILINE):
+                        return v_outline, vol_dir.name
+
+        for f in sorted(outlines_dir.glob("*.md")):
+            text = f.read_text(encoding="utf-8-sig", errors="replace")
+            if re.search(pattern, text, re.MULTILINE):
+                return f, "vol_01"
+
+        if cnum > 0:
+            for vol_dir in sorted(outlines_dir.glob("vol_*")):
+                if vol_dir.is_dir():
+                    v_outline = vol_dir / "outline.md"
+                    if v_outline.exists():
+                        text = v_outline.read_text(encoding="utf-8-sig", errors="replace")
+                        nums = [int(m.group(1)) for m in re.finditer(r"^###\s+ch_(\d+)\b", text, re.M)]
+                        if nums and min(nums) <= cnum <= max(nums):
+                            return v_outline, vol_dir.name
+
+    project_file = workspace / "project.json"
+    pdata = _load_json(project_file, default={})
+    curr_vol = pdata.get("current_status", {}).get("current_vol", "vol_01")
+    expected = outlines_dir / curr_vol / "outline.md"
+    if expected.exists():
+        return expected, curr_vol
+
+    return None, curr_vol
+
+
+def init_workspace(workspace: Path, title: str, genre: str, protagonist: str,
+                   force: bool = False) -> Dict[str, Any]:
+    """初始化新书工作区。
+
+    v4.2.1 缺陷#12：工作区已有工程档案时拒绝覆盖（旧版无条件重写 project.json，
+    多打一次 init 会静默清掉既有 title/genre/engine 调参）；确认重置需 --force。
+    v4.2.3 数据安全：--force 重置前，将被覆盖的五类档案自动备份为 *.bak
+    （project.json 调参 / 分卷大纲 / 主角卡 / current 现场 / milestones 里程碑），
+    误触 --force 可从 .bak 一键找回；bible/ 等只增不改的档案不在重置范围。
+    """
+    project_file = workspace / "project.json"
+    if project_file.exists() and not force:
+        existing = _load_json(project_file, default={})
+        if existing:
+            raise GuardError(
+                f"工作区已存在工程档案: {project_file}（书名《{existing.get('title', '?')}》）。",
+                solution="拒绝覆盖初始化以防调参丢失；若确认重置并备份既有档案，请追加 --force 参数。",
+            )
+    templates_dir = Path(__file__).resolve().parent.parent / "templates"
+    if not templates_dir.exists():
+        raise BusinessError(
+            f"找不到模板目录: {templates_dir}",
+            solution="请确认项目根目录下 templates/ 目录完整且未被删除。",
+        )
+
+
+    workspace.mkdir(parents=True, exist_ok=True)
+    for sub in [
+        "bible", "characters", "entities/items", "entities/factions", "entities/locations",
+        "outlines/vol_01/beats", "manuscript/vol_01/raw", "manuscript/vol_01/final",
+        "log/audit", "log/review", "state/inbox", "state/history", "state/indices", "snapshots",
+    ]:
+        (workspace / sub).mkdir(parents=True, exist_ok=True)
+
+    # v4.2.3：--force 重置前备份将被覆盖的既有档案（对齐 beats --force 的 .bak 惯例）
+    if force:
+        for rel in ["project.json", "outlines/vol_01/outline.md",
+                    "characters/protagonist.md", "state/current.json", "state/milestones.json"]:
+            f = workspace / rel
+            if f.exists():
+                shutil.copy(f, f.with_name(f.name + ".bak"))
+
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    # 1. 拷贝并实例化 project.json
+    tpl_p = templates_dir / "project.json"
+    if tpl_p.exists():
+        p_text = tpl_p.read_text(encoding="utf-8-sig")
+        p_text = p_text.replace("{{slot:title|书名}}", title)
+        p_text = p_text.replace("{{slot:genre|题材}}", genre)
+        p_text = p_text.replace("{{slot:protagonist|主角名}}", protagonist)
+        p_text = p_text.replace("{{slot:created_at|YYYY-MM-DD}}", today)
+        (workspace / "project.json").write_text(p_text, encoding="utf-8")
+
+    # 2. 拷贝并实例化 bible/
+    tpl_bible = templates_dir / "bible"
+    if tpl_bible.exists():
+        for bf in tpl_bible.glob("*.md"):
+            dest = workspace / "bible" / bf.name
+            if not dest.exists():
+                b_text = bf.read_text(encoding="utf-8-sig")
+                b_text = b_text.replace("{{slot:title|书名}}", title)
+                b_text = b_text.replace("{{slot:protagonist|主角名}}", protagonist)
+                dest.write_text(b_text, encoding="utf-8")
+
+    # 3. 拷贝 characters/protagonist.md
+    tpl_protag = templates_dir / "characters" / "protagonist.md"
+    if tpl_protag.exists():
+        pt_text = tpl_protag.read_text(encoding="utf-8-sig")
+        pt_text = pt_text.replace("{{slot:protagonist_name|主角姓名}}", protagonist)
+        pt_text = pt_text.replace("{{slot:protagonist|主角名}}", protagonist)
+        (workspace / "characters" / "protagonist.md").write_text(pt_text, encoding="utf-8")
+
+    # 3.1 拷贝 characters/antagonist.md（核心反派初始脚手架，已存在不覆盖）
+    tpl_antag = templates_dir / "characters" / "antagonist.md"
+    if tpl_antag.exists():
+        dest_antag = workspace / "characters" / "antagonist.md"
+        if not dest_antag.exists():
+            at_text = tpl_antag.read_text(encoding="utf-8-sig")
+            at_text = at_text.replace("{{slot:protagonist|主角名}}", protagonist)
+            dest_antag.write_text(at_text, encoding="utf-8")
+
+    # 3.5 拷贝全书主线大纲（只增不改：已存在不覆盖，防误删 Architect 手笔）   
+    tpl_main = templates_dir / "outlines" / "main_plot.md"
+    if tpl_main.exists():
+        dest_main = workspace / "outlines" / "main_plot.md"
+        if not dest_main.exists():
+            m_text = tpl_main.read_text(encoding="utf-8-sig")
+            m_text = m_text.replace("{{slot:title|书名}}", title)
+            m_text = m_text.replace("{{slot:genre|题材（如：言情恋爱 / 都市职场 / 悬疑推理 / 科幻末世 / 玄幻仙侠 / 历史种田等）}}", genre)
+            m_text = m_text.replace("{{slot:genre|题材}}", genre)
+            m_text = m_text.replace("{{slot:protagonist|主角名（或男女主名、主角团）}}", protagonist)
+            m_text = m_text.replace("{{slot:protagonist|主角名}}", protagonist)
+            dest_main.write_text(m_text, encoding="utf-8")
+            
+    # 4. 拷贝分卷大纲
+    tpl_vol = templates_dir / "outlines" / "volume_outline.md"
+    if tpl_vol.exists():
+        v_text = tpl_vol.read_text(encoding="utf-8-sig")
+        v_text = v_text.replace("{{slot:vol_id|vol_01}}", "vol_01")
+        # v4.2.2 全题材适配：卷名占位改为中性待定值（旧版硬编码仙侠卷名"龙渊潜底"）
+        v_text = v_text.replace("{{slot:vol_title|第1卷：卷名}}", "第1卷：卷名待定")
+        v_text = v_text.replace("{{slot:title|书名}}", title)
+        (workspace / "outlines" / "vol_01" / "outline.md").write_text(v_text, encoding="utf-8")
+
+    # 5. 初始化 state/
+    ledger = StateLedger(workspace)
+    curr_data = {
+        "current_vol": "vol_01",
+        "current_ch": "ch_001",
+        "last_timeline": "",
+        "last_location": "",
+        "active_foreshadowings": [],
+        "present_characters": [protagonist],
+    }
+    _save_json(ledger.current_file, curr_data)
+    _save_json(workspace / "state" / "milestones.json", [])
+
+    # 初始化种子人物台账 (p_001 主角, p_002 核心反派)，与 characters/ 模板对齐
+    persons_init = {
+        "p_001": {
+            "id": "p_001",
+            "name": protagonist,
+            "role": "protagonist",
+            "type": "person",
+            "tier_rank": 1,
+            "tier_name": "初始实力阶层",
+            "life_status": "alive",
+            "condition": "完好",
+            "status": "active",
+            "attitude": "friendly",
+            "established_ch": "ch_001",
+            "last_seen_ch": "ch_001",
+            "card": "characters/protagonist.md",
+            "arc_history": [],
+        },
+        "p_002": {
+            "id": "p_002",
+            "name": "核心反派",
+            "role": "antagonist",
+            "type": "person",
+            "tier_rank": 2,
+            "tier_name": "反派阶层",
+            "life_status": "alive",
+            "condition": "完好",
+            "status": "active",
+            "attitude": "hostile",
+            "established_ch": "ch_001",
+            "last_seen_ch": "ch_001",
+            "card": "characters/antagonist.md",
+            "arc_history": [],
+        },
+    }
+    _save_json(ledger.persons_file, persons_init)
+
+    return {"title": title, "genre": genre, "protagonist": protagonist, "workspace": str(workspace)}
+
+
+def get_beats_scaffold(workspace: Path, chapter_id: str, write_file: bool = True,
+                       force: bool = False) -> Dict[str, Any]:
+    """生成单章细纲任务卡脚手架 (beats new)。
+
+    v4.1 SSOT 防覆盖守卫：目标细纲已存在且内容 ≠ 空白脚手架时拒绝写入
+    （旧版会静默用空模板覆盖主控填好的细纲，实测造成 SSOT 数据销毁）。
+    确认重置需显式 force=True（CLI 加 --force），旧文件自动备份为 *.bak。
+    """
+    ledger = StateLedger(workspace)
+    curr_state = ledger.get_current()
+    active_foreshadows = ledger.get_active_foreshadowings()
+
+    vol_file, vol_id = _find_volume_outline(workspace, chapter_id)
+    chapter_info: Dict[str, str] = {}
+
+    if vol_file and vol_file.exists():
+        vol_text = vol_file.read_text(encoding="utf-8-sig", errors="replace")
+        parsed_info = parse_volume_outline(vol_text, chapter_id)
+        if parsed_info:
+            chapter_info = parsed_info
+
+    tpl_file = workspace / "templates" / "beats.md"
+    if not tpl_file.exists():
+        tpl_file = Path(__file__).resolve().parent.parent / "templates" / "beats.md"
+
+    if not tpl_file.exists():
+        raise BusinessError(
+            f"未找到细纲模板 templates/beats.md",
+            solution="请检查项目 templates/beats.md 文件是否存在且未被删除。",
+        )
+
+
+    tpl_text = tpl_file.read_text(encoding="utf-8-sig", errors="replace")
+
+    project_file = workspace / "project.json"
+    pdata = _load_json(project_file, default={})
+    protagonist = pdata.get("protagonist", "主角")
+
+    title = chapter_info.get("title", f"第{chapter_id}章")
+    event = chapter_info.get("event", "核心事件推进与破局")
+    cliff = chapter_info.get("cliffhanger", "章末悬念定格")
+
+    scaffold = tpl_text
+    scaffold = re.sub(r"\{\{slot:chapter_id\|[^}]*\}\}", chapter_id, scaffold)
+    scaffold = re.sub(r"\{\{slot:volume_id\|[^}]*\}\}", vol_id, scaffold)
+    scaffold = re.sub(r"\{\{slot:title\|[^}]*\}\}", title, scaffold)
+    scaffold = re.sub(r"\{\{slot:char_1_name\|[^}]*\}\}", protagonist, scaffold)
+    if event and event != "核心事件推进与破局":
+        scaffold = re.sub(r"\{\{slot:dramatic_goal\|[^}]*\}\}", event, scaffold)
+    if cliff and cliff != "章末悬念定格":
+        scaffold = re.sub(r"\{\{slot:cliffhanger\|[^}]*\}\}", cliff, scaffold)
+
+    curr_time = curr_state.get("last_timeline") or "待定（如 天元三年立秋晨）"
+    curr_loc = curr_state.get("last_location") or "待定（如 宗门大殿/核心现场）"
+    if curr_state.get("last_location"):
+        scaffold = scaffold.replace("loc_001(核心场景名)", curr_state["last_location"])
+        scaffold = scaffold.replace("核心场景名", curr_state["last_location"])
+    if curr_state.get("last_timeline"):
+        scaffold = scaffold.replace("小说历纪年·季节·几月初几晨/昼/暮/夜", curr_state["last_timeline"])
+        scaffold = scaffold.replace("小说历纪年·时空时间", curr_state["last_timeline"])
+
+    # --- 编剧机要参考简报 (Pre-computed Dossier) 自动打捞 ---
+    # 1. 提取上一章尾声 / 梗概 (接戏余温)
+    prev_tail = ""
+    m_ch = re.search(r"(\d+)$", chapter_id)
+    if m_ch:
+        num = int(m_ch.group(1)) - 1
+        if num > 0:
+            prev_id = f"ch_{num:03d}"
+            synopsis_db = ledger.get_synopsis()
+            if prev_id in synopsis_db:
+                s_rec = synopsis_db[prev_id]
+                s_sum = s_rec.get("summary", "")
+                s_cliff = s_rec.get("cliffhanger", "")
+                parts = []
+                if s_sum:
+                    parts.append(f"【上一章核心进展】{s_sum}")
+                if s_cliff:
+                    parts.append(f"【上一章断章定格】{s_cliff}")
+                if parts:
+                    prev_tail = "\n   ".join(parts)
+            if not prev_tail:
+                cands = [
+                    workspace / "manuscript" / vol_id / "final" / f"{prev_id}.md",
+                    workspace / "manuscript" / vol_id / "raw" / f"{prev_id}_v3.md",
+                    workspace / "manuscript" / vol_id / "raw" / f"{prev_id}.md",
+                ]
+                for c in cands:
+                    if c.exists():
+                        ptxt = c.read_text(encoding="utf-8-sig", errors="replace").strip()
+                        prev_tail = "【上一章正文收尾】……" + (ptxt[-400:] if len(ptxt) > 400 else ptxt)
+                        break
+    if not prev_tail:
+        prev_tail = "（全书开篇首章，开门见山直接切入核心冲突或初始情境）"
+
+    # 2. 提取在场候选角色速查
+    persons_db = ledger.get_persons()
+    char_lines = []
+    for pid, prec in sorted(persons_db.items()):
+        pname = prec.get("name", pid)
+        prole = prec.get("role", "配角")
+        ptier = prec.get("tier_name", "") or f"Tier {prec.get('tier_rank', 1)}"
+        patt = prec.get("attitude", "")
+        pcond = prec.get("condition", "完好")
+        line = f"   - [{pid}] {pname}（定位: {prole} ｜ 境界: {ptier} ｜ 状态: {pcond}"
+        if patt:
+            line += f" ｜ 对主角态度: {patt}"
+        line += "）"
+        char_lines.append(line)
+    char_block = "\n".join(char_lines[:8]) if char_lines else "   - 暂无建档人物，按大纲规划出场"
+
+    # 3. 提取活跃伏笔雷达
+    f_lines = []
+    for f in active_foreshadows:
+        fid = f.get("id", "")
+        fname = f.get("name", "")
+        fdesc = f.get("desc", "")
+        ftarget = f.get("target_ch", "")
+        due = "【⚠️ 本章到期建议推进/回收】" if ftarget == chapter_id else f"（目标章: {ftarget}）"
+        f_lines.append(f"   - [{fid}] {fname} {due}：{fdesc}")
+    f_block = "\n".join(f_lines) if f_lines else "   - 暂无活跃未决伏笔，剧情平稳推进"
+
+    # 4. 提取未清算恩怨情仇账
+    debts = ledger.get_debts()
+    d_lines = []
+    for d in debts:
+        target = d.get("target", "")
+        dtype = d.get("type", "grudge")
+        desc = d.get("desc", "")
+        d_lines.append(f"   - 恩怨对象 [{target}] ({dtype})：{desc}")
+    debt_block = "\n".join(d_lines) if d_lines else "   - 暂无未清算因果血仇或重大誓言债务"
+
+    # 5. 编译 Markdown 编剧机要简报
+    dossier_text = f"""<!-- ==============================================================================
+🧭 【Engine 自动前置打捞 · 编剧机要参考简报 (Pre-computed Dossier)】
+* 引擎已深入底层台账全量提取关键事实。编剧 Agent 仅需参考本简报即可通晓前情，严禁翻看底层 JSON！*
+--------------------------------------------------------------------------------
+📍 【本章任务宏观坐标】
+   - 任务标识：分卷 {vol_id} / 章节 {chapter_id} 《{title}》
+   - 卷纲预排看点：{event}
+   - 卷纲预排断章：{cliff}
+   - 当前时空地点：{curr_time} ｜ {curr_loc}
+
+🌊 【上一章收尾余温（接戏动量 · 严禁情节脱节）】
+   {prev_tail}
+
+👥 【在场人物速查候选（无需翻看外部卡片）】
+{char_block}
+
+💣 【活跃伏笔雷达（暗线时钟）】
+{f_block}
+
+⚖️ 【未清算恩怨情仇账（暗流张力）】
+{debt_block}
+============================================================================== -->"""
+
+    if "{{slot:engine_briefing_dossier}}" in scaffold:
+        scaffold = scaffold.replace("{{slot:engine_briefing_dossier}}", dossier_text)
+    elif "---" in scaffold:
+        parts = scaffold.split("---", 2)
+        if len(parts) >= 3:
+            scaffold = f"---{parts[1]}---\n\n{dossier_text}\n\n{parts[2].lstrip()}"
+
+    target_path = workspace / "outlines" / vol_id / "beats" / f"{chapter_id}.md"
+    if write_file:
+        if target_path.exists():
+            existing = target_path.read_text(encoding="utf-8-sig", errors="replace")
+            if existing.strip() != scaffold.strip():
+                if not force:
+                    raise GuardError(
+                        f"细纲已存在且已含填写内容: {target_path}（SSOT 事实源防护，拒绝覆盖）。",
+                        solution="确认重置并自动备份旧文件为 .bak 请追加 --force；仅想查看脚手架请去掉 --write 预览。",
+                    )
+                backup = target_path.with_name(target_path.name + ".bak")
+
+                backup.write_text(existing, encoding="utf-8")
+        _ensure_dir(target_path.parent)
+        target_path.write_text(scaffold, encoding="utf-8")
+
+    return {
+        "chapter_id": chapter_id,
+        "volume_id": vol_id,
+        "title": title,
+        "target_path": str(target_path),
+        "written": bool(write_file),
+        "forced": bool(force),
+        "from_volume_outline": bool(chapter_info),
+        "active_foreshadows_injected": len(active_foreshadows),
+        "content": scaffold,
+    }
+
+
+def audit_chapter(workspace: Path, chapter_id: str, write_file: bool = True) -> Dict[str, Any]:
+    """运行机械探针生成质检报告骨架 (audit)。"""
+    _, vol_id = _find_volume_outline(workspace, chapter_id)
+    prose_candidates = [
+        workspace / "manuscript" / vol_id / "raw" / f"{chapter_id}_v3.md",
+        workspace / "manuscript" / vol_id / "raw" / f"{chapter_id}_v2.md",
+        workspace / "manuscript" / vol_id / "raw" / f"{chapter_id}_v1.md",
+        workspace / "manuscript" / vol_id / "final" / f"{chapter_id}.md",
+    ]
+    raw_v3 = next((c for c in prose_candidates if c.exists()), None)
+    if not raw_v3:
+        raise BusinessError(
+            f"未找到第 {chapter_id} 章的正文草稿 (raw_v1~v3) 或定稿，无法执行质检。",
+            solution=f"请按流水线先派发 Stage 2 (novel-drafter) 起草正文 manuscript/{vol_id}/raw/{chapter_id}_v1.md。",
+        )
+
+    prose = raw_v3.read_text(encoding="utf-8-sig", errors="replace")
+    words = _count_words(prose)
+
+
+    cfg = load_config(workspace)
+    wc_min, wc_max = cfg.get("words_per_chapter", [1500, 2500])
+
+    # 提取细纲与设定台账供 7 大确定性物理探针体检
+    beats_file = workspace / "outlines" / vol_id / "beats" / f"{chapter_id}.md"
+    if not beats_file.exists():
+        beats_file = workspace / "outlines" / f"{chapter_id}.md"
+    fm: Dict[str, Any] = {}
+    if beats_file.exists():
+        fm, _ = parse_frontmatter(beats_file.read_text(encoding="utf-8-sig", errors="replace"))
+
+    from engine.state import StateManager
+    from engine.probes import run_all_probes
+    state_mgr = StateManager(workspace)
+    persons_db = state_mgr.get_persons() if (workspace / "state" / "persons.json").exists() else {}
+
+    probe_results = run_all_probes(prose, fm, persons_db=persons_db, config=cfg)
+    s = probe_results["summary"]
+
+    recipe_blocks_text = """<!-- Auditor 单次全读 raw_v3.md 与任务卡后，在此将所有硬伤、事实出入及存疑备忘转化为修补配方：
+Stage 5 finalize 将自动提取所有非占位配方并在正文中完成精准替换。
+- **修补配方**：
+  - TargetContent:
+  ```text
+  待修改原句
+  ```
+  - ReplacementContent:
+  ```text
+  通俗修改后原句
+  ```
+  - 理由: 说明（消除硬伤/事实矛盾/行文去AI味/化解存疑）
+-->"""
+
+    audit_md = f"""---
+chapter_id: {chapter_id}
+word_count: {words}
+mechanical_probes:
+  epistemology_valid: {str(s["epistemology"]["passed"]).lower()}
+  all_passed: {str(probe_results["all_passed"]).lower()}
+logic: 0
+status: pending_auditor
+---
+
+# 第 {chapter_id} 章 内容质检报告
+
+## 🤖 一、 机械探针自动化自检（物理事实与数据探针）
+- **正文字数**：当前 {words} 字（参考指标，不做硬性阈值拦截）
+- **认知盲区防透视**：{s['epistemology']['detail']}
+- **法定称谓落地**：{s['address']['detail']}
+- **道具与伏笔落地**：{s['grounding']['detail']}
+
+## 🧠 二、 语义逻辑、存疑备忘与修补配方（Auditor 专用）
+{recipe_blocks_text}
+"""
+    target_audit = workspace / "log" / "audit" / f"{chapter_id}.md"
+    if write_file:
+        _ensure_dir(target_audit.parent)
+        target_audit.write_text(audit_md, encoding="utf-8")
+
+    return {"chapter_id": chapter_id, "word_count": words, "target_audit": str(target_audit), "probe_results": probe_results}
+
+
+def finalize_chapter(workspace: Path, chapter_id: str) -> Dict[str, Any]:
+    """吸纳 Auditor 预制修补配方，完成正文替换定稿生成 final/ch_XXX.md。"""
+    _, vol_id = _find_volume_outline(workspace, chapter_id)
+    manuscript_dir = workspace / "manuscript" / vol_id
+    # 严格挑选存在且字数大于 0 的有效稿件（v4.2.4 修复：跳过 0 字节半成品，防止产出空 final）
+    candidates = [
+        manuscript_dir / "raw" / f"{chapter_id}_v3.md",
+        manuscript_dir / "raw" / f"{chapter_id}_v2.md",
+        manuscript_dir / "raw" / f"{chapter_id}_v1.md",
+        manuscript_dir / "final" / f"{chapter_id}.md",
+    ]
+    target_raw = None
+    prose = ""
+    for cand in candidates:
+        if cand.exists():
+            cand_text = cand.read_text(encoding="utf-8-sig", errors="replace")
+            if _count_words(cand_text) > 0:
+                target_raw = cand
+                prose = cand_text
+                break
+
+    if not target_raw:
+        if any(c.exists() for c in candidates):
+            raise BusinessError(
+                f"第 {chapter_id} 章所有正文草稿 (raw_v3/v2/v1) 内容均为空 (0 字)，拒绝定稿空章节！",
+                solution=f"请派发 Stage 2 (novel-drafter) 起草正文 manuscript/{vol_id}/raw/{chapter_id}_v1.md。",
+            )
+        raise BusinessError(
+            f"未找到第 {chapter_id} 章待定稿正文草稿 (raw_v3/v2/v1)",
+            solution=f"请按流水线先派发 Stage 2 (novel-drafter) 起草正文 manuscript/{vol_id}/raw/{chapter_id}_v1.md。",
+        )
+
+
+    # 读取 audit 报告
+    audit_file = workspace / "log" / "audit" / f"{chapter_id}.md"
+    replacements_count = 0
+    recipes_total = 0
+    missed_targets: List[str] = []
+    if audit_file.exists():
+        audit_text = audit_file.read_text(encoding="utf-8-sig", errors="replace")
+        # v4.2 修复：占位模板（Auditor 未填写时的示例值）不得被当作真配方
+        _placeholder_targets = {"待修改原句"}
+        _placeholder_replacements = {"通俗修改后原句"}
+        seen_recipes = set()
+
+        def _apply_recipe(tc: str, rc: str):
+            nonlocal prose, replacements_count, recipes_total
+            key = (tc, rc)
+            if key in seen_recipes:
+                return
+            seen_recipes.add(key)
+            if tc in _placeholder_targets or rc in _placeholder_replacements:
+                return
+            recipes_total += 1
+            if tc and tc in prose:
+                prose = prose.replace(tc, rc)
+                replacements_count += 1
+            elif tc:
+                missed_targets.append(tc[:40])
+
+        # 1. 提取多行三反引号格式配方（支持 0~多空格缩进）
+        pattern_block = r"TargetContent:\s*```(?:text)?[ \t]*\r?\n(.*?)[ \t]*\r?\n\s*```[ \t]*\r?\n\s*-?\s*ReplacementContent:\s*```(?:text)?[ \t]*\r?\n(.*?)[ \t]*\r?\n\s*```"
+        for m in re.finditer(pattern_block, audit_text, re.DOTALL):
+            _apply_recipe(m.group(1).strip(), m.group(2).strip())
+
+        # 2. 提取行内格式配方: TargetContent: `...` ｜ ReplacementContent: `...`
+        pattern_inline = r"TargetContent:\s*`([^`]+)`\s*[|｜]\s*ReplacementContent:\s*`([^`]+)`"
+        for m in re.finditer(pattern_inline, audit_text):
+            _apply_recipe(m.group(1).strip(), m.group(2).strip())
+
+        # 3. 提取双行单反引号格式配方:
+        # - TargetContent: `...`
+        # - ReplacementContent: `...`
+        pattern_multiline_inline = r"TargetContent:\s*`([^`\r\n]+)`\s*\r?\n\s*-?\s*ReplacementContent:\s*`([^`\r\n]+)`"
+        for m in re.finditer(pattern_multiline_inline, audit_text):
+            _apply_recipe(m.group(1).strip(), m.group(2).strip())
+
+    final_file = manuscript_dir / "final" / f"{chapter_id}.md"
+    _ensure_dir(final_file.parent)
+    final_file.write_text(prose, encoding="utf-8")
+
+    return {
+        "chapter_id": chapter_id,
+        "final_file": str(final_file),
+        "word_count": _count_words(prose),
+        "replacements_applied": replacements_count,
+        "recipes_total": recipes_total,
+        "recipes_missed": len(missed_targets),
+        "missed_targets": missed_targets,
+        "note": ("审计报告不存在，直接采用 v3 原文定稿" if not audit_file.exists()
+                 else (f"配方 {replacements_count}/{recipes_total} 应用" if recipes_total else "审计报告中无配方，按原文定稿")),
+    }
+
+
+def proposal_auto(workspace: Path, chapter_id: str) -> Dict[str, Any]:
+    """生成本章状态变更提案 (proposal auto)。"""
+    _, vol_id = _find_volume_outline(workspace, chapter_id)
+    beats_file = workspace / "outlines" / vol_id / "beats" / f"{chapter_id}.md"
+    if not beats_file.exists():
+        beats_file = workspace / "outlines" / f"{chapter_id}.md"
+
+    proposal_data: Dict[str, Any] = {"chapter_id": chapter_id}
+    if beats_file.exists():
+        frontmatter, _ = parse_frontmatter(beats_file.read_text(encoding="utf-8-sig", errors="replace"))
+        proposal_data["frontmatter"] = frontmatter
+
+    inbox_file = workspace / "state" / "inbox" / f"proposal_{chapter_id}.json"
+    _ensure_dir(inbox_file.parent)
+    _save_json(inbox_file, proposal_data)
+    return {"chapter_id": chapter_id, "proposal_file": str(inbox_file)}
+
+
+def sync_chapter(workspace: Path, chapter_id: str, force: bool = False, refresh: bool = False) -> Dict[str, Any]:
+    """解析细纲量化数据，封存正文并原子同步台账。
+
+    v4.2 幂等守卫：同一章节、同一正文（sha1 指纹一致）重复 sync 直接幂等跳过；
+    正文内容已变化的重复 sync 默认 GuardError 拒绝，需 --force 显式重入账。
+    """
+    _, vol_id = _find_volume_outline(workspace, chapter_id)
+    beats_file = workspace / "outlines" / vol_id / "beats" / f"{chapter_id}.md"
+    if not beats_file.exists():
+        beats_file = workspace / "outlines" / f"{chapter_id}.md"
+
+    if not beats_file.exists():
+        raise BusinessError(
+            f"未找到细纲文件: {beats_file}",
+            solution=f"请先运行 `python studio.py beats new {chapter_id} --write` 装配当章细纲任务卡。",
+        )
+
+    content = beats_file.read_text(encoding="utf-8-sig", errors="replace")
+    frontmatter, body_text = parse_frontmatter(content)
+    if not frontmatter:
+        raise BusinessError(
+            f"第 {chapter_id} 章细纲未包含合法 YAML Front-matter 数据: {beats_file.name}",
+            solution="请检查细纲顶部是否包含由 '---' 包裹的 YAML 元数据区块（含 chapter_id, present_characters 等）。",
+        )
+
+    # v4.1 一致性守卫：细纲内声明的 chapter_id 必须与命令参数一致，防止错章合账
+    fm_ch = str(frontmatter.get("chapter_id", "")).strip()
+    if fm_ch and fm_ch != chapter_id:
+        raise BusinessError(
+            f"细纲 front-matter 声明 chapter_id={fm_ch}，与命令参数 {chapter_id} 不一致，已拒绝合账。",
+            solution=f"请修正 {beats_file.name} 顶部的 chapter_id 字段使其与 {chapter_id} 保持一致。",
+        )
+
+    final_file = workspace / "manuscript" / vol_id / "final" / f"{chapter_id}.md"
+    word_count = 0
+    if final_file.exists():
+        word_count = _count_words(final_file.read_text(encoding="utf-8-sig", errors="replace"))
+
+    # v4.2.4 修复（P1-1 死锁消除）：若 final 缺失或虽存在但为空稿 (0 字)，自动回退寻找非空 raw 草稿并补齐定稿
+    if word_count <= 0:
+        raw_candidates = [
+            workspace / "manuscript" / vol_id / "raw" / f"{chapter_id}_v3.md",
+            workspace / "manuscript" / vol_id / "raw" / f"{chapter_id}_v2.md",
+            workspace / "manuscript" / vol_id / "raw" / f"{chapter_id}_v1.md",
+        ]
+        for rc in raw_candidates:
+            if rc.exists():
+                text = rc.read_text(encoding="utf-8-sig", errors="replace")
+                cnt = _count_words(text)
+                if cnt > 0:
+                    _ensure_dir(final_file.parent)
+                    final_file.write_text(text, encoding="utf-8")
+                    word_count = cnt
+                    print(f"⚠️ 提示：第 {chapter_id} 章原 final 稿件为空 (0 字)，已自动降级回退至有效草稿 {rc.name} ({cnt} 字) 补齐定稿。")
+                    break
+
+    # v4.1 空正文守卫：无有效 final/raw 时强制阻断
+    if word_count <= 0:
+        raise GuardError(
+            f"第 {chapter_id} 章无任何有效正文（final 为空或缺失，且 raw 草稿均无内容），已拒绝原子封存。",
+            solution=f"请先完成 Stage 2~4 起草正文并执行 `python studio.py finalize {chapter_id}` 完成定稿。",
+        )
+    cfg = load_config(workspace)
+    wc_min = cfg.get("words_per_chapter", [1500, 2500])[0]
+    sync_low_words = word_count < int(wc_min * 0.5)
+
+    # v4.2 幂等守卫：以封存正文 sha1 为指纹，重复 sync 不二次入账
+    final_text = final_file.read_text(encoding="utf-8-sig", errors="replace")
+    final_sha1 = hashlib.sha1(final_text.encode("utf-8")).hexdigest()
+    sync_log_file = workspace / "state" / "sync_log.json"
+    sync_log = _load_json(sync_log_file, default={})
+    prev = sync_log.get(chapter_id)
+    if refresh and prev:
+        # v4.2 --refresh：纯文笔修订（beats/deltas 未变），只更新指纹不重复入账
+        prev["final_sha1"] = final_sha1
+        prev["refreshed_at"] = datetime.now().isoformat(timespec="seconds")
+        _save_json(sync_log_file, sync_log)
+        return {
+            "chapter_id": chapter_id,
+            "title": frontmatter.get("title", ""),
+            "word_count": word_count,
+            "refreshed": True,
+            "note": "已按修订版正文刷新同步指纹，台账增量未重复入账。",
+        }
+    if prev and prev.get("final_sha1") == final_sha1 and not force:
+        # v4.2.1: --force 现允许同稿重放（数据层增量已按章幂等，重放不翻倍）
+        return {
+            "chapter_id": chapter_id,
+            "title": frontmatter.get("title", ""),
+            "word_count": word_count,
+            "idempotent": True,
+            "note": "本章已按相同正文同步过，幂等跳过，未重复入账。（如需重放细纲增量请加 --force）",
+        }
+    if prev and prev.get("final_sha1") != final_sha1 and not force:
+        raise GuardError(
+            f"第 {chapter_id} 章曾以不同版本正文同步过（旧指纹 {str(prev.get('final_sha1'))[:8]}…）。",
+            solution=f"如确需按新版本正文重入账，请先使用 `snapshot create` 备份后运行 `python studio.py sync {chapter_id} --force`；若仅是文笔润色未改动细纲事实，请运行 `python studio.py sync {chapter_id} --refresh`。",
+        )
+
+
+    ledger = StateLedger(workspace)
+    sync_report = ledger.apply_chapter_delta(frontmatter, word_count=word_count, beats_body=body_text)
+    sync_log[chapter_id] = {
+        "final_sha1": final_sha1,
+        "synced_at": datetime.now().isoformat(timespec="seconds"),
+        "forced": bool(force),
+    }
+    _save_json(sync_log_file, sync_log)
+
+    # 累加 project.json
+    project_file = workspace / "project.json"
+    pdata = _load_json(project_file, default={})
+    if "current_status" not in pdata:
+        pdata["current_status"] = {}
+    pdata["current_status"]["current_vol"] = vol_id
+    pdata["current_status"]["current_ch"] = chapter_id
+    total_words = sum(t.get("word_count", 0) for t in ledger.get_timeline())
+    pdata["current_status"]["total_published_words"] = total_words
+    _save_json(project_file, pdata)
+
+    sync_report["total_published_words"] = total_words
+    sync_report["final_prose_path"] = str(final_file) if final_file.exists() else None
+    if sync_low_words:
+        sync_report.setdefault("warnings", []).append(
+            f"本章正文仅 {word_count} 字，低于标准下限（{wc_min} 字）的一半，请确认是否为有意短章。"
+        )
+    return sync_report
+
+
+def get_cockpit(workspace: Path) -> Dict[str, Any]:
+    """主控态势大盘感知 (cockpit)。"""
+    ledger = StateLedger(workspace)
+    curr = ledger.get_current()
+    active_f = ledger.get_active_foreshadowings()
+    timeline = ledger.get_timeline()
+    project_file = workspace / "project.json"
+    pdata = _load_json(project_file, default={})
+
+    return {
+        "title": pdata.get("title", "未命名"),
+        "genre": pdata.get("genre", "未设定"),
+        "protagonist": pdata.get("protagonist", "主角"),
+        "current_vol": curr.get("current_vol", "vol_01"),
+        "current_ch": curr.get("current_ch", "ch_001"),
+        "total_words": sum(t.get("word_count", 0) for t in timeline),
+        "total_chapters": len(timeline),
+        "last_timeline": curr.get("last_timeline", "未记录"),
+        "last_location": curr.get("last_location", "未记录"),
+        "active_foreshadowings": [f"{f.get('id')}: {f.get('name')} ({f.get('planted_ch')})" for f in active_f],
+    }
+
+
+def get_calendar(workspace: Path, count: int = 3) -> List[Dict[str, Any]]:
+    """未来 N 章排产与伏笔到期日历。"""
+    ledger = StateLedger(workspace)
+    curr = ledger.get_current()
+    ch_id = curr.get("current_ch", "ch_001")
+    vol_id = curr.get("current_vol", "vol_01")
+    vol_file = workspace / "outlines" / vol_id / "outline.md"
+
+    calendar_list: List[Dict[str, Any]] = []
+    if not vol_file.exists():
+        return calendar_list
+
+    vol_text = vol_file.read_text(encoding="utf-8-sig", errors="replace")
+    m = re.search(r"(\d+)$", ch_id)
+    curr_num = int(m.group(1)) if m else 1
+
+    for offset in range(1, count + 1):
+        target_ch = f"ch_{curr_num + offset:03d}"
+        info = parse_volume_outline(vol_text, target_ch)
+        if info:
+            calendar_list.append(info)
+        else:
+            calendar_list.append({"chapter_id": target_ch, "title": f"第{target_ch}章", "event": "待大纲细化"})
+
+    return calendar_list
+
+
+def ask_fact(workspace: Path, query: str) -> List[str]:
+    """事实快速检索 (ask)。"""
+    if not str(query).strip():
+        return []  # v4.2.1: 空查询会子串命中一切，直接拒答防洪泛
+    results: List[str] = []
+    ledger = StateLedger(workspace)
+
+    # 查法定锁定事实 (P0)
+    for lf in ledger.get_locked_facts():
+        if query in lf.get("fact", "") or query in lf.get("id", ""):
+            results.append(f"[锁定事实] ({lf.get('id')}) {lf.get('fact')} (第{lf.get('established_ch', '初始')}章确立)")
+
+    # 查角色
+    for cid, c in ledger.get_characters().items():
+        if query in c.get("name", "") or query in c.get("want", "") or query in cid:
+            results.append(f"[角色] {c.get('name')} ({cid}) - 境界: {c.get('tier_name', '凡阶')}, 状态: {c.get('condition', '正常')}, 诉求: {c.get('want', '无')}")
+
+    # 查道具
+    for iid, it in ledger.get_items().items():
+        if query in it.get("name", "") or query in it.get("holder", "") or query in iid:
+            results.append(f"[道具] {it.get('name')} ({iid}) - 持有人: {it.get('holder')}, 可用次数: {it.get('charges')}")
+
+    # 查伏笔
+    for fid, f in ledger.get_foreshadowings().items():
+        if query in f.get("name", "") or query in f.get("desc", "") or query in fid:
+            results.append(f"[伏笔] {f.get('name')} ({fid}) - 状态: {f.get('status')}, 埋于: {f.get('planted_ch')}")
+
+    # 查章节梗概
+    synopsis_db = ledger.get_synopsis()
+    for ch, syn in synopsis_db.items():
+        title = syn.get("title", "")
+        goal = syn.get("dramatic_goal", "")
+        cliff = syn.get("cliffhanger", "")
+        if query in title or query in goal or query in cliff or query in ch:
+            results.append(f"[章节梗概] {ch} 《{title}》: {goal or cliff}")
+
+    # 查设定文件
+    for bf in (workspace / "bible").glob("*.md"):
+        txt = bf.read_text(encoding="utf-8-sig", errors="replace")
+        if query in txt:
+            results.append(f"[设定文档] 见 bible/{bf.name}")
+
+    return results[:12]
+
+
+def evidence_candidates(workspace: Path, chapter_id: str) -> Dict[str, Any]:
+    """打捞章节正文中尚未登记为核心实体的候选专有名词或次要角色。"""
+    _, vol_id = _find_volume_outline(workspace, chapter_id)
+    cands_files = [
+        workspace / "manuscript" / vol_id / "final" / f"{chapter_id}.md",
+        workspace / "manuscript" / vol_id / "raw" / f"{chapter_id}_v3.md",
+        workspace / "manuscript" / vol_id / "raw" / f"{chapter_id}_v2.md",
+        workspace / "manuscript" / vol_id / "raw" / f"{chapter_id}_v1.md",
+    ]
+    prose = ""
+    target_f = None
+    for cf in cands_files:
+        if cf.exists():
+            prose = cf.read_text(encoding="utf-8-sig", errors="replace")
+            target_f = cf
+            break
+
+    if not target_f:
+        return {"chapter_id": chapter_id, "found": False, "candidates": [], "message": f"未找到第 {chapter_id} 章正文草稿"}
+
+    ledger = StateLedger(workspace)
+    known_names = set()
+    for p in ledger.get_persons().values():
+        if p.get("name"):
+            known_names.add(p["name"])
+    for it in ledger.get_items().values():
+        if it.get("name"):
+            known_names.add(it["name"])
+    for f in ledger.get_factions().values():
+        if f.get("name"):
+            known_names.add(f["name"])
+    for pl in ledger.get_places().values():
+        if pl.get("name"):
+            known_names.add(pl["name"])
+
+    candidates = []
+    seen = set()
+
+    # 1. 从细纲（唯一事实源 SSOT）中打捞未建档实体（新登场人物/在场角色/道具）
+    beats_file = workspace / "outlines" / vol_id / "beats" / f"{chapter_id}.md"
+    if not beats_file.exists():
+        beats_file = workspace / "outlines" / f"{chapter_id}.md"
+    if beats_file.exists():
+        try:
+            b_fm, _ = parse_frontmatter(beats_file.read_text(encoding="utf-8-sig", errors="replace"))
+            for ne in (b_fm.get("new_entities") or []):
+                if isinstance(ne, dict):
+                    ename = str(ne.get("name", "")).strip()
+                    etype = str(ne.get("type", "person")).strip()
+                    if ename and ename not in known_names and ename not in seen:
+                        seen.add(ename)
+                        candidates.append({"name": ename, "type": etype, "suggested_role": ne.get("role", "supporting")})
+            for c in (b_fm.get("present_characters") or []):
+                if isinstance(c, dict):
+                    cname = str(c.get("name", "")).strip()
+                    if cname and cname not in known_names and cname not in seen:
+                        seen.add(cname)
+                        candidates.append({"name": cname, "type": "person", "suggested_role": c.get("role", "supporting")})
+            for it in ((b_fm.get("state_deltas") or {}).get("items") or []):
+                if isinstance(it, dict):
+                    iname = str(it.get("name", "")).strip()
+                    if iname and iname not in known_names and iname not in seen:
+                        seen.add(iname)
+                        candidates.append({"name": iname, "type": "item", "suggested_role": "item"})
+        except Exception:
+            pass
+
+    return {
+        "chapter_id": chapter_id,
+        "source_file": str(target_f),
+        "candidates": candidates,
+        "known_entities_count": len(known_names),
+        "message": f"打捞完毕：发现 {len(candidates)} 个潜在未登记实体" if candidates else "未发现未登记关键次要实体，台账完备",
+    }
+
+
+def reconcile_volume(workspace: Path, volume_id: str, write_file: bool = False) -> Dict[str, Any]:
+    """卷末对账：深度核对全卷字数、伏笔收束率、道具充能状态与经济平账。"""
+    ledger = StateLedger(workspace)
+    timeline = ledger.get_timeline()
+    vol_timeline = [t for t in timeline if t.get("volume_id") == volume_id]
+    vol_words = sum(t.get("word_count", 0) for t in vol_timeline)
+
+    # 伏笔对账（v4.2.4 修复：准确限定为当前卷闭环的伏笔，名副其实）
+    lines = ledger.get_lines()
+    vol_ch_set = {t.get("chapter_id") for t in vol_timeline if t.get("chapter_id")}
+    active_in_vol = [l for l in lines.values() if l.get("status") == "active"]
+    resolved_in_vol = [l for l in lines.values() if l.get("status") == "resolved" and l.get("resolved_ch") in vol_ch_set]
+
+    def _num(cid: str) -> int:
+        m = re.search(r"(\d+)$", str(cid))
+        return int(m.group(1)) if m else 0
+
+    latest_ch_num = max((_num(t.get("chapter_id", "")) for t in timeline), default=0)
+    overdue_lines = [
+        l for l in active_in_vol
+        if l.get("target_ch") and _num(l.get("target_ch", "")) < latest_ch_num
+    ]
+
+    # 道具对账
+    items = ledger.get_items()
+    depleted_items = [it for it in items.values() if it.get("charges") == 0]
+
+    # 经济池对账
+    ledger_data = ledger.get_ledger()
+    pools = ledger_data.get("pools", {})
+    tx_count = len(ledger_data.get("transactions", []))
+
+    # 锁定事实
+    locked_facts = ledger.get_locked_facts()
+
+    report_lines = [
+        f"# {volume_id} 卷末综合对账与长程一致性审计报告",
+        f"- **生成时间**：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        f"- **全卷章节数**：{len(vol_timeline)} 章",
+        f"- **全卷正文字数**：{vol_words} 字",
+        "",
+        "## 💣 一、 伏笔收束与暗线生命周期",
+        f"- **已闭环回收伏笔 ({len(resolved_in_vol)} 条)**：",
+    ]
+    for r in resolved_in_vol:
+        report_lines.append(f"  - [{r.get('id')}] {r.get('name')} (埋于: {r.get('planted_ch')} ➔ 回收于: {r.get('resolved_ch')})")
+    if not resolved_in_vol:
+        report_lines.append("  - (本卷暂无已回收伏笔)")
+
+    report_lines.append(f"\n- **仍活跃待跨卷回收伏笔 ({len(active_in_vol)} 条)**：")
+    for a in active_in_vol:
+        report_lines.append(f"  - [{a.get('id')}] {a.get('name')} (埋于: {a.get('planted_ch')} ｜ 描述: {a.get('desc')})")
+    if not active_in_vol:
+        report_lines.append("  - (全部伏笔已收束平账)")
+
+    if overdue_lines:
+        report_lines.append(f"\n- **⛔ 已逾期未回收 ({len(overdue_lines)} 条 · 本卷必清清单)**：")
+        for o in overdue_lines:
+            report_lines.append(
+                f"  - [{o.get('id')}] {o.get('name')} (预定收于 {o.get('target_ch')}，已逾期至 ch_{latest_ch_num:03d})"
+            )
+
+    report_lines.append("\n## ⚔️ 二、 核心道具与充能池监控")
+    if depleted_items:
+        for di in depleted_items:
+            report_lines.append(f"- ⚠️ 耗尽道具: [{di.get('id')}] {di.get('name')} (持有者: {di.get('holder')}, charges: 0)")
+    else:
+        report_lines.append("- ✅ 所有在案法宝/道具充能运转合规，无透支违规。")
+
+    report_lines.append("\n## 💰 三、 经济流水与资源大盘")
+    for p_name, p_bal in pools.items():
+        report_lines.append(f"- **{p_name} 资金池结余**：{p_bal} (全书累计发生 {tx_count} 笔收支)")
+
+    report_lines.append(f"\n## 🔒 四、 法定不可逆既定事实 ({len(locked_facts)} 项)")
+    for lf in locked_facts:
+        report_lines.append(f"- [{lf.get('id')}] {lf.get('fact')} (第{lf.get('established_ch', '初始')}章确立)")
+
+    report_md = "\n".join(report_lines) + "\n"
+
+    target_path = None
+    if write_file:
+        rev_dir = _ensure_dir(workspace / "log" / "review")
+        target_path = rev_dir / f"reconcile_{volume_id}.md"
+        target_path.write_text(report_md, encoding="utf-8")
+
+    return {
+        "volume_id": volume_id,
+        "chapters_count": len(vol_timeline),
+        "total_words": vol_words,
+        "active_lines": len(active_in_vol),
+        "resolved_lines": len(resolved_in_vol),
+        "overdue_lines": [l.get("id") for l in overdue_lines],
+        "report_file": str(target_path) if target_path else None,
+        "content": report_md,
+    }
+
+
+def rollup_volume(workspace: Path, volume_id: str) -> Dict[str, Any]:
+    """分卷归档 (state rollup)：把时间线按卷折叠为 rollup JSON，供长篇防膨胀与跨卷总览。"""
+    ledger = StateLedger(workspace)
+    timeline = ledger.get_timeline()
+    vol_entries = sorted(
+        (t for t in timeline if t.get("volume_id") == volume_id),
+        key=lambda t: int(re.search(r"(\d+)$", t.get("chapter_id", "0")).group(1)) if re.search(r"(\d+)$", t.get("chapter_id", "0")) else 0,
+    )
+    if not vol_entries:
+        raise BusinessError(
+            f"时间线中不存在分卷 {volume_id} 的任何章节记录，无可归档数据。",
+            solution=f"请确认已通过 `python studio.py sync <ch_XXX>` 封存该卷章节，或检查分卷编号是否正确。",
+        )
+
+    def _num(cid: str) -> int:
+        m = re.search(r"(\d+)$", str(cid))
+        return int(m.group(1)) if m else 0
+
+    lines = ledger.get_lines()
+    # v4.2.1 缺陷#13：旧判据 `volume_id in resolved_ch` 永假（resolved_ch 是 ch_XXX），
+    # resolved 快照恒为空。改为按本卷章节号区间判定。
+    vol_nums = [_num(t.get("chapter_id", "")) for t in vol_entries]
+    vol_min, vol_max = (min(vol_nums), max(vol_nums)) if vol_nums else (0, 0)
+    archive = {
+        "volume_id": volume_id,
+        "archived_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "chapters_count": len(vol_entries),
+        "total_words": sum(t.get("word_count", 0) for t in vol_entries),
+        "chapters": [
+            {k: t.get(k) for k in ("chapter_id", "title", "chapter_type", "word_count", "dramatic_goal", "cliffhanger")}
+            for t in vol_entries
+        ],
+        "lines_snapshot": {
+            "active": sorted(l.get("id") for l in lines.values() if l.get("status") == "active"),
+            "resolved_in_volume": sorted(
+                l.get("id") for l in lines.values()
+                if l.get("status") == "resolved"
+                and vol_min <= _num(l.get("resolved_ch", "")) <= vol_max
+                and _num(l.get("resolved_ch", "")) > 0
+            ),
+        },
+    }
+    out = workspace / "state" / f"rollup_{volume_id}.json"
+    _save_json(out, archive)
+    return {
+        "volume_id": volume_id,
+        "archive_file": str(out),
+        "chapters_count": archive["chapters_count"],
+        "total_words": archive["total_words"],
+        "active_lines": len(archive["lines_snapshot"]["active"]),
+    }
+
+
+def simulate_impact(workspace: Path, entity: str, action: str = "retcon") -> Dict[str, Any]:
+    """因果波及与风险测算：评估中途修改设定、人设或道具对全书长程逻辑的影响。"""
+    entity = str(entity or "").strip()
+    if not entity:
+        raise BusinessError(
+            "拟测算实体 --entity 参数为空，无法进行测算。",
+            solution="请通过 --entity 指定要测算的实体名称或 ID，例如: python studio.py simulate impact --entity p_001",
+        )
+
+    ledger = StateLedger(workspace)
+    timeline = ledger.get_timeline()
+    lines = ledger.get_lines()
+    locked = ledger.get_locked_facts()
+    synopses = ledger.get_synopsis()
+
+    affected_chapters: List[str] = []
+    affected_lines: List[str] = []
+    affected_locked: List[str] = []
+
+    # 查时间线与在场记录
+    for t in timeline:
+        ch = t.get("chapter_id", "")
+        chars = t.get("present_characters", [])
+        if any(entity in str(c) for c in chars) or entity in str(t.get("dramatic_goal", "")) or entity in str(t.get("cliffhanger", "")):
+            if ch not in affected_chapters:
+                affected_chapters.append(ch)
+
+    # 查梗概
+    for ch, syn in synopses.items():
+        if entity in str(syn.get("dramatic_goal", "")) or entity in str(syn.get("cliffhanger", "")) or entity in str(syn.get("present_characters", [])):
+            if ch not in affected_chapters:
+                affected_chapters.append(ch)
+
+    # 查伏笔
+    for lid, l in lines.items():
+        if entity in l.get("name", "") or entity in l.get("desc", ""):
+            affected_lines.append(f"{lid}: {l.get('name')}")
+
+    # 查锁定事实
+    for lf in locked:
+        if entity in lf.get("fact", ""):
+            affected_locked.append(f"{lf.get('id')}: {lf.get('fact')}")
+
+    # 风险评估
+    if affected_locked:
+        risk_level = "HIGH (高风险 · 触碰已锁定法定事实)"
+    elif len(affected_chapters) >= 5 or len(affected_lines) >= 2:
+        risk_level = "MEDIUM (中风险 · 跨多章因果网络，需建立快照精确修补)"
+    else:
+        risk_level = "LOW (低风险 · 局部微创修改)"
+
+    return {
+        "entity": entity,
+        "action": action,
+        "risk_level": risk_level,
+        "affected_chapters": affected_chapters,
+        "affected_lines": affected_lines,
+        "affected_locked_facts": affected_locked,
+        "recommendation": "修改前必须运行 `python studio.py snapshot create` 建立快照备份！",
+    }
+
+
+def snapshot_create(workspace: Path, name: str) -> str:
+    """创建工程安全快照 (snapshot create)。v4.1：纳入 log/（审计·对账报告）与根目录 pack.md。"""
+    snap_dir = _ensure_dir(workspace / "snapshots")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # v4.2.1 缺陷#11：快照名净化，阻断 "../"等路径注入逃逸 snapshots 目录
+    safe_name = re.sub(r'[\\/:*?"<>|\s]+', "_", str(name)).strip("._") or "snapshot"
+    snap_file = snap_dir / f"{safe_name}_{timestamp}.zip"
+
+    with zipfile.ZipFile(snap_file, "w", zipfile.ZIP_DEFLATED) as zf:
+        for folder in ["bible", "characters", "entities", "outlines", "state", "manuscript", "log"]:
+            src_folder = workspace / folder
+            if src_folder.exists():
+                for f in src_folder.rglob("*"):
+                    if f.is_file() and ".corrupt-" not in f.name:
+                        zf.write(f, f.relative_to(workspace))
+        for root_file in ["project.json", "pack.md"]:
+            if (workspace / root_file).exists():
+                zf.write(workspace / root_file, root_file)
+
+    return str(snap_file)
+
+
+def milestone_add(workspace: Path, title: str, target_ch: int, desc: str) -> Dict[str, Any]:
+    """新增里程碑。"""
+    ms_file = workspace / "state" / "milestones.json"
+    milestones = _load_json(ms_file, default=[])
+    # v4.2.1 缺陷#14：按现存最大编号 +1 发号（旧版 len+1，删除后补建会撞号）
+    max_n = 0
+    for m0 in milestones:
+        mm = re.search(r"(\d+)$", str(m0.get("id", "")))
+        if mm:
+            max_n = max(max_n, int(mm.group(1)))
+    existing_ids = {m0.get("id") for m0 in milestones}
+    n = max_n + 1
+    while f"ms_{n:03d}" in existing_ids:
+        n += 1
+    m_id = f"ms_{n:03d}"
+    item = {"id": m_id, "title": title, "target_ch": target_ch, "desc": desc, "status": "pending"}
+    milestones.append(item)
+    _save_json(ms_file, milestones)
+    return item
+
+
+def milestone_achieve(workspace: Path, milestone_id: str) -> Optional[Dict[str, Any]]:
+    """标记里程碑达成。"""
+    ms_file = workspace / "state" / "milestones.json"
+    milestones = _load_json(ms_file, default=[])
+    target = None
+    for m in milestones:
+        if m.get("id") == milestone_id or m.get("title") == milestone_id:
+            m["status"] = "achieved"
+            m["achieved_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            target = m
+            break
+    if target:
+        _save_json(ms_file, milestones)
+    return target
+
+
+def snapshot_list(workspace: Path) -> List[Dict[str, Any]]:
+    """列出当前工作区所有可用的安全快照。"""
+    snap_dir = workspace / "snapshots"
+    if not snap_dir.exists():
+        return []
+    snaps = []
+    for f in sorted(snap_dir.glob("*.zip"), reverse=True):
+        snaps.append({
+            "name": f.stem,
+            "filename": f.name,
+            "path": str(f),
+            "size_kb": round(f.stat().st_size / 1024, 1),
+            "created_at": datetime.fromtimestamp(f.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
+        })
+    return snaps
+
+
+def snapshot_rollback(workspace: Path, name_or_file: str) -> Dict[str, Any]:
+    """回滚至指定的安全快照。"""
+    snap_dir = workspace / "snapshots"
+    target_zip: Optional[Path] = None
+
+    if Path(name_or_file).exists() and name_or_file.endswith(".zip"):
+        target_zip = Path(name_or_file)
+    elif (snap_dir / name_or_file).exists():
+        target_zip = snap_dir / name_or_file
+    elif (snap_dir / f"{name_or_file}.zip").exists():
+        target_zip = snap_dir / f"{name_or_file}.zip"
+    else:
+        # 模糊匹配最新一个包含该名字的快照
+        cand = [f for f in sorted(snap_dir.glob("*.zip"), reverse=True) if name_or_file in f.name]
+        if cand:
+            target_zip = cand[0]
+
+    if not target_zip or not target_zip.exists():
+        raise BusinessError(
+            f"未找到指定的快照文件: '{name_or_file}'",
+            solution="请运行 `python studio.py snapshot list` 查看可用的快照名称。",
+        )
+
+    # v4.1 安全带 1：回滚前自动建立当前状态快照（回滚本身可被撤销）
+    pre_snap = snapshot_create(workspace, "pre_rollback")
+
+    # v4.1 安全带 2：zip-slip 防护（拒绝压缩包内越级路径逃逸工作区）
+    # v4.2.1 缺陷#11：startswith 前缀校验存在兄弟目录绕过（/ws 与 /ws_evil），
+    # 改用 os.sep 锚定的严格前缀校验
+    import os as _os
+    ws_resolved = workspace.resolve()
+    ws_prefix = str(ws_resolved) + _os.sep
+    with zipfile.ZipFile(target_zip, "r") as zf:
+        for info in zf.infolist():
+            dest = (workspace / info.filename).resolve()
+            if str(dest) != str(ws_resolved) and not str(dest).startswith(ws_prefix):
+                raise GuardError(
+                    f"快照包含非法越级路径，已中止回滚: {info.filename}",
+                    solution="该快照压缩包可能损坏或包含非法路径，请选用其他快照或联系系统管理员。",
+                )
+        zf.extractall(workspace)
+
+
+    return {
+        "name": target_zip.stem,
+        "restored_from": str(target_zip),
+        "target_file": target_zip.name,
+        "pre_rollback_snapshot": pre_snap,
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "message": f"成功回滚工作区至快照: {target_zip.name}（回滚前状态已自动备份: {Path(pre_snap).name}）",
+    }
+
+
+# --- ID 深度追踪与治理导出 ---
+from engine.id_tracker import id_list, id_next, trace_id
