@@ -374,3 +374,43 @@ $ python3 tests/regression_test.py
 五份手册声称的路径与引擎 `evidence_candidates` 的回溯查找顺序完全一致，无偏差。
 
 **回归**：`python3 tests/regression_test.py` → **116 项全通过 / 0 失败**。
+
+### BUG#26 【P3 已修】`templates/README.md` 残留不存在的 `style_*` 配置旋钮
+
+- **现象**：README 第 44 行称 `project.json.engine` 存旋钮
+  `token_cap`/`cruise_max_chapters`/`default_pool`/`style_*`，但 `style_*` 在
+  `engine/` 全文**零命中**——系 style 命令于 v4.2 退役（见 BUG#22）后的文档残留。
+  `config guide` 实际输出 6 个旋钮，其中 `cruise_human_gate`/`cruise_wait_timeout`
+  反而未被 README 列出。
+- **修复**：改为与 `DEFAULT_CONFIG` 一致的真实清单，删除 `style_*` 并注明退役原因。
+
+### BUG#27 【P1 已修已验】文档九处宣称「严格枚举」，引擎零校验
+
+- **现象**：`templates/README.md` 对 `type`/`role`/`status`/`life_status`/`attitude`
+  反复标注「**严格枚举**」，其中 attitude 更明令「严禁用 `disposition`」。
+  实测把 p_003 四个字段分别改为 `半死不活` / `disposition` / `路人甲` / `摸鱼中`
+  后，`check` 依旧 **✅ 0 errors 放行**，`schema.py` 的 dataclass 默认值形同虚设。
+- **后果**（不止于文档失信）：`engine/probes.py:376` 的死亡探针按
+  `life in ("deceased","dead")` **精确匹配**消费该字段——任何拼写变体
+  （`已故` / `Deceased ` / `dead人`）都会让已故角色被判定为在世，
+  死亡探针继续对其触发误报；cockpit 与 id_tracker 亦照原样展示非法值。
+- **修复**：`engine/check.py` 新增 **3.2.5 节「强类型枚举白名单巡检」**，
+  覆盖实体四表（persons/items/factions/places）的五个法定枚举字段。
+  - **定级为 warning 而非 error**：存量书可能已有自造值，硬阻断会锁死工程；
+    但必须让作者看见并给出法定枚举以便收敛。
+  - 对 `life_status` 额外附加死亡探针失效警示，对 `disposition` 附加 README 禁令提示。
+- **验证**：`/tmp/tpl` 四处非法值全部精准命中并给出白名单；
+  `workspace/testbook` 干净基线**零误报**；`templates/` 下 8 张卡片实测全部使用合法枚举。
+
+### 第 7 轮第 5 项：模板字段全量核对结论
+
+| 核对项 | 结论 |
+|---|---|
+| `project.json` 8 个顶层键 | ✅ 与引擎消费一致 |
+| `scope.target_words` / `target_volumes` / `chapters_per_volume` | ✅ **非缺陷**：引擎零读取，但 README 已明确定性为「写手指引而非硬性代码拦截」，文实相符 |
+| `engine.*` 旋钮清单 | ⚠️ **BUG#26**（已修） |
+| 实体四表强类型枚举 | ⚠️ **BUG#27**（已修） |
+| `templates/` 8 张卡片的枚举取值 | ✅ 全部合法 |
+| `beats.md` 细纲字段契约 | ✅ 第 7 轮第 1 项已核（见 BUG#21），模板侧 14 字段与脚手架产出完全一致 |
+
+**回归**：`python3 tests/regression_test.py` → **116 项全通过 / 0 失败**。

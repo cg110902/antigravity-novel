@@ -333,6 +333,54 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
     except Exception:
         pass
 
+    # 3.2.5 强类型枚举白名单巡检（v4.3.2 缺陷#27）
+    #
+    # 背景：templates/README.md 九处宣称 type/role/status/life_status/attitude 为
+    # 「严格枚举」，实测引擎**零校验**——把 life_status 改成 '半死不活'、
+    # attitude 改成文档明令严禁的 'disposition'，check 依旧 0 errors 放行。
+    # 危害不止于文档失信：engine/probes.py:376 的死亡探针按
+    # `life in ("deceased","dead")` 判定，任何拼写变体（'已故'/'Deceased '/'dead人'）
+    # 都会让已死角色被当作活人，继续触发死亡误报；cockpit 与 id_tracker 亦照原样展示。
+    # 处置取向：报 warning 而非 error——存量书可能已有自造值，硬阻断会锁死工程；
+    # 但必须让作者看见，且给出法定枚举以便收敛。
+    _ENUMS = {
+        "type": {"person", "item", "location", "place", "faction", "other"},
+        "role": {"protagonist", "deuteragonist", "antagonist", "ally", "supporting"},
+        "status": {"active", "retired"},
+        "life_status": {"alive", "deceased", "missing"},
+        "attitude": {"hostile", "neutral", "friendly", "allied"},
+    }
+    try:
+        for _tname, _tbl, _keys in (
+            ("persons", state_mgr.get_persons(), ("type", "role", "status", "life_status", "attitude")),
+            ("items", state_mgr.get_items(), ("type", "status")),
+            ("factions", state_mgr.get_factions(), ("type", "attitude")),
+            ("places", state_mgr.get_places(), ("type",)),
+        ):
+            for _eid, _rec in (_tbl or {}).items():
+                if not isinstance(_rec, dict):
+                    continue
+                for _k in _keys:
+                    _v = _rec.get(_k)
+                    if _v in (None, ""):
+                        continue
+                    if str(_v).strip().lower() not in _ENUMS[_k]:
+                        _extra = ""
+                        if _k == "life_status":
+                            _extra = (
+                                "（⚠️ 该字段被死亡探针按 deceased/dead 精确匹配消费，"
+                                "非法值会让已故角色被当作在世，持续触发死亡误报）"
+                            )
+                        if _k == "attitude" and str(_v).strip().lower() == "disposition":
+                            _extra = "（templates/README 明令严禁使用 `disposition`）"
+                        warnings.append(
+                            f"强类型枚举越界: {_tname}/{_eid} 的 {_k} = {_v!r} 不在法定白名单 "
+                            f"{sorted(_ENUMS[_k])} 内{_extra}。"
+                            f"\n      💡 方案：请在 state/{_tname}.json 中改为法定枚举值。"
+                        )
+    except Exception:
+        pass
+
     # 3.3 里程碑时钟超期巡检（v4.3.2 缺陷#25）
     #
     # 背景：伏笔有 3.2 节的超期告警，里程碑却零校验——`milestones.json` 此前

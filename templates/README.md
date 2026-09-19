@@ -41,7 +41,7 @@ templates/
 
 | 模板源文件 | `studio.py init` 目标路径 | 负责角色 | 核心功能与引擎联动 |
 |---|---|---|---|
-| `project.json` | `project.json` | 引擎自动 ➔ Stage 0A 填实 | **8 个顶层键**：`schema`/`title`/`genre`/`protagonist`/`scope`/`engine`/`current_status`/`created_at`。`scope` 存商业标尺（target_words/target_volumes/chapters_per_volume/words_per_chapter，作为写手指引而非硬性代码拦截）；`engine` 存引擎旋钮：`token_cap`/`cruise_max_chapters`/`default_pool`/`style_*`。彻底移除一切死板的字数容差、对白比例、排版限制与硬编码词表。全量旋钮清单与当前值：`config guide` |
+| `project.json` | `project.json` | 引擎自动 ➔ Stage 0A 填实 | **8 个顶层键**：`schema`/`title`/`genre`/`protagonist`/`scope`/`engine`/`current_status`/`created_at`。`scope` 存商业标尺（target_words/target_volumes/chapters_per_volume/words_per_chapter，作为写手指引而非硬性代码拦截）；`engine` 存引擎旋钮：`token_cap`/`cruise_max_chapters`/`cruise_human_gate`/`cruise_wait_timeout`/`default_pool`（v4.3.2 缺陷#26：原文所列 `style_*` 系 style 命令于 v4.2 退役后的文档残留，引擎中从不存在该旋钮，已删除）。彻底移除一切死板的字数容差、对白比例、排版限制与硬编码词表。全量旋钮清单与当前值：`config guide` |
 | `bible/01_world_axioms.md` | `bible/01_world_axioms.md` | Stage 0A (Architect-World) | 世界底层物理与逻辑公理，金手指运转机制 |
 | `bible/02_power_system.md` | `bible/02_power_system.md` | Stage 0A (Architect-World) | 力量/社会地位实物标尺，默认恒给 `pack` P0 时空胶囊 |
 | `bible/03_factions_geography.md` | `bible/03_factions_geography.md` | Stage 0A (Architect-World) | 地缘版图与势力利益冲突，默认恒给 `pack` P0 时空胶囊 |
