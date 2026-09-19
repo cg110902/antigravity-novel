@@ -985,16 +985,38 @@ def proposal_auto(workspace: Path, chapter_id: str) -> Dict[str, Any]:
             else:
                 raw_new = fm.setdefault("new_entities", [])
                 if isinstance(raw_new, list):
-                    if not any(x.get("name") == ei["name"] for x in raw_new if isinstance(x, dict)):
+                    val = ei["holder_or_status"]
+                    _is_status = val in ("destroyed", "consumed", "lost", "active")
+                    existing = next(
+                        (x for x in raw_new
+                         if isinstance(x, dict) and x.get("name") == ei["name"]
+                         and str(x.get("type", "item")).lower() in ("item", "weapon", "tool")),
+                        None,
+                    )
+                    if existing is not None:
+                        # v4.3.2 缺陷#17：同章「首次登场 + 当场损毁」的道具（审计手册明确要求
+                        # [新登场] 与 [道具变动] 分行登记）旧版会因 new_entities 已有同名条目
+                        # 而整条跳过后续 [道具变动]，destroyed/持有人静默丢失 —— 道具仍以
+                        # active 入账，直接违背手册「道具损毁必抓」的承诺。改为补写而非跳过。
+                        if _is_status:
+                            if existing.get("status", "active") != val:
+                                existing["status"] = val
+                                updated_beats = True
+                        elif val and existing.get("holder") != val:
+                            existing["holder"] = val
+                            updated_beats = True
+                        if ei["desc"] and not existing.get("summary"):
+                            existing["summary"] = ei["desc"]
+                            updated_beats = True
+                    else:
                         new_iid = tracker.get_next_id("item")
-                        val = ei["holder_or_status"]
-                        default_holder = protagonist if val in ("destroyed", "consumed", "lost", "active") else val
+                        default_holder = protagonist if _is_status else val
                         raw_new.append({
                             "id": new_iid,
                             "type": "item",
                             "name": ei["name"],
                             "holder": default_holder,
-                            "status": val if val in ("destroyed", "consumed", "lost", "active") else "active",
+                            "status": val if _is_status else "active",
                             "summary": ei["desc"],
                         })
                         updated_beats = True

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import List, Optional
@@ -143,6 +144,16 @@ def _build_help_data() -> dict:
     }
 
 
+def _chapter_num_arg(value: str) -> int:
+    """argparse type 钩子：把 `ch_010` / `ch010` / `10` 统一解析为整数章号。"""
+    s = str(value).strip()
+    m = re.fullmatch(r"(?:ch[_-]?)?0*(\d+)", s, flags=re.IGNORECASE)
+    if not m:
+        raise argparse.ArgumentTypeError(
+            f"章号格式非法: {value!r}。请使用 ch_010 或 10 这样的形式。")
+    return int(m.group(1))
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = _StudioArgumentParser(
         prog="studio.py",
@@ -252,7 +263,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_ms_sub = p_ms.add_subparsers(dest="subcommand")
     p_ms_add = p_ms_sub.add_parser("add", help="添加里程碑")
     p_ms_add.add_argument("--title", required=True)
-    p_ms_add.add_argument("--target-ch", type=int, required=True)
+    # v4.3.2 缺陷#16：旧版 type=int 只收裸数字，而全系统（细纲 chapter_id、check、
+    # cruise、trace、cockpit 提示）统一使用 ch_XXX 章号形态，文档示例也两种写法混用。
+    # Architect 按直觉传 --target-ch ch_010 会吃 exit 2 语法错误。改为两种都收，归一存储。
+    p_ms_add.add_argument("--target-ch", type=_chapter_num_arg, required=True,
+                          help="目标章号，支持 ch_010 或 10 两种写法")
     p_ms_add.add_argument("--desc", default="")
     p_ms_add.add_argument("-w", "--workspace", default=None)
     p_ms_ach = p_ms_sub.add_parser("achieve", help="达成里程碑")

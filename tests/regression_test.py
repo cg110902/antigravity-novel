@@ -545,7 +545,35 @@ locked_facts: []
               get_death_chapter({"life_status": "deceased", "last_seen_ch": "ch_003",
                                  "arc_history": [{"chapter": "ch_005", "status_out": "倒下"}]}) == "ch_005")
 
-        print("\n=== 9. 快照 ===")
+        print("\n=== 9. 手册契约一致性 ===")
+        check("BUG#16 milestone --target-ch 接受 ch_XXX 形态",
+              run(ws, "milestone", "add", "--title", "破局", "--target-ch", "ch_010").returncode == 0)
+        check("BUG#16 milestone --target-ch 接受裸数字",
+              run(ws, "milestone", "add", "--title", "转折", "--target-ch", "12").returncode == 0)
+        ms = load(ws, "state/milestones.json")
+        check("BUG#16 两种写法归一为同种存储",
+              [m["target_ch"] for m in ms] == [10, 12], str([m.get("target_ch") for m in ms]))
+        check("BUG#16 非法章号仍报 exit 2",
+              run(ws, "milestone", "add", "--title", "x", "--target-ch", "第五章").returncode == 2)
+
+        # 审计手册承诺：[新登场] 与 [道具变动] 分行登记同一道具，二者都要落地
+        (ws / "log/audit/ch_002.md").write_text(
+            txt + "\n- [新登场] 类型: item ｜ 名称: 铜哨 ｜ 描述: 柜台下的旧物\n"
+                  "- [道具变动] 名称: 铜哨 ｜ 状态: destroyed ｜ 说明: 当场捏碎\n",
+            encoding="utf-8")
+        run(ws, "proposal", "auto", "ch_002", "--write", "--force")
+        fm_items = [e for e in json.loads(
+            (ws / "state/inbox/proposal_ch_002.json").read_text(encoding="utf-8")
+        )["frontmatter"].get("new_entities", []) if e.get("name") == "铜哨"]
+        check("BUG#17 同章登场即损毁的道具保留 destroyed",
+              len(fm_items) == 1 and fm_items[0].get("status") == "destroyed", str(fm_items))
+
+        check("版本号与 engine.__version__ 一致",
+              run(ws, "check").returncode in (0, 1) and __import__("engine").__version__ in
+              subprocess.run([sys.executable, str(STUDIO), "--version"], capture_output=True,
+                             text=True, cwd=str(ROOT)).stdout)
+
+        print("\n=== 10. 快照 ===")
         r = run(ws, "snapshot", "create", "rt")
         check("快照创建", r.returncode == 0)
         snap = sorted((ws / "snapshots").glob("rt_*.zip"))[-1].stem

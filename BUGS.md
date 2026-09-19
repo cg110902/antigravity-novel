@@ -143,3 +143,36 @@ Auditor 成果保护与配方闭环、四类硬阻断（空正文 / 未填槽位
 
 ### 回归
 `tests/regression_test.py` 扩充至 **72 项断言全通过**，新增「--refresh 语义」与「损坏隔离与死亡章判定」两个测试段。
+
+
+---
+
+# 第 4 轮：文档与代码契约一致性（v4.3.2 定版）
+
+逐条执行文档（AGENTS.md / README.md / engine/README.md / templates/README.md / 10 份 `.agents/skills/*/SKILL.md`）中出现的全部 37 条命令行示例，并核验手册对引擎行为的事实性承诺。
+
+### 命令契约核验结果
+除下述两项外，文档承诺的命令、参数与退出码均与实现一致；`finalize` 的配方解析对多行三反引号与行内紧凑两种格式（含 `原句/原文/修改后/替换为` 中英文别名、加粗、中文冒号）均可正确识别，与 auditor 手册规范吻合。
+
+### BUG#16（P2）`milestone add --target-ch` 只收裸数字，与全系统章号形态冲突
+- 复现：`milestone add --title X --target-ch ch_010` → exit 2「invalid int value」。
+- 根因：`engine/cli.py` 该参数 `type=int`。而全系统（细纲 `chapter_id`、`check`、`cruise --until`、`trace`）统一使用 `ch_XXX`，architect 手册示例又写作 `--target-ch 5`，两种形态混用。
+- 修复：新增 `_chapter_num_arg` 解析钩子，`ch_010` / `ch010` / `10` 均接受并归一为整数存储；非法值仍报 exit 2 且给出可读提示。
+
+### BUG#17（P1）同章「首次登场 + 当场损毁」的道具丢失 destroyed 状态
+- 复现：按 auditor 手册规范分行登记 `- [新登场] 类型: item ｜ 名称: 铜哨` 与 `- [道具变动] 名称: 铜哨 ｜ 状态: destroyed`，`proposal auto` 后铜哨以 `active` 入账。
+- 根因：`engine/ops.py::proposal_auto` 处理 `emergent_items` 时，若 `new_entities` 已存在同名条目便整条跳过，后续的状态/持有人变动被静默丢弃。
+- 影响：直接违背手册「道具损毁必抓」的承诺，且这恰是最常见的组合（战斗中掉落又当场碎裂）。
+- 修复：改为补写而非跳过——已存在同名道具时合并 status / holder / summary。
+
+### 其它一致性核查（通过）
+- 版本号唯一真值源：`engine/__init__.__version__` 已随本轮变更升至 **4.3.2**，`--version` 与 cockpit 横幅均动态引用，符合 engine/README 不变量 7。
+- 八表口径：README 的「人物/道具/势力/地点/伏笔/恩怨/资金池/时间线」与 engine/README 的 `persons/items/factions/places/lines/locked/ledger/current` 表述角度不同但均可自洽，实际落盘 15 张表 + 2 索引，无缺失。
+- 退出码铁律 0/1/2/3/4 与实现一致（本轮 BUG#13 修复后，exit 4 不再可被「重试一次」绕过）。
+
+### 最终回归
+```
+$ python3 tests/regression_test.py
+通过 78 项 ｜ 失败 0 项
+```
+`workspace/testbook`（《灰烬纪元》4 章成稿）全书体检 ✅ 0 error。
