@@ -1,0 +1,267 @@
+{
+  "chapter_id": "ch_001",
+  "timestamp": "2026-09-19T23:08:35.963779",
+  "current": {
+    "current_vol": "vol_01",
+    "current_ch": "ch_001",
+    "last_timeline": "永乐十二年·正月十七·辰时",
+    "last_location": "城南义庄·停尸石床",
+    "last_chapter_type": "破局",
+    "present_characters": [
+      "裴砚",
+      "沈拂云"
+    ],
+    "active_foreshadowings": [
+      "GUN-001",
+      "MIS-001"
+    ],
+    "latest_word_count": 1027,
+    "last_dramatic_goal": "裴砚在城南义庄验第七具焚尸，凭一处灰烬走向判定火是从屋内点起，与顺天府「失火」结论相悖",
+    "last_cliffhanger": "裴砚翻开尸格，发现验尸人签名是十年前早已死去的仵作"
+  },
+  "persons": {
+    "p_001": {
+      "id": "p_001",
+      "name": "裴砚",
+      "type": "person",
+      "role": "protagonist",
+      "aliases": [
+        "裴评事",
+        "裴大人"
+      ],
+      "card": "characters/protagonist.md",
+      "summary": "大理寺评事，灯市案幸存孤儿",
+      "tier_rank": 2,
+      "tier_name": "大理寺评事（从七品）",
+      "status": "active",
+      "life_status": "alive",
+      "condition": "完好·因半枚灯签心神震动",
+      "injury_level": 0,
+      "injury_desc": "无伤",
+      "location": "loc_001",
+      "faction": "大理寺",
+      "attitude": "neutral",
+      "sensory_anchor": "洗得发白的青色官袍，腰间一枚豁口铜灯签",
+      "address_matrix": {
+        "沈拂云": "沈仵作",
+        "崔敬亭": "崔通判",
+        "周伯": "周老"
+      },
+      "want": "验明第七具死者的真实死因",
+      "fear": "又一次只能对着烧焦的人束手无策",
+      "need": "放下幸存者的负疚",
+      "lie": "查到底就能赎清十年前的罪",
+      "quirk": "用指节轻叩尸床边沿数时辰",
+      "taboo": "拿死者尸身做交易",
+      "arc_history": [
+        {
+          "chapter": "ch_001",
+          "want": "验明第七具死者的真实死因",
+          "fear": "又一次只能对着烧焦的人束手无策",
+          "latent_mood": "",
+          "physiological_leak": "",
+          "status_in": "完好·压着旧事不提",
+          "status_out": "完好·因半枚灯签心神震动"
+        }
+      ],
+      "last_seen_ch": "ch_001"
+    },
+    "p_002": {
+      "id": "p_002",
+      "name": "崔敬亭",
+      "type": "person",
+      "role": "antagonist",
+      "aliases": [
+        "崔通判",
+        "崔青天",
+        "崔大人"
+      ],
+      "card": "characters/antagonist.md",
+      "summary": "顺天府通判，灯市案真凶",
+      "tier_rank": 6,
+      "tier_name": "顺天府通判（正六品）",
+      "status": "active",
+      "life_status": "alive",
+      "condition": "完好",
+      "injury_level": 0,
+      "injury_desc": "无伤",
+      "location": "loc_004",
+      "faction": "顺天府",
+      "attitude": "hostile",
+      "sensory_anchor": "紫檀念珠，第三颗有烧痕",
+      "address_matrix": {
+        "裴砚": "裴评事",
+        "沈拂云": "沈仵作"
+      },
+      "want": "在旧案翻出前钉死卷宗",
+      "fear": "被人指认",
+      "quirk": "捻念珠停在第三颗",
+      "arc_history": []
+    },
+    "p_003": {
+      "id": "p_003",
+      "name": "沈拂云",
+      "type": "person",
+      "role": "deuteragonist",
+      "aliases": [
+        "沈仵作"
+      ],
+      "summary": "仵作行女仵作，验骨第一手",
+      "tier_rank": 2,
+      "tier_name": "仵作",
+      "status": "active",
+      "life_status": "alive",
+      "condition": "完好·戒备",
+      "injury_level": 0,
+      "injury_desc": "无伤",
+      "location": "loc_001",
+      "faction": "仵作行",
+      "attitude": "friendly",
+      "sensory_anchor": "袖口常年卷到肘，腕上一道旧疤",
+      "address_matrix": {
+        "裴砚": "裴评事",
+        "崔敬亭": "崔大人",
+        "周伯": "师父"
+      },
+      "want": "护住尸格不被人改",
+      "arc_history": [
+        {
+          "chapter": "ch_001",
+          "want": "护住尸格不被人改",
+          "fear": "行里的人再因一份文书送命",
+          "latent_mood": "",
+          "physiological_leak": "",
+          "status_in": "完好·戒备",
+          "status_out": ""
+        }
+      ],
+      "fear": "行里的人再因一份文书送命",
+      "last_seen_ch": "ch_001"
+    },
+    "p_004": {
+      "id": "p_004",
+      "name": "周伯",
+      "type": "person",
+      "role": "supporting",
+      "aliases": [
+        "周老"
+      ],
+      "summary": "仵作行头目，沈拂云的师父",
+      "tier_rank": 2,
+      "tier_name": "仵作行头目",
+      "status": "active",
+      "life_status": "alive",
+      "condition": "完好",
+      "injury_level": 0,
+      "injury_desc": "无伤",
+      "location": "loc_002",
+      "faction": "仵作行",
+      "attitude": "neutral",
+      "address_matrix": {
+        "裴砚": "裴大人",
+        "沈拂云": "云丫头"
+      },
+      "arc_history": []
+    }
+  },
+  "items": {
+    "it_001": {
+      "id": "it_001",
+      "name": "豁口铜灯签",
+      "type": "item",
+      "holder": "p_001",
+      "status": "active",
+      "grade": "信物",
+      "charges": -1,
+      "desc": "裴砚随身十年的半枚灯签，灯市案遗物"
+    },
+    "it_002": {
+      "id": "it_002",
+      "name": "验骨银针",
+      "type": "item",
+      "holder": "p_001",
+      "status": "active",
+      "grade": "工具",
+      "charges": 5,
+      "desc": "祖传验骨银针一套，每验一具耗损一根",
+      "durability": "折损一根",
+      "last_seen_ch": "ch_001",
+      "transfer_history": [
+        {
+          "chapter": "ch_001",
+          "holder_change": "p_001 -> p_001",
+          "charges_delta": -1,
+          "remaining_charges": 5,
+          "status": "active"
+        }
+      ]
+    }
+  },
+  "lines": {
+    "GUN-001": {
+      "id": "GUN-001",
+      "name": "死者右手的半枚灯签",
+      "type": "GUN",
+      "tier": "A",
+      "status": "active",
+      "planted_ch": "ch_001",
+      "target_ch": "",
+      "revealed_chs": [],
+      "resolved_ch": "",
+      "desc": "第七具死者右手攥着半枚铜灯签，与裴砚随身那半枚是一对",
+      "evidence": ""
+    },
+    "MIS-001": {
+      "id": "MIS-001",
+      "name": "沈拂云误判裴砚来意",
+      "type": "MIS",
+      "tier": "A",
+      "status": "active",
+      "planted_ch": "ch_001",
+      "target_ch": "",
+      "revealed_chs": [],
+      "resolved_ch": "",
+      "desc": "沈拂云以为裴砚是被派来给顺天府背书顶罪的",
+      "evidence": ""
+    }
+  },
+  "relations": {
+    "p_001->p_003": {
+      "pair": "p_001->p_003",
+      "source_id": "p_001",
+      "target_id": "p_003",
+      "affinity": 0,
+      "trust": 50,
+      "tension": 45,
+      "dynamic_label": "同行相疑·各守其职",
+      "unspoken_subtext": "都想护住这份尸格，却都不肯先交底",
+      "history": [
+        {
+          "chapter": "ch_001",
+          "dynamic": "同行相疑·各守其职",
+          "subtext": "都想护住这份尸格，却都不肯先交底",
+          "affinity": 0,
+          "tension": 45
+        }
+      ],
+      "last_updated_ch": "ch_001"
+    }
+  },
+  "debts": [],
+  "locked_facts": [],
+  "synopsis": {
+    "chapter_id": "ch_001",
+    "volume_id": "vol_01",
+    "title": "城南第七具（焚尸案发）",
+    "timeline": "永乐十二年·正月十七·辰时",
+    "location": "城南义庄·停尸石床",
+    "chapter_type": "破局",
+    "dramatic_goal": "裴砚在城南义庄验第七具焚尸，凭一处灰烬走向判定火是从屋内点起，与顺天府「失火」结论相悖",
+    "cliffhanger": "裴砚翻开尸格，发现验尸人签名是十年前早已死去的仵作",
+    "word_count": 1027,
+    "present_characters": [
+      "裴砚",
+      "沈拂云"
+    ]
+  }
+}

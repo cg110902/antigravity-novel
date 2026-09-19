@@ -16,7 +16,18 @@
     "holder": "p_001",
     "status": "active",
     "grade": "工具",
-    "charges": 6,
-    "desc": "祖传验骨银针一套，每验一具耗损一根"
+    "charges": 5,
+    "desc": "祖传验骨银针一套，每验一具耗损一根",
+    "durability": "折损一根",
+    "last_seen_ch": "ch_001",
+    "transfer_history": [
+      {
+        "chapter": "ch_001",
+        "holder_change": "p_001 -> p_001",
+        "charges_delta": -1,
+        "remaining_charges": 5,
+        "status": "active"
+      }
+    ]
   }
 }

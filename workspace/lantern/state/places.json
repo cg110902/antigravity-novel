@@ -7,7 +7,10 @@
     "desc": "停放无主尸身之所，终年阴冷",
     "atmosphere": "石床、草席、灰烬味",
     "sensory_anchor": "石床冷硬，草席下压着陈年灰烬味",
-    "environment_rules": "义庄夜不闭户，尸身按序编号，不得移位"
+    "environment_rules": "义庄夜不闭户，尸身按序编号，不得移位",
+    "visited_chapters": [
+      "ch_001"
+    ]
   },
   "loc_002": {
     "id": "loc_002",

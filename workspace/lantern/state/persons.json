@@ -14,7 +14,7 @@
     "tier_name": "大理寺评事（从七品）",
     "status": "active",
     "life_status": "alive",
-    "condition": "完好",
+    "condition": "完好·因半枚灯签心神震动",
     "injury_level": 0,
     "injury_desc": "无伤",
     "location": "loc_001",
@@ -26,13 +26,24 @@
       "崔敬亭": "崔通判",
       "周伯": "周老"
     },
-    "want": "查清城南焚尸案",
-    "fear": "再一次救不下火场里的人",
+    "want": "验明第七具死者的真实死因",
+    "fear": "又一次只能对着烧焦的人束手无策",
     "need": "放下幸存者的负疚",
     "lie": "查到底就能赎清十年前的罪",
     "quirk": "用指节轻叩尸床边沿数时辰",
     "taboo": "拿死者尸身做交易",
-    "arc_history": []
+    "arc_history": [
+      {
+        "chapter": "ch_001",
+        "want": "验明第七具死者的真实死因",
+        "fear": "又一次只能对着烧焦的人束手无策",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "完好·压着旧事不提",
+        "status_out": "完好·因半枚灯签心神震动"
+      }
+    ],
+    "last_seen_ch": "ch_001"
   },
   "p_002": {
     "id": "p_002",
@@ -79,7 +90,7 @@
     "tier_name": "仵作",
     "status": "active",
     "life_status": "alive",
-    "condition": "完好",
+    "condition": "完好·戒备",
     "injury_level": 0,
     "injury_desc": "无伤",
     "location": "loc_001",
@@ -91,8 +102,20 @@
       "崔敬亭": "崔大人",
       "周伯": "师父"
     },
-    "want": "守住尸格不被改",
-    "arc_history": []
+    "want": "护住尸格不被人改",
+    "arc_history": [
+      {
+        "chapter": "ch_001",
+        "want": "护住尸格不被人改",
+        "fear": "行里的人再因一份文书送命",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "完好·戒备",
+        "status_out": ""
+      }
+    ],
+    "fear": "行里的人再因一份文书送命",
+    "last_seen_ch": "ch_001"
   },
   "p_004": {
     "id": "p_004",

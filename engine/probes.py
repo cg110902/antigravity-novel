@@ -196,21 +196,53 @@ def probe_address_matrix(text: str, persons_db: Optional[Dict[str, Any]] = None)
     }
 
 
-def probe_grounding(text: str, frontmatter: Dict[str, Any]) -> Dict[str, Any]:
+def probe_grounding(text: str, frontmatter: Dict[str, Any],
+                    persons_db: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """伏笔与道具物象落地探针（warning 级）：细纲声明 plant/reveal 的伏笔、流转的道具，
     其名称/物象应至少在正文中出现一次，防止「细纲写了正文忘了写」。
 
-    token 粒度：全名 + 描述的二元词组（bigram）——只要物象的任意局部意象出现即算落地，
-    规避整句改写导致的合法误报；仅当正文完全无任何相关物象时才提醒。
+    v4.3.2 缺陷#31：旧版把 `name` 与 `desc` 的全部 bigram 混为一池，命中任意一个即算落地。
+    但 desc 是一句自然语言描述，必然混入角色名与通用词——实测 GUN-001
+    「死者右手的半枚灯签」/desc「第七具死者右手攥着半枚铜灯签，与裴砚随身那半枚是一对」
+    切出的 24 个 token 里，`第七`/`七具`/`死者`/`裴砚` 四个属无区分度通用词。
+    把正文中全部「灯签」字样删光后，探针仍因这四个词判定「已落地」而静默。
+    伏笔漏写正是本探针唯一的职责，却因此永远抓不到。
+
+    新口径：
+    1. `name`（伏笔的标志性物象）为主判据——命中即落地；
+    2. 仅当 name 缺失时，才用 desc 的 bigram 兜底，且先剔除在场角色名与停用通用词。
     """
     misses: List[Dict[str, str]] = []
+
+    # 在场角色名（含别名）与通用词一律不作为「物象落地」的判据
+    _noise: set = set()
+    for _p in (persons_db or {}).values():
+        if not isinstance(_p, dict):
+            continue
+        _nm = str(_p.get("name", "")).strip()
+        if _nm:
+            _noise.add(_nm)
+            for i in range(len(_nm) - 1):
+                _noise.add(_nm[i:i + 2])
+        for _al in (_p.get("aliases") or []):
+            _al = str(_al).strip()
+            if _al:
+                _noise.add(_al)
+                for i in range(len(_al) - 1):
+                    _noise.add(_al[i:i + 2])
+    _noise |= {
+        "死者", "尸身", "尸体", "第一", "第二", "第三", "第四", "第五", "第六", "第七",
+        "一具", "二具", "三具", "七具", "右手", "左手", "身上", "随身", "手里", "手中",
+        "之后", "之前", "当年", "十年", "今日", "昨夜", "一个", "一处", "一道", "一张",
+        "自己", "对方", "他们", "其中", "那半", "半枚", "这个", "那个",
+    }
 
     def _desc_bigrams(desc: str) -> List[str]:
         runs = re.findall(r"[\u4e00-\u9fff]{2,}", desc)
         grams: List[str] = []
         for run in runs[:4]:
             grams.extend(run[i:i + 2] for i in range(0, max(1, len(run) - 1), 1))
-        return grams
+        return [g for g in grams if g not in _noise]
 
     # v4.3：单 dict 形态统一包裹为列表（与 state.py 归一化口径一致）
     raw_fd = frontmatter.get("foreshadowing_deltas") or []
@@ -221,11 +253,25 @@ def probe_grounding(text: str, frontmatter: Dict[str, Any]) -> Dict[str, Any]:
         action = str(fd.get("action", "plant")).lower()
         if action not in ("plant", "reveal"):
             continue
+        # v4.3.2 缺陷#31（续）：只有 GUN-（实体暗线/信物）才有可供字面核验的物象。
+        # KNO-（知情差）与 MIS-（认知偏差）本质是角色脑内的认知状态，靠内心戏与
+        # 言行错位来承载，没有对应的字面意象——实测合规正文写足了沈拂云的误判内心戏，
+        # 仍被判「漏写 MIS-001」。对这两类做字面匹配只会制造无法消除的噪音，
+        # 其落地与否交由 Stage 4A (Auditor) 语义评估。
+        _fid = str(fd.get("id", "")).strip().upper()
+        if _fid.startswith(("KNO-", "MIS-")):
+            continue
         name = str(fd.get("name", "")).strip()
         desc = str(fd.get("desc", "")).strip()
-        tokens = [name] if name else []
-        tokens += _desc_bigrams(desc)
-        if tokens and not any(t and t in text for t in tokens):
+        if name:
+            # name 为主判据：整名命中，或其去噪 bigram 命中
+            _ngrams = [name] + [g for g in (name[i:i + 2] for i in range(len(name) - 1))
+                                if g not in _noise]
+            grounded = any(t and t in text for t in _ngrams)
+        else:
+            tokens = _desc_bigrams(desc)
+            grounded = any(t and t in text for t in tokens) if tokens else True
+        if not grounded:
             misses.append({"kind": "伏笔", "ref": str(fd.get("id", "")), "hint": name or desc[:20]})
 
     sd = frontmatter.get("state_deltas") or {}
@@ -236,7 +282,8 @@ def probe_grounding(text: str, frontmatter: Dict[str, Any]) -> Dict[str, Any]:
             iname = str(it.get("name", "")).strip()
             iid = str(it.get("id", "")).strip()
             tokens = [t for t in (iname, iid) if t]
-            tokens += _desc_bigrams(iname)
+            tokens += [g for g in (iname[i:i + 2] for i in range(max(0, len(iname) - 1)))
+                       if g not in _noise]
             if tokens and not any(t and t in text for t in tokens):
                 misses.append({"kind": "道具", "ref": iid, "hint": iname})
 
@@ -476,7 +523,7 @@ def run_all_probes(text: str, frontmatter: Dict[str, Any],
     total_words = _count_total(text)
     p_epistemology = probe_epistemology_leaks(text, blind_spots, name_by_id=name_by_id, present_ids=present_ids)
     p_address = probe_address_matrix(text, persons_db)
-    p_grounding = probe_grounding(text, frontmatter)
+    p_grounding = probe_grounding(text, frontmatter, persons_db=persons_db)
     p_fatalities = probe_unregistered_fatalities(text, frontmatter, persons_db=persons_db, audit_text=audit_text)
 
     # 阻断级错误：空正文 (0字)、确认级角色认知泄露、未登记角色死亡

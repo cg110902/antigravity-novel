@@ -1,1 +1,44 @@
-{}
+{
+  "p_001": {
+    "id": "p_001",
+    "name": "裴砚",
+    "type": "person",
+    "events": [
+      {
+        "chapter": "ch_001",
+        "event": "出场",
+        "status_in": "完好·压着旧事不提",
+        "want": "验明第七具死者的真实死因",
+        "fear": "又一次只能对着烧焦的人束手无策"
+      }
+    ]
+  },
+  "p_003": {
+    "id": "p_003",
+    "name": "沈拂云",
+    "type": "person",
+    "events": [
+      {
+        "chapter": "ch_001",
+        "event": "出场",
+        "status_in": "完好·戒备",
+        "want": "护住尸格不被人改",
+        "fear": "行里的人再因一份文书送命"
+      }
+    ]
+  },
+  "it_002": {
+    "id": "it_002",
+    "name": "验骨银针",
+    "type": "item",
+    "events": [
+      {
+        "chapter": "ch_001",
+        "event": "流转/使用",
+        "holder": "p_001",
+        "charges_delta": -1,
+        "remaining_charges": 5
+      }
+    ]
+  }
+}

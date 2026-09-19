@@ -1,1 +1,32 @@
-{}
+{
+  "p_001<->p_003": {
+    "pair": [
+      "p_001",
+      "p_003"
+    ],
+    "names": [
+      "裴砚",
+      "沈拂云"
+    ],
+    "first_seen_ch": "ch_001",
+    "last_seen_ch": "ch_001",
+    "total_co_occurrences": 1,
+    "chapters": [
+      "ch_001"
+    ],
+    "history": [
+      {
+        "chapter": "ch_001",
+        "dynamic": "同行相疑·各守其职",
+        "subtext": "都想护住这份尸格，却都不肯先交底"
+      }
+    ],
+    "last_interaction_summary": {
+      "chapter": "ch_001",
+      "dynamic": "同行相疑·各守其职",
+      "unspoken_subtext": "都想护住这份尸格，却都不肯先交底",
+      "tension": 45,
+      "affinity": 0
+    }
+  }
+}

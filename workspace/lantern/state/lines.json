@@ -1,1 +1,28 @@
-{}
+{
+  "GUN-001": {
+    "id": "GUN-001",
+    "name": "死者右手的半枚灯签",
+    "type": "GUN",
+    "tier": "A",
+    "status": "active",
+    "planted_ch": "ch_001",
+    "target_ch": "",
+    "revealed_chs": [],
+    "resolved_ch": "",
+    "desc": "第七具死者右手攥着半枚铜灯签，与裴砚随身那半枚是一对",
+    "evidence": ""
+  },
+  "MIS-001": {
+    "id": "MIS-001",
+    "name": "沈拂云误判裴砚来意",
+    "type": "MIS",
+    "tier": "A",
+    "status": "active",
+    "planted_ch": "ch_001",
+    "target_ch": "",
+    "revealed_chs": [],
+    "resolved_ch": "",
+    "desc": "沈拂云以为裴砚是被派来给顺天府背书顶罪的",
+    "evidence": ""
+  }
+}

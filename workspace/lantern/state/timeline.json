@@ -1,1 +1,17 @@
-[]
+[
+  {
+    "chapter_id": "ch_001",
+    "volume_id": "vol_01",
+    "title": "城南第七具（焚尸案发）",
+    "timeline": "永乐十二年·正月十七·辰时",
+    "location": "城南义庄·停尸石床",
+    "chapter_type": "破局",
+    "word_count": 1027,
+    "present_characters": [
+      "裴砚",
+      "沈拂云"
+    ],
+    "dramatic_goal": "裴砚在城南义庄验第七具焚尸，凭一处灰烬走向判定火是从屋内点起，与顺天府「失火」结论相悖",
+    "cliffhanger": "裴砚翻开尸格，发现验尸人签名是十年前早已死去的仵作"
+  }
+]
