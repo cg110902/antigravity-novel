@@ -8,6 +8,7 @@ beats → pack → audit → finalize → proposal → sync → reconcile/rollup
 """
 from __future__ import annotations
 
+import os
 import json
 import shutil
 import subprocess
@@ -722,6 +723,31 @@ locked_facts: []
         r = run(ws, "snapshot", "rollback", snap)
         check("快照回滚", r.returncode == 0)
         check("回滚对齐清除未来文件", not (ws / "manuscript/vol_01/final/ch_900.md").exists())
+
+        # BUG#36 (P0)：外部 zip 曾可被 rollback 接受，解包后触发"快照域全量对齐"
+        # 把整本书当作未来文件清除，且 state.json 被攻击载荷覆盖。
+        import zipfile as _zf
+        evil = tmp / "evil.zip"
+        with _zf.ZipFile(evil, "w") as z:
+            z.writestr("state.json", "PWNED")
+        n_before = len(list((ws / "manuscript").rglob("*.md")))
+        r = run(ws, "snapshot", "rollback", str(evil))
+        check("BUG#36 拒绝工作区外快照(绝对路径)", r.returncode == 1)
+        rel = os.path.relpath(evil, ws)
+        r = run(ws, "snapshot", "rollback", rel)
+        check("BUG#36 拒绝工作区外快照(相对穿越)", r.returncode == 1)
+        check("BUG#36 拒绝后正文零损失",
+              len(list((ws / "manuscript").rglob("*.md"))) == n_before)
+        check("BUG#36 state.json 未被载荷污染",
+              not (ws / "state.json").exists() or "PWNED" not in (ws / "state.json").read_text(encoding="utf-8"))
+        # 安全带 3：snapshots/ 内的非法压缩包（缺 project.json）同样应被拒绝
+        fake = ws / "snapshots" / "fake_snap.zip"
+        with _zf.ZipFile(fake, "w") as z:
+            z.writestr("state.json", "PWNED")
+        r = run(ws, "snapshot", "rollback", "fake_snap")
+        check("BUG#36 拒绝缺 project.json 的伪快照", r.returncode != 0)
+        check("BUG#36 伪快照拒绝后正文零损失",
+              len(list((ws / "manuscript").rglob("*.md"))) == n_before)
 
         print("\n" + "=" * 60)
         print(f"通过 {len(PASS)} 项 ｜ 失败 {len(FAIL)} 项")

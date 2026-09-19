@@ -2017,11 +2017,25 @@ def snapshot_rollback(workspace: Path, name_or_file: str) -> Dict[str, Any]:
     snap_dir = workspace / "snapshots"
     target_zip: Optional[Path] = None
 
+    # v4.3.3 安全带 0：快照必须来自本工作区 snapshots/ 目录。
+    # 否则外部任意 zip 可被解包覆盖工作区，并触发"清除快照外文件"造成全书删除。
+    def _inside_snapdir(cand: Path) -> bool:
+        try:
+            return cand.resolve().parent == snap_dir.resolve()
+        except OSError:
+            return False
+
     if Path(name_or_file).exists() and name_or_file.endswith(".zip"):
-        target_zip = Path(name_or_file)
-    elif (snap_dir / name_or_file).exists():
+        cand = Path(name_or_file)
+        if not _inside_snapdir(cand):
+            raise BusinessError(
+                f"拒绝加载工作区外的快照文件: '{name_or_file}'",
+                solution=f"快照只能取自 {snap_dir}/ 目录。请运行 `python studio.py snapshot list` 查看可用快照。",
+            )
+        target_zip = cand
+    elif (snap_dir / name_or_file).exists() and _inside_snapdir(snap_dir / name_or_file):
         target_zip = snap_dir / name_or_file
-    elif (snap_dir / f"{name_or_file}.zip").exists():
+    elif (snap_dir / f"{name_or_file}.zip").exists() and _inside_snapdir(snap_dir / f"{name_or_file}.zip"):
         target_zip = snap_dir / f"{name_or_file}.zip"
     else:
         # 模糊匹配最新一个包含该名字的快照
@@ -2053,6 +2067,13 @@ def snapshot_rollback(workspace: Path, name_or_file: str) -> Dict[str, Any]:
                     solution="该快照压缩包可能损坏或包含非法路径，请选用其他快照或联系系统管理员。",
                 )
         zip_names = {info.filename.replace("\\", "/") for info in zf.infolist()}
+        # v4.3.3 安全带 3：合法工作区快照必含 project.json。缺失即判为非快照压缩包，
+        # 若放行，后续"快照域全量对齐"会把全书文件当作未来文件清除。
+        if "project.json" not in zip_names:
+            raise GuardError(
+                f"该压缩包缺少 project.json，不是合法的工作区快照: {target_zip.name}",
+                solution="请运行 `python studio.py snapshot list` 选用由 snapshot create 生成的快照。",
+            )
         zf.extractall(workspace)
 
     # v4.3 缺陷#A4 修复（回滚残留未来章节）：

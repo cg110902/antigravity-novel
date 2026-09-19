@@ -586,3 +586,26 @@ sync 报「因果冲突阻断：角色 [周伯] (p_004) 已于第 ch_006 章阵�
 **6 章台账终态**：`check` **0 errors**；总字数 5961；银针 6→3；银两 50→47；
 伏笔 5 条（MIS-001 已 resolved）；恩怨 3、关系 3、锁定 1；周伯 deceased。
 **回归**：`python3 tests/regression_test.py` → **116 项全通过 / 0 失败**。
+
+---
+
+## BUG#35 【P3 已记录】export 与 sync 字数口径不一致
+- **现象**：`workspace/lantern` 第一卷 14 章，`sync_log.json` 累计 12667 字，`export` 报 12570 字，差 97。
+- **根因**：`sync` 的 `word_count` 统计整份 final 正文（含 `# 第N章 标题` 行）；`exporter.py:189` 在剥离标题行后重排目录，只统计 `body_lines`。两者共用 `_count_words` 但输入域不同。
+- **影响**：不影响数据正确性，但「总字数」在 cockpit / reconcile / export 三处口径不一，对账时易被误判为漂移。
+- **建议**：统一以正文体（不含标题）为准，或在 export 输出中标注口径。
+
+## BUG#36 【P0 已修已验】snapshot rollback 接受工作区外任意 zip，导致全书删除 + 任意文件写入
+- **现象**：`studio.py snapshot rollback /tmp/evil/payload.zip -w workspace/lantern` 执行成功。该 zip 仅含一个 `state.json`（内容 "PWNED"）。结果：
+  1. 工作区 `state.json` 被攻击载荷覆盖；
+  2. 解包后的「快照域全量对齐」逻辑把 bible/characters/outlines/state/manuscript/log 下**全部 84 个文件**判为「快照外未来文件」并删除——**整本书被清空**；
+  3. 事后 `studio.py check` 仍报「✅ 体检通过 (0 errors)」（空工作区无数据可查），毫无预警。
+  4. 相对路径 `../../../../tmp/evil/payload.zip` 同样生效。
+- **实测损失**：`workspace/lantern` ch_007~ch_014 共 8 章正文、细纲与台账全部丢失（ch_001~006 靠 git 已提交版本恢复）。自动生成的 `pre_rollback` 快照因在第二次 PoC 后才建立，已无救援价值。
+- **根因**（`engine/ops.py::snapshot_rollback`）：分支一 `if Path(name_or_file).exists() and endswith(".zip")` 无条件信任任意路径；分支二/三 `snap_dir / name_or_file` 未做边界归一化，`..` 可逃逸。已有的 zip-slip 防护只校验**解压目标**不越界，不校验**快照来源**，故完全绕过。
+- **修复**（v4.3.3，三道安全带）：
+  1. `_inside_snapdir()`：`cand.resolve().parent` 必须等于 `snap_dir.resolve()`，三个分支全部套用，越界抛 BusinessError(exit=1)；
+  2. 合法性闸门：zip 内必须含 `project.json`，否则判为非工作区快照并抛 GuardError——防止 snapshots/ 内被投放的伪快照触发全量清除；
+  3. 回归用例 6 条（绝对路径 / 相对穿越 / 伪快照 / 三次「正文零损失」与「载荷未污染」断言）。
+- **验证**：两个 PoC 均被拒 exit=1，正文零损失；合法 `snapshot create/rollback` 行为不变；回归 **122 项全通过 / 0 失败**。
+- **教训**：破坏性操作（解包覆盖 + 全量对齐删除）必须以「来源可信 + 内容自证」双校验为前提；`check` 对「工作区被清空」这一状态无感，属二次盲区。
