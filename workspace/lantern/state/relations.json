@@ -5,9 +5,9 @@
     "target_id": "p_003",
     "affinity": 0,
     "trust": 50,
-    "tension": 45,
-    "dynamic_label": "同行相疑·各守其职",
-    "unspoken_subtext": "都想护住这份尸格，却都不肯先交底",
+    "tension": 15,
+    "dynamic_label": "生死与共",
+    "unspoken_subtext": "同一个人死在他们面前",
     "history": [
       {
         "chapter": "ch_001",
@@ -15,8 +15,76 @@
         "subtext": "都想护住这份尸格，却都不肯先交底",
         "affinity": 0,
         "tension": 45
+      },
+      {
+        "chapter": "ch_002",
+        "dynamic": "误解加深",
+        "subtext": "她以为他退了，其实他在抄录",
+        "affinity": 0,
+        "tension": 55
+      },
+      {
+        "chapter": "ch_004",
+        "dynamic": "并肩·仍有隔阂",
+        "subtext": "她开始信他，但他还没交底",
+        "affinity": 0,
+        "tension": 40
+      },
+      {
+        "chapter": "ch_005",
+        "dynamic": "交心·共谋",
+        "subtext": "从此一条船上",
+        "affinity": 0,
+        "tension": 20
+      },
+      {
+        "chapter": "ch_006",
+        "dynamic": "生死与共",
+        "subtext": "同一个人死在他们面前",
+        "affinity": 0,
+        "tension": 15
       }
     ],
-    "last_updated_ch": "ch_001"
+    "last_updated_ch": "ch_006"
+  },
+  "p_001->p_002": {
+    "pair": "p_001->p_002",
+    "source_id": "p_001",
+    "target_id": "p_002",
+    "affinity": 0,
+    "trust": 50,
+    "tension": 70,
+    "dynamic_label": "上下相制·各怀所图",
+    "unspoken_subtext": "一个要翻案，一个要收口",
+    "history": [
+      {
+        "chapter": "ch_002",
+        "dynamic": "上下相制·各怀所图",
+        "subtext": "一个要翻案，一个要收口",
+        "affinity": 0,
+        "tension": 70
+      }
+    ],
+    "last_updated_ch": "ch_002"
+  },
+  "p_001->p_004": {
+    "pair": "p_001->p_004",
+    "source_id": "p_001",
+    "target_id": "p_004",
+    "affinity": 0,
+    "trust": 50,
+    "tension": 35,
+    "dynamic_label": "试探·半推半就",
+    "unspoken_subtext": "周伯想帮又怕担责",
+    "history": [
+      {
+        "chapter": "ch_003",
+        "dynamic": "试探·半推半就",
+        "subtext": "周伯想帮又怕担责",
+        "affinity": 0,
+        "tension": 35
+      }
+    ],
+    "last_updated_ch": "ch_003"
   }
 }

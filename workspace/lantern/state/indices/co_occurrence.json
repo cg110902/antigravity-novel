@@ -9,23 +9,185 @@
       "沈拂云"
     ],
     "first_seen_ch": "ch_001",
-    "last_seen_ch": "ch_001",
-    "total_co_occurrences": 1,
+    "last_seen_ch": "ch_006",
+    "total_co_occurrences": 6,
     "chapters": [
-      "ch_001"
+      "ch_001",
+      "ch_002",
+      "ch_003",
+      "ch_004",
+      "ch_005",
+      "ch_006"
     ],
     "history": [
       {
         "chapter": "ch_001",
         "dynamic": "同行相疑·各守其职",
         "subtext": "都想护住这份尸格，却都不肯先交底"
+      },
+      {
+        "chapter": "ch_002",
+        "dynamic": "误解加深",
+        "subtext": "她以为他退了，其实他在抄录"
+      },
+      {
+        "chapter": "ch_003",
+        "dynamic": "误解加深",
+        "subtext": "她以为他退了，其实他在抄录"
+      },
+      {
+        "chapter": "ch_004",
+        "dynamic": "并肩·仍有隔阂",
+        "subtext": "她开始信他，但他还没交底"
+      },
+      {
+        "chapter": "ch_005",
+        "dynamic": "交心·共谋",
+        "subtext": "从此一条船上"
+      },
+      {
+        "chapter": "ch_006",
+        "dynamic": "生死与共",
+        "subtext": "同一个人死在他们面前"
       }
     ],
     "last_interaction_summary": {
-      "chapter": "ch_001",
-      "dynamic": "同行相疑·各守其职",
-      "unspoken_subtext": "都想护住这份尸格，却都不肯先交底",
-      "tension": 45,
+      "chapter": "ch_006",
+      "dynamic": "生死与共",
+      "unspoken_subtext": "同一个人死在他们面前",
+      "tension": 15,
+      "affinity": 0
+    }
+  },
+  "p_001<->p_002": {
+    "pair": [
+      "p_001",
+      "p_002"
+    ],
+    "names": [
+      "裴砚",
+      "崔敬亭"
+    ],
+    "first_seen_ch": "ch_002",
+    "last_seen_ch": "ch_002",
+    "total_co_occurrences": 1,
+    "chapters": [
+      "ch_002"
+    ],
+    "history": [
+      {
+        "chapter": "ch_002",
+        "dynamic": "上下相制·各怀所图",
+        "subtext": "一个要翻案，一个要收口"
+      }
+    ],
+    "last_interaction_summary": {
+      "chapter": "ch_002",
+      "dynamic": "上下相制·各怀所图",
+      "unspoken_subtext": "一个要翻案，一个要收口",
+      "tension": 70,
+      "affinity": 0
+    }
+  },
+  "p_002<->p_003": {
+    "pair": [
+      "p_002",
+      "p_003"
+    ],
+    "names": [
+      "崔敬亭",
+      "沈拂云"
+    ],
+    "first_seen_ch": "ch_002",
+    "last_seen_ch": "ch_002",
+    "total_co_occurrences": 1,
+    "chapters": [
+      "ch_002"
+    ],
+    "history": [
+      {
+        "chapter": "ch_002",
+        "dynamic": "同场",
+        "subtext": ""
+      }
+    ],
+    "last_interaction_summary": {
+      "chapter": "ch_002",
+      "dynamic": "同场",
+      "unspoken_subtext": "",
+      "tension": 20,
+      "affinity": 0
+    }
+  },
+  "p_001<->p_004": {
+    "pair": [
+      "p_001",
+      "p_004"
+    ],
+    "names": [
+      "裴砚",
+      "周伯"
+    ],
+    "first_seen_ch": "ch_003",
+    "last_seen_ch": "ch_006",
+    "total_co_occurrences": 2,
+    "chapters": [
+      "ch_003",
+      "ch_006"
+    ],
+    "history": [
+      {
+        "chapter": "ch_003",
+        "dynamic": "试探·半推半就",
+        "subtext": "周伯想帮又怕担责"
+      },
+      {
+        "chapter": "ch_006",
+        "dynamic": "试探·半推半就",
+        "subtext": "周伯想帮又怕担责"
+      }
+    ],
+    "last_interaction_summary": {
+      "chapter": "ch_006",
+      "dynamic": "试探·半推半就",
+      "unspoken_subtext": "周伯想帮又怕担责",
+      "tension": 35,
+      "affinity": 0
+    }
+  },
+  "p_003<->p_004": {
+    "pair": [
+      "p_003",
+      "p_004"
+    ],
+    "names": [
+      "沈拂云",
+      "周伯"
+    ],
+    "first_seen_ch": "ch_003",
+    "last_seen_ch": "ch_006",
+    "total_co_occurrences": 2,
+    "chapters": [
+      "ch_003",
+      "ch_006"
+    ],
+    "history": [
+      {
+        "chapter": "ch_003",
+        "dynamic": "同场",
+        "subtext": ""
+      },
+      {
+        "chapter": "ch_006",
+        "dynamic": "同场",
+        "subtext": ""
+      }
+    ],
+    "last_interaction_summary": {
+      "chapter": "ch_006",
+      "dynamic": "同场",
+      "unspoken_subtext": "",
+      "tension": 20,
       "affinity": 0
     }
   }

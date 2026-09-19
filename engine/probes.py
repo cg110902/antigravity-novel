@@ -43,12 +43,27 @@ def _extract_dialogues_with_speakers(text: str, known_names: List[str]) -> List[
     # ➔ 近距宽松兜底（仅后置宽松，前置宽松正是误配根源，弃用——归属失败宁交疑似级）。
     _SPEECH_VERBS = "说道问答喊吼喝叫嚷骂嘀咕低语咆哮怒斥冷笑回断言讲聊吟哼解释补充嘲讽讥笑喊叫道"
 
+    def _speech_verb_adjacent(tail: str) -> bool:
+        """言语动词是否**紧邻**姓名（允许中间夹 1~2 个助词/副词字）。
+
+        v4.3.2 缺陷#34：旧版只要姓名后 25 字窗口内**任意位置**出现动词表中的字
+        就判定为说话人。汉语叙述里「说/道/回/答」等字极常见，窗口一宽必然误命中。
+        实测 ch_006：「"周老。"（裴砚在喊周伯）\\n\\n周伯的眼睛动了一下。他想说话」
+        ——后置式因远处「他想**说**话」的「说」把这句归给了周伯，而实际说话人是裴砚。
+        对白归属是认知泄露探针（error 级）的判定基础，错配会同时制造**漏检**
+        （真泄露归错人而静默）与**误报**（合法台词被判成本人泄密）。
+        """
+        # 邻接窗口取 4 字：容纳「忽然笑了一声」「缓缓说道」「压低声音道」这类
+        # 副词/状语前置的合法后置式，又能排除「的眼睛动了一下。他想说话」
+        # 这种跨句误命中（「说」在第 12 字）。
+        return any(v in tail[:4] for v in _SPEECH_VERBS)
+
     def _find_after(following: str) -> Optional[str]:
         s = following.lstrip("。，、！？：；’\"”」》 \n")
         for name in known:
             if s.startswith(name):
                 tail = s[len(name):len(name) + 25]
-                if any(v in tail for v in _SPEECH_VERBS):
+                if _speech_verb_adjacent(tail):
                     return name
         return None
 
@@ -57,16 +72,33 @@ def _extract_dialogues_with_speakers(text: str, known_names: List[str]) -> List[
             pos = context.rfind(name)
             if pos >= 0:
                 tail = context[pos + len(name):]
-                if len(tail) <= 25 and (any(v in tail for v in _SPEECH_VERBS)
+                if len(tail) <= 25 and (_speech_verb_adjacent(tail)
                                         or tail.rstrip().endswith(("：", ":"))):
                     return name
         return None
 
     def _find_after_loose(following: str) -> Optional[str]:
+        """宽松兜底：仅当名字**紧跟**引号且短距内伴随言语动词时才归属。
+
+        v4.3.2 缺陷#34：旧版只要名字出现在引号后 30 字符内就判为说话人，不要求
+        任何言语动词，于是**下一段叙述的动作主语**被大面积误认。实测 ch_006：
+        「"周老。"（裴砚在喊周伯）\\n\\n周伯的眼睛动了一下」——"周老。" 被归给周伯；
+        「"崔。"她盯着那个残笔，"京里姓崔的官不止一个。"」——沈拂云的台词
+        因下一句 "念珠。"裴砚说 落在窗口内而被归给裴砚。
+        对白归属是认知泄露探针（error 级）的判定基础，错配会同时制造
+        **漏检**（真泄露归错人）与**误报**（合法台词判成泄密），危害远大于归属失败。
+        收紧后：名字须出现在引号后 12 字符内，且其后 15 字符内含言语动词；
+        否则宁可返回 None 交由疑似级人工复核。
+        """
+        s = following.lstrip("。，、！？：；’\"”」》 \n")
         for name in known:
-            pos = following.find(name)
-            if 0 <= pos <= 30:
-                return name
+            pos = s.find(name)
+            if 0 <= pos <= 12:
+                tail = s[pos + len(name):pos + len(name) + 15]
+                # 言语动词须**紧邻**姓名（允许中间夹一个副词/助词字），否则
+                # 「周伯的眼睛动了一下。他想说话」这类叙述会因远处的「说」被误判。
+                if _speech_verb_adjacent(tail):
+                    return name
         return None
 
     # v4.3 缺陷#C7：对白识别兼容中文弯引号 “…”、直角引号 「…」 与英文直引号 "…"
@@ -175,16 +207,50 @@ def probe_epistemology_leaks(text: str, blind_spots: Dict[str, List[str]],
     }
 
 
-def probe_address_matrix(text: str, persons_db: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """法定称谓落地探针（warning 级）：在场双方同章时，法定称谓从未出现则提醒。"""
+def probe_address_matrix(text: str, persons_db: Optional[Dict[str, Any]] = None,
+                         present_ids: Optional[List[str]] = None) -> Dict[str, Any]:
+    """法定称谓落地探针（warning 级）：在场双方同章时，法定称谓从未出现则提醒。
+
+    v4.3.2 缺陷#32：旧版仅以「名字是否在正文出现」判定在场，无法区分**在场**与
+    **被提及**。实测 ch_005 崔敬亭全程未出场，只是被裴砚与沈拂云在对话里提到
+    （「崔通判说尸格不成立」），探针却要求「崔敬亭→沈拂云 应称沈仵作」落地——
+    两人根本不在同一场景，该称谓无从发生。误报会淹没真实疏漏，使探针失去可信度。
+    修正：以细纲 `present_characters` 为权威在场名单，只校验**双方均在场**的称谓对。
+    """
     persons_db = persons_db or {}
     ungrounded: List[Dict[str, str]] = []
+    _present = set(present_ids or [])
+    # 在场者的姓名集合（present_ids 为空时退回旧口径，保持向后兼容）
+    _present_names = {
+        str((persons_db.get(pid) or {}).get("name", "")).strip()
+        for pid in _present
+    } - {""}
+    # v4.3.2 缺陷#33：称谓只能通过**开口说话**落地。旧版只要角色在场就要求其
+    # 法定称谓出现，但重伤濒死、昏迷、被缚等无台词角色本就说不出话——实测 ch_006
+    # 周伯全程濒死（status_in「重伤·濒死」，只递出半页纸便断气），探针仍要求
+    # 「周伯→裴砚 应称裴大人」「周伯→沈拂云 应称云丫头」落地。这类提醒无法通过
+    # 任何合理写法消除，只会淹没真实疏漏。改为：仅对**本章确有对白**的角色校验。
+    _speakers = {sp for sp, _ in _extract_dialogues_with_speakers(
+        text, [str((persons_db.get(i) or {}).get("name", "")).strip() for i in (_present or persons_db)]
+    ) if sp}
+
     for pid, p in persons_db.items():
         speaker = p.get("name", "")
         if not speaker or speaker not in text:
             continue
+        # 说话人必须真正在场，而非仅被提及
+        if _present and pid not in _present:
+            continue
+        # 本章没有任何可归属台词的角色，不苛求其称谓落地
+        if _speakers and speaker not in _speakers:
+            continue
         for tgt, addr in (p.get("address_matrix") or {}).items():
-            if tgt and tgt in text and addr and addr not in text:
+            if not (tgt and tgt in text and addr):
+                continue
+            # 称谓对象同样必须在场——对不在场者不会当面称呼
+            if _present_names and tgt not in _present_names:
+                continue
+            if addr not in text:
                 ungrounded.append({"speaker": speaker, "target": tgt, "expected_address": addr})
     return {
         "name": "法定称谓矩阵探针",
@@ -522,7 +588,7 @@ def run_all_probes(text: str, frontmatter: Dict[str, Any],
 
     total_words = _count_total(text)
     p_epistemology = probe_epistemology_leaks(text, blind_spots, name_by_id=name_by_id, present_ids=present_ids)
-    p_address = probe_address_matrix(text, persons_db)
+    p_address = probe_address_matrix(text, persons_db, present_ids=present_ids)
     p_grounding = probe_grounding(text, frontmatter, persons_db=persons_db)
     p_fatalities = probe_unregistered_fatalities(text, frontmatter, persons_db=persons_db, audit_text=audit_text)
 

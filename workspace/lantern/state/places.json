@@ -9,7 +9,8 @@
     "sensory_anchor": "石床冷硬，草席下压着陈年灰烬味",
     "environment_rules": "义庄夜不闭户，尸身按序编号，不得移位",
     "visited_chapters": [
-      "ch_001"
+      "ch_001",
+      "ch_002"
     ]
   },
   "loc_002": {
@@ -20,7 +21,11 @@
     "desc": "仵作行存放旧档与器具的院落",
     "atmosphere": "油灯、樟木箱、药气",
     "sensory_anchor": "油灯昏黄，樟木箱与药气混作一处",
-    "environment_rules": "后院旧档只准行内人调阅，需杂役引路"
+    "environment_rules": "后院旧档只准行内人调阅，需杂役引路",
+    "visited_chapters": [
+      "ch_003",
+      "ch_006"
+    ]
   },
   "loc_003": {
     "id": "loc_003",
@@ -30,7 +35,10 @@
     "desc": "十年前大火后未重建的空坊",
     "atmosphere": "焦木桩、三道坊门残基",
     "sensory_anchor": "焦木桩立在雪地里，三道坊门只剩残基",
-    "environment_rules": "灯市旧址荒废十年，无人夜宿"
+    "environment_rules": "灯市旧址荒废十年，无人夜宿",
+    "visited_chapters": [
+      "ch_004"
+    ]
   },
   "loc_004": {
     "id": "loc_004",
@@ -51,5 +59,16 @@
     "atmosphere": "高阶、卷宗架、铜磬",
     "sensory_anchor": "高阶之上一架卷宗，铜磬声长",
     "environment_rules": "大理寺正堂对簿须三方到齐"
+  },
+  "loc_006": {
+    "id": "loc_006",
+    "name": "大理寺值房·灯下",
+    "danger_level": "普通",
+    "sensory_anchor": "一盏不熄的油灯，卷宗架的影子压在墙上",
+    "environment_rules": "大理寺值房夜不熄灯，非当值者不得入内",
+    "summary": "",
+    "visited_chapters": [
+      "ch_005"
+    ]
   }
 }

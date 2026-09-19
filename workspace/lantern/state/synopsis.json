@@ -13,5 +13,83 @@
       "裴砚",
       "沈拂云"
     ]
+  },
+  "ch_002": {
+    "chapter_id": "ch_002",
+    "volume_id": "vol_01",
+    "title": "复核（崔敬亭登场）",
+    "timeline": "永乐十二年·正月十七·巳时",
+    "location": "城南义庄·停尸石床",
+    "chapter_type": "铺垫",
+    "dramatic_goal": "崔敬亭亲至义庄复核，三言两语令尸格改判「失火」；裴砚当场不争，退而抄录原件",
+    "cliffhanger": "崔敬亭走前捻念珠，第三颗的烧痕一闪而过",
+    "word_count": 1098,
+    "present_characters": [
+      "裴砚",
+      "崔敬亭",
+      "沈拂云"
+    ]
+  },
+  "ch_003": {
+    "chapter_id": "ch_003",
+    "volume_id": "vol_01",
+    "title": "仵作行的价钱",
+    "timeline": "永乐十二年·正月十八·申时",
+    "location": "仵作行后院·旧档房",
+    "chapter_type": "过渡",
+    "dramatic_goal": "沈拂云透露仵作行改一份尸格值五十两；裴砚用三钱银子买通杂役调出旧档",
+    "cliffhanger": "旧档上一行小字：灯市案，坊门自内锁",
+    "word_count": 988,
+    "present_characters": [
+      "裴砚",
+      "沈拂云",
+      "周伯"
+    ]
+  },
+  "ch_004": {
+    "chapter_id": "ch_004",
+    "volume_id": "vol_01",
+    "title": "自内锁",
+    "timeline": "永乐十二年·正月十九·辰时",
+    "location": "灯市旧址·三道坊门残基",
+    "chapter_type": "爆发",
+    "dramatic_goal": "裴砚复盘十年前灯市火场，确认三道坊门是从内侧落的锁——有人要火烧死里面的人",
+    "cliffhanger": "沈拂云问：你为什么记得这么清楚？",
+    "word_count": 1015,
+    "present_characters": [
+      "裴砚",
+      "沈拂云"
+    ]
+  },
+  "ch_005": {
+    "chapter_id": "ch_005",
+    "volume_id": "vol_01",
+    "title": "幸存者",
+    "timeline": "永乐十二年·正月十九·戌时",
+    "location": "大理寺值房·灯下",
+    "chapter_type": "回收",
+    "dramatic_goal": "裴砚承认自己是灯市案幸存孤儿；沈拂云决定站在他这边",
+    "cliffhanger": "当夜，仵作行后院起火",
+    "word_count": 841,
+    "present_characters": [
+      "裴砚",
+      "沈拂云"
+    ]
+  },
+  "ch_006": {
+    "chapter_id": "ch_006",
+    "volume_id": "vol_01",
+    "title": "周伯之死",
+    "timeline": "永乐十二年·正月二十·丑时",
+    "location": "仵作行后院·火场",
+    "chapter_type": "爆发",
+    "dramatic_goal": "周伯死于后院火场，手中攥着半页旧档；裴砚在火场外看着，救不及",
+    "cliffhanger": "半页纸上只剩一个字：崔",
+    "word_count": 992,
+    "present_characters": [
+      "裴砚",
+      "沈拂云",
+      "周伯"
+    ]
   }
 }

@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "id": "LOCK-001",
+    "fact": "周伯于 ch_006 死于仵作行后院火场",
+    "domain": "plot",
+    "established_ch": "ch_006"
+  }
+]

@@ -10,6 +10,41 @@
         "status_in": "完好·压着旧事不提",
         "want": "验明第七具死者的真实死因",
         "fear": "又一次只能对着烧焦的人束手无策"
+      },
+      {
+        "chapter": "ch_002",
+        "event": "出场",
+        "status_in": "完好·压着火气",
+        "want": "保住第七具尸格的原始结论",
+        "fear": "尸格一改，七条人命就此钉死为失火"
+      },
+      {
+        "chapter": "ch_003",
+        "event": "出场",
+        "status_in": "完好·谨慎",
+        "want": "调出十年前的旧档",
+        "fear": "查档的动静惊动顺天府"
+      },
+      {
+        "chapter": "ch_004",
+        "event": "出场",
+        "status_in": "完好·克制",
+        "want": "证明三道坊门是从内侧落的锁",
+        "fear": "证明出来也无人肯信"
+      },
+      {
+        "chapter": "ch_005",
+        "event": "出场",
+        "status_in": "完好·下定决心",
+        "want": "把身世说出来，换一个同盟",
+        "fear": "说出来之后她转身就走"
+      },
+      {
+        "chapter": "ch_006",
+        "event": "出场",
+        "status_in": "完好·奔赴",
+        "want": "把周伯从火里拖出来",
+        "fear": "又一次眼睁睁看着人死在火里"
       }
     ]
   },
@@ -24,6 +59,41 @@
         "status_in": "完好·戒备",
         "want": "护住尸格不被人改",
         "fear": "行里的人再因一份文书送命"
+      },
+      {
+        "chapter": "ch_002",
+        "event": "出场",
+        "status_in": "完好·沉默",
+        "want": "不在改判的尸格上画押",
+        "fear": "行里人因一份文书送命"
+      },
+      {
+        "chapter": "ch_003",
+        "event": "出场",
+        "status_in": "完好·将信将疑",
+        "want": "弄清裴砚到底站哪边",
+        "fear": "又一次看错人"
+      },
+      {
+        "chapter": "ch_004",
+        "event": "出场",
+        "status_in": "完好·动摇",
+        "want": "弄清裴砚与灯市案的关系",
+        "fear": "真相牵连太广"
+      },
+      {
+        "chapter": "ch_005",
+        "event": "出场",
+        "status_in": "完好·等待",
+        "want": "听一句实话",
+        "fear": "实话比谎话更难承担"
+      },
+      {
+        "chapter": "ch_006",
+        "event": "出场",
+        "status_in": "完好·崩溃边缘",
+        "want": "救出师父",
+        "fear": "失去最后的亲人"
       }
     ]
   },
@@ -38,6 +108,55 @@
         "holder": "p_001",
         "charges_delta": -1,
         "remaining_charges": 5
+      },
+      {
+        "chapter": "ch_004",
+        "event": "流转/使用",
+        "holder": "p_001",
+        "charges_delta": -1,
+        "remaining_charges": 4
+      },
+      {
+        "chapter": "ch_006",
+        "event": "流转/使用",
+        "holder": "p_001",
+        "charges_delta": -1,
+        "remaining_charges": 3
+      }
+    ]
+  },
+  "p_002": {
+    "id": "p_002",
+    "name": "崔敬亭",
+    "type": "person",
+    "events": [
+      {
+        "chapter": "ch_002",
+        "event": "出场",
+        "status_in": "完好·从容",
+        "want": "当场改判失火，把案子收口",
+        "fear": "有人把这案子往灯市旧案上引"
+      }
+    ]
+  },
+  "p_004": {
+    "id": "p_004",
+    "name": "周伯",
+    "type": "person",
+    "events": [
+      {
+        "chapter": "ch_003",
+        "event": "出场",
+        "status_in": "完好·闪避",
+        "want": "把行里的事压下去",
+        "fear": "旧档见光，行里遭殃"
+      },
+      {
+        "chapter": "ch_006",
+        "event": "出场",
+        "status_in": "重伤·濒死",
+        "want": "把那半页送出去",
+        "fear": "死前话没说完"
       }
     ]
   }

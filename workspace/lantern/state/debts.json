@@ -1,1 +1,29 @@
-[]
+[
+  {
+    "id": "DEBT-AUTO-44d3bf7a",
+    "source_char": "p_001",
+    "target_char": "周伯",
+    "type": "favor",
+    "desc": "周伯冒险放行调档，裴砚欠他一个人情",
+    "status": "unpaid",
+    "created_ch": "ch_003"
+  },
+  {
+    "id": "DEBT-AUTO-9ecda6a0",
+    "source_char": "p_001",
+    "target_char": "崔敬亭",
+    "type": "grudge",
+    "desc": "灯市纵火之仇，裴砚尚不知对方是谁",
+    "status": "unpaid",
+    "created_ch": "ch_004"
+  },
+  {
+    "id": "DEBT-AUTO-465f2d41",
+    "source_char": "p_001",
+    "target_char": "崔敬亭",
+    "type": "grudge",
+    "desc": "周伯之死，裴砚记在崔敬亭账上",
+    "status": "unpaid",
+    "created_ch": "ch_006"
+  }
+]

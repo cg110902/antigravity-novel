@@ -5,5 +5,40 @@
     "forced": false,
     "title": "城南第七具（焚尸案发）",
     "word_count": 1027
+  },
+  "ch_002": {
+    "final_sha1": "e67eb93a89bb3553baaadd20ce11925deac4d4f7",
+    "synced_at": "2026-09-19T23:17:15",
+    "forced": true,
+    "title": "复核（崔敬亭登场）",
+    "word_count": 1098
+  },
+  "ch_003": {
+    "final_sha1": "16616f5b135b3b8edde3383fb778c2744d0e72e3",
+    "synced_at": "2026-09-19T23:18:29",
+    "forced": false,
+    "title": "仵作行的价钱",
+    "word_count": 988
+  },
+  "ch_004": {
+    "final_sha1": "9564bad87a9763e106eb49712b0b19d89938af13",
+    "synced_at": "2026-09-19T23:19:46",
+    "forced": true,
+    "title": "自内锁",
+    "word_count": 1015
+  },
+  "ch_005": {
+    "final_sha1": "828d1ac620e7c31485a73f693bfaba73361a8971",
+    "synced_at": "2026-09-19T23:21:39",
+    "forced": true,
+    "title": "幸存者",
+    "word_count": 841
+  },
+  "ch_006": {
+    "final_sha1": "2be5c41f87b73a4ed86ee0ad8a59235da9aadbc0",
+    "synced_at": "2026-09-19T23:25:40",
+    "forced": true,
+    "title": "周伯之死",
+    "word_count": 992
   }
 }

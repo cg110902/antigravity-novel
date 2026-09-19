@@ -7,9 +7,11 @@
     "status": "active",
     "planted_ch": "ch_001",
     "target_ch": "",
-    "revealed_chs": [],
+    "revealed_chs": [
+      "ch_003"
+    ],
     "resolved_ch": "",
-    "desc": "第七具死者右手攥着半枚铜灯签，与裴砚随身那半枚是一对",
+    "desc": "裴砚把两半灯签并在一起，确认是同一副",
     "evidence": ""
   },
   "MIS-001": {
@@ -17,12 +19,60 @@
     "name": "沈拂云误判裴砚来意",
     "type": "MIS",
     "tier": "A",
-    "status": "active",
+    "status": "resolved",
     "planted_ch": "ch_001",
     "target_ch": "",
-    "revealed_chs": [],
+    "revealed_chs": [
+      "ch_002"
+    ],
+    "resolved_ch": "ch_005",
+    "desc": "沈拂云明白裴砚当日不争是为了抄录，误会解除",
+    "evidence": ""
+  },
+  "KNO-001": {
+    "id": "KNO-001",
+    "name": "崔敬亭知晓裴砚身世",
+    "type": "KNO",
+    "tier": "A",
+    "status": "active",
+    "planted_ch": "ch_002",
+    "target_ch": "",
+    "revealed_chs": [
+      "ch_005"
+    ],
     "resolved_ch": "",
-    "desc": "沈拂云以为裴砚是被派来给顺天府背书顶罪的",
+    "desc": "裴砚回想崔敬亭那句「你父亲当年」，才觉出不对",
+    "evidence": ""
+  },
+  "GUN-003": {
+    "id": "GUN-003",
+    "name": "念珠第三颗的烧痕",
+    "type": "GUN",
+    "tier": "A",
+    "status": "active",
+    "planted_ch": "ch_002",
+    "target_ch": "",
+    "revealed_chs": [
+      "ch_006"
+    ],
+    "resolved_ch": "",
+    "desc": "周伯攥着的半页上只剩一个崔字，与念珠烧痕对上",
+    "evidence": ""
+  },
+  "GUN-002": {
+    "id": "GUN-002",
+    "name": "旧档缺失的三页",
+    "type": "GUN",
+    "tier": "A",
+    "status": "active",
+    "planted_ch": "ch_003",
+    "target_ch": "",
+    "revealed_chs": [
+      "ch_004",
+      "ch_006"
+    ],
+    "resolved_ch": "",
+    "desc": "周伯死前攥着的正是被裁走的其中半页",
     "evidence": ""
   }
 }
