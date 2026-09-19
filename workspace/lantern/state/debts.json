@@ -25,5 +25,60 @@
     "desc": "周伯之死，裴砚记在崔敬亭账上",
     "status": "unpaid",
     "created_ch": "ch_006"
+  },
+  {
+    "id": "DEBT-AUTO-4ecc1126",
+    "source_char": "p_001",
+    "target_char": "p_002",
+    "type": "grudge",
+    "desc": "崔敬亭当面挑衅，裴砚记下",
+    "status": "settled",
+    "created_ch": "ch_007",
+    "settled_ch": "ch_014"
+  },
+  {
+    "id": "DEBT-AUTO-3b49c6e7",
+    "source_char": "p_003",
+    "target_char": "p_001",
+    "type": "favor",
+    "desc": "沈拂云以行规为裴砚争出三日",
+    "status": "unpaid",
+    "created_ch": "ch_008"
+  },
+  {
+    "id": "DEBT-AUTO-81a8f2c8",
+    "source_char": "p_001",
+    "target_char": "p_003",
+    "type": "favor",
+    "desc": "沈拂云通宵执笔，裴砚欠她一夜",
+    "status": "unpaid",
+    "created_ch": "ch_009"
+  },
+  {
+    "id": "DEBT-AUTO-2042560d",
+    "source_char": "p_002",
+    "target_char": "p_001",
+    "type": "grudge",
+    "desc": "当堂反杀，裴砚停职",
+    "status": "unpaid",
+    "created_ch": "ch_010"
+  },
+  {
+    "id": "DEBT-AUTO-d39a348c",
+    "source_char": "p_003",
+    "target_char": "p_001",
+    "type": "favor",
+    "desc": "沈拂云接下全部风险",
+    "status": "unpaid",
+    "created_ch": "ch_011"
+  },
+  {
+    "id": "DEBT-AUTO-44e29175",
+    "source_char": "p_001",
+    "target_char": "p_003",
+    "type": "favor",
+    "desc": "裴砚把递状的功与险都交给沈拂云",
+    "status": "unpaid",
+    "created_ch": "ch_013"
   }
 ]

@@ -335,6 +335,21 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
         for pid, prec in places_scan.items():
             if not prec.get("sensory_anchor") and not prec.get("environment_rules") and not prec.get("summary"):
                 warnings.append(f"地点数据残缺: 地点 [{pid}] {prec.get('name')} 缺少感官物象 (sensory_anchor) 与环境规则 (environment_rules)。\n      💡 方案：请在 state/places.json 中补充环境物象以支持写手渲染空间感。")
+
+        # v4.3.3 BUG#38：地点登记只按细纲 location 字面建号，无同名归并。
+        # 「顺天府正堂」与「顺天府·正堂」仅差一个间隔号即被登记为两个 loc_ID，
+        # 环境字段要各补一遍，细纲简报还可能取到错误的那一条。此处做归一化重名提示。
+        _seen: Dict[str, List[str]] = {}
+        for pid, prec in places_scan.items():
+            _n = re.sub(r"[·・\s\-—_、]", "", str(prec.get("name", "")))
+            if _n:
+                _seen.setdefault(_n, []).append(f"[{pid}] {prec.get('name')}")
+        for _n, _dups in _seen.items():
+            if len(_dups) > 1:
+                warnings.append(
+                    f"地点重复登记: {' / '.join(_dups)} 归一化后同名，疑为同一地点被分配了多个 ID。\n"
+                    f"      💡 方案：请在 state/places.json 中合并为单一 ID，并统一后续细纲 location 的写法。"
+                )
     except Exception:
         pass
 

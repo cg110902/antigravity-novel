@@ -4,14 +4,14 @@
     "name": "死者右手的半枚灯签",
     "type": "GUN",
     "tier": "A",
-    "status": "active",
+    "status": "resolved",
     "planted_ch": "ch_001",
     "target_ch": "",
     "revealed_chs": [
       "ch_003"
     ],
-    "resolved_ch": "",
-    "desc": "裴砚把两半灯签并在一起，确认是同一副",
+    "resolved_ch": "ch_012",
+    "desc": "尸格背面炭笔三道横线与自内闩三字，与灯签所指同一夜",
     "evidence": ""
   },
   "MIS-001": {
@@ -34,14 +34,14 @@
     "name": "崔敬亭知晓裴砚身世",
     "type": "KNO",
     "tier": "A",
-    "status": "active",
+    "status": "resolved",
     "planted_ch": "ch_002",
     "target_ch": "",
     "revealed_chs": [
       "ch_005"
     ],
-    "resolved_ch": "",
-    "desc": "裴砚回想崔敬亭那句「你父亲当年」，才觉出不对",
+    "resolved_ch": "ch_014",
+    "desc": "崔敬亭承认义庄那日见灯签便已认出裴砚",
     "evidence": ""
   },
   "GUN-003": {
@@ -53,10 +53,11 @@
     "planted_ch": "ch_002",
     "target_ch": "",
     "revealed_chs": [
-      "ch_006"
+      "ch_006",
+      "ch_007"
     ],
     "resolved_ch": "",
-    "desc": "周伯攥着的半页上只剩一个崔字，与念珠烧痕对上",
+    "desc": "崔敬亭主动摊开念珠，指着第三颗上的烧痕请裴砚看",
     "evidence": ""
   },
   "GUN-002": {
@@ -64,15 +65,54 @@
     "name": "旧档缺失的三页",
     "type": "GUN",
     "tier": "A",
-    "status": "active",
+    "status": "resolved",
     "planted_ch": "ch_003",
     "target_ch": "",
     "revealed_chs": [
       "ch_004",
       "ch_006"
     ],
+    "resolved_ch": "ch_009",
+    "desc": "三页供状内容被完整复原：证人见三人翻灯梁而出，其一捻珠至第三颗即止",
+    "evidence": ""
+  },
+  "MIS-002": {
+    "id": "MIS-002",
+    "name": "调令背后的授意者",
+    "type": "MIS",
+    "tier": "A",
+    "status": "active",
+    "planted_ch": "ch_008",
+    "target_ch": "",
+    "revealed_chs": [],
     "resolved_ch": "",
-    "desc": "周伯死前攥着的正是被裁走的其中半页",
+    "desc": "调令签发日期早于裴砚上报之日，裴砚未察",
+    "evidence": ""
+  },
+  "KNO-002": {
+    "id": "KNO-002",
+    "name": "程序即武器",
+    "type": "KNO",
+    "tier": "A",
+    "status": "active",
+    "planted_ch": "ch_010",
+    "target_ch": "",
+    "revealed_chs": [],
+    "resolved_ch": "",
+    "desc": "崔敬亭六字反杀，揭示对手真正的兵器是程序而非暴力",
+    "evidence": ""
+  },
+  "GUN-004": {
+    "id": "GUN-004",
+    "name": "第七具尸格原件",
+    "type": "GUN",
+    "tier": "A",
+    "status": "resolved",
+    "planted_ch": "ch_011",
+    "target_ch": "",
+    "revealed_chs": [],
+    "resolved_ch": "ch_013",
+    "desc": "复核日期正月十五，早于正月十六报案、正月十七送尸",
     "evidence": ""
   }
 }

@@ -47,8 +47,8 @@
     "danger_level": 3,
     "desc": "崔敬亭坐镇之处",
     "atmosphere": "紫檀、茶香、匾额",
-    "sensory_anchor": "紫檀案几，茶香压着墨味，匾额高悬",
-    "environment_rules": "顺天府正堂非传不得擅入"
+    "sensory_anchor": "堂前铜磬蒙布，廊下停着押解的囚车",
+    "environment_rules": "顺天府正堂押解前不许外人久留"
   },
   "loc_005": {
     "id": "loc_005",
@@ -57,8 +57,8 @@
     "danger_level": 2,
     "desc": "复核刑狱、对簿之所",
     "atmosphere": "高阶、卷宗架、铜磬",
-    "sensory_anchor": "高阶之上一架卷宗，铜磬声长",
-    "environment_rules": "大理寺正堂对簿须三方到齐"
+    "sensory_anchor": "铜磬蒙着薄尘，满堂官服里夹着一件青布仵作衣",
+    "environment_rules": "大理寺正堂陈奏须依《大明律》验录文书之例"
   },
   "loc_006": {
     "id": "loc_006",
@@ -69,6 +69,42 @@
     "summary": "",
     "visited_chapters": [
       "ch_005"
+    ]
+  },
+  "loc_007": {
+    "id": "loc_007",
+    "name": "顺天府衙·西厢值房",
+    "danger_level": "普通",
+    "sensory_anchor": "炭盆烧得正旺，窗纸被风吹得响，案上一碗未动的茶",
+    "environment_rules": "顺天府衙西厢为通判私署，外官入内须通报",
+    "summary": "",
+    "visited_chapters": [
+      "ch_007"
+    ]
+  },
+  "loc_008": {
+    "id": "loc_008",
+    "name": "大理寺·评事值房",
+    "danger_level": "普通",
+    "sensory_anchor": "空了半架的卷宗格，砚台边压着一张黄封公文",
+    "environment_rules": "大理寺评事值房，卷宗当日调当日还",
+    "summary": "",
+    "visited_chapters": [
+      "ch_008",
+      "ch_009",
+      "ch_011",
+      "ch_013"
+    ]
+  },
+  "loc_010": {
+    "id": "loc_010",
+    "name": "义庄·底档房",
+    "danger_level": "普通",
+    "sensory_anchor": "樟木箱一排贴着年号纸签，蜡只剩一截，停尸石床空着",
+    "environment_rules": "义庄底档房夜间上锁；死因存疑者底档一式两份",
+    "summary": "",
+    "visited_chapters": [
+      "ch_012"
     ]
   }
 }

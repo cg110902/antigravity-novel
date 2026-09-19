@@ -4,5 +4,17 @@
     "fact": "周伯于 ch_006 死于仵作行后院火场",
     "domain": "plot",
     "established_ch": "ch_006"
+  },
+  {
+    "id": "LOCK-002",
+    "fact": "第七具尸格复核日期为正月十五，早于正月十六报案日",
+    "domain": "plot",
+    "established_ch": "ch_013"
+  },
+  {
+    "id": "LOCK-003",
+    "fact": "崔敬亭承认亲手闩第二道坊门，但拒不供出下令者",
+    "domain": "plot",
+    "established_ch": "ch_014"
   }
 ]

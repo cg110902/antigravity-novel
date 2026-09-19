@@ -43,5 +43,33 @@
         "status": "active"
       }
     ]
+  },
+  "it_004": {
+    "id": "it_004",
+    "name": "第七具尸格原件",
+    "holder": "p_003",
+    "charges": -1,
+    "status": "active",
+    "durability": "完好",
+    "sensory_anchor": "",
+    "location": "随身",
+    "summary": "",
+    "established_ch": "ch_012",
+    "last_seen_ch": "ch_012",
+    "transfer_history": []
+  },
+  "it_005": {
+    "id": "it_005",
+    "name": "紫檀念珠",
+    "holder": "p_001",
+    "charges": -1,
+    "status": "active",
+    "durability": "完好",
+    "sensory_anchor": "",
+    "location": "随身",
+    "summary": "",
+    "established_ch": "ch_014",
+    "last_seen_ch": "ch_014",
+    "transfer_history": []
   }
 }

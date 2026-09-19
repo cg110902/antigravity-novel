@@ -31,7 +31,7 @@ raw_dir = WS/"manuscript"/VOL/"raw"; raw_dir.mkdir(parents=True, exist_ok=True)
 for i in range(START, end+1):
     cid = f"ch_{i:03d}"
     # 每章：主角 + 一个新守关人；每章埋 1 伏笔，隔 2 章回收；每章耗 1 充能
-    guard_id = f"p_{i+1:03d}"
+    guard_id = f"p_{i+2:03d}"  # 从 p_003 起，避开 init 模板已占用的 p_001 主角 / p_002 核心反派
     fm = [
         "---",
         f'chapter_id: "{cid}"',

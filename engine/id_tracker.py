@@ -767,6 +767,28 @@ def check_id_integrity(workspace: Path, chapter_id: Optional[str] = None) -> Dic
                 elif pid not in persons_db and pid not in declared_new_ids and pid not in declared_card_ids:
                     errors.append(f"第 {ch} 章细纲引用未定义的人物 ID: [{pid}]（未在 state/persons.json 登记，且未在当章 new_entities 或实体卡声明）。\n      💡 方案：可运行 `python studio.py id list person` 查看已有人物；若属新登场角色，请在细纲 new_entities 声明登记，或在 characters/ 建立人物卡。")
 
+            # v4.3.3 BUG#37：id 与 name 必须指向同一人。
+            # 旧版对 pid、pname 各自单独校验，从不比对二者是否自洽。
+            # 一旦错配（如 id: p_003 配 name: 崔敬亭），sync 会以 name 为准回写
+            # persons 表：被冒名者姓名遭覆盖、死亡/状态增量记到无关角色头上，
+            # 且 check 全程 0 error 无感。此处做交叉核对。
+            if pid in persons_db and pname:
+                _reg = str(persons_db[pid].get("name", "")).strip()
+                _reg_base = re.sub(r"[（\(].*?[）\)]", "", _reg).strip()
+                _pn_base = re.sub(r"[（\(].*?[）\)]", "", pname).strip()
+                if _reg and _pn_base != _reg_base:
+                    _owner = next(
+                        (f"（{pname} 实为 {_oid}）" for _oid, _op in persons_db.items()
+                         if re.sub(r"[（\(].*?[）\)]", "", str(_op.get("name", ""))).strip() == _pn_base),
+                        "",
+                    )
+                    errors.append(
+                        f"第 {ch} 章细纲人物 ID 与姓名不一致: [{pid}] 在台账中登记为「{_reg}」，"
+                        f"细纲却写作「{pname}」{_owner}。\n"
+                        f"      💡 方案：请修正 present_characters 中该条目的 id 或 name，使二者指向同一人"
+                        f"（可运行 `python studio.py id list person` 核对）。"
+                    )
+
             # 死者登场硬阻断 (Anti-Resurrection Guard · 时序因果校验)
             # 仅当当章章节号晚于角色阵亡章节时阻断（在阵亡当章登场属于合法生理事实）
             from engine.state import get_death_chapter

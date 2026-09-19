@@ -40,5 +40,61 @@
     "forced": true,
     "title": "周伯之死",
     "word_count": 992
+  },
+  "ch_007": {
+    "final_sha1": "8fa88cf174b61168074ed66adbcad36f3731fd10",
+    "synced_at": "2026-09-19T23:51:38",
+    "forced": false,
+    "title": "念珠",
+    "word_count": 793
+  },
+  "ch_008": {
+    "final_sha1": "b0214231b6d4de3567c57abc5009386b896ce59a",
+    "synced_at": "2026-09-19T23:52:07",
+    "forced": false,
+    "title": "调令",
+    "word_count": 724
+  },
+  "ch_009": {
+    "final_sha1": "e1ec0efa1671c19011b4828478132f57db225e68",
+    "synced_at": "2026-09-19T23:52:59",
+    "forced": true,
+    "title": "三页供状",
+    "word_count": 722
+  },
+  "ch_010": {
+    "final_sha1": "76b1b783853c4183d7dd84a4a9e52231f39ce594",
+    "synced_at": "2026-09-19T23:53:50",
+    "forced": false,
+    "title": "对簿",
+    "word_count": 892
+  },
+  "ch_011": {
+    "final_sha1": "0d5563e8ea1f6c1cb61a951651545d659710a34f",
+    "synced_at": "2026-09-19T23:53:50",
+    "forced": false,
+    "title": "无押之状",
+    "word_count": 814
+  },
+  "ch_012": {
+    "final_sha1": "af4232987cd4c8f29b2774f855e3051169a1c814",
+    "synced_at": "2026-09-19T23:54:26",
+    "forced": false,
+    "title": "第七具的尸格",
+    "word_count": 721
+  },
+  "ch_013": {
+    "final_sha1": "0fcbb64781fd241986881d267914045a9694e7d9",
+    "synced_at": "2026-09-19T23:55:15",
+    "forced": false,
+    "title": "早了一日",
+    "word_count": 830
+  },
+  "ch_014": {
+    "final_sha1": "b2bbba8a928f6654200beec3c52f1ad0aa65aea9",
+    "synced_at": "2026-09-19T23:55:16",
+    "forced": false,
+    "title": "灯下不照",
+    "word_count": 902
   }
 }

@@ -14,7 +14,7 @@
     "tier_name": "大理寺评事（从七品）",
     "status": "active",
     "life_status": "alive",
-    "condition": "轻伤·手掌烧伤",
+    "condition": "复职·面对更大的暗",
     "injury_level": 0,
     "injury_desc": "无伤",
     "location": "loc_001",
@@ -26,8 +26,8 @@
       "崔敬亭": "崔通判",
       "周伯": "周老"
     },
-    "want": "把周伯从火里拖出来",
-    "fear": "又一次眼睁睁看着人死在火里",
+    "want": "问出下令的人",
+    "fear": "问到底还是一片空白",
     "need": "放下幸存者的负疚",
     "lie": "查到底就能赎清十年前的罪",
     "quirk": "用指节轻叩尸床边沿数时辰",
@@ -86,9 +86,72 @@
         "physiological_leak": "",
         "status_in": "完好·奔赴",
         "status_out": "轻伤·手掌烧伤"
+      },
+      {
+        "chapter": "ch_007",
+        "want": "确认第三颗珠上的烧痕",
+        "fear": "右手烧伤暴露昨夜在火场",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "轻伤·手掌烧伤",
+        "status_out": "轻伤·手掌烧伤"
+      },
+      {
+        "chapter": "ch_008",
+        "want": "拖住外放的日子",
+        "fear": "案子还没翻就被调走",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "轻伤·手掌烧伤",
+        "status_out": "轻伤·被逼到墙角"
+      },
+      {
+        "chapter": "ch_009",
+        "want": "把记忆里的三页供状落到纸上",
+        "fear": "记错一个字就全盘皆输",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "轻伤·被逼到墙角",
+        "status_out": "轻伤·耗尽心力"
+      },
+      {
+        "chapter": "ch_010",
+        "want": "当堂翻案",
+        "fear": "手里的东西不被采信",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "轻伤·耗尽心力",
+        "status_out": "停职·跌至谷底"
+      },
+      {
+        "chapter": "ch_011",
+        "want": "把记忆交出去",
+        "fear": "这些东西随自己一起被埋掉",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "停职·跌至谷底",
+        "status_out": "停职·托付已了"
+      },
+      {
+        "chapter": "ch_013",
+        "want": "找出原件上的死穴",
+        "fear": "错过纸上唯一的破绽",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "停职·托付已了",
+        "status_out": "停职·锋芒重聚"
+      },
+      {
+        "chapter": "ch_014",
+        "want": "问出下令的人",
+        "fear": "问到底还是一片空白",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "停职·锋芒重聚",
+        "status_out": "复职·面对更大的暗"
       }
     ],
-    "last_seen_ch": "ch_006"
+    "last_seen_ch": "ch_014"
   },
   "p_002": {
     "id": "p_002",
@@ -106,7 +169,7 @@
     "tier_name": "顺天府通判（正六品）",
     "status": "active",
     "life_status": "alive",
-    "condition": "完好·从容",
+    "condition": "下狱·卸任",
     "injury_level": 0,
     "injury_desc": "无伤",
     "location": "loc_004",
@@ -117,8 +180,8 @@
       "裴砚": "裴评事",
       "沈拂云": "沈仵作"
     },
-    "want": "当场改判失火，把案子收口",
-    "fear": "有人把这案子往灯市旧案上引",
+    "want": "把该认的认了，把不该说的带走",
+    "fear": "连累家人",
     "quirk": "捻念珠停在第三颗",
     "arc_history": [
       {
@@ -129,9 +192,36 @@
         "physiological_leak": "",
         "status_in": "完好·从容",
         "status_out": ""
+      },
+      {
+        "chapter": "ch_007",
+        "want": "让裴砚知道自己在看着他",
+        "fear": "裴砚手里已有实物",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "完好·从容",
+        "status_out": ""
+      },
+      {
+        "chapter": "ch_010",
+        "want": "用程序一击了结",
+        "fear": "裴砚拿出带押的原件",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "完好·从容",
+        "status_out": ""
+      },
+      {
+        "chapter": "ch_014",
+        "want": "把该认的认了，把不该说的带走",
+        "fear": "连累家人",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "下狱·卸任",
+        "status_out": ""
       }
     ],
-    "last_seen_ch": "ch_002"
+    "last_seen_ch": "ch_014"
   },
   "p_003": {
     "id": "p_003",
@@ -146,7 +236,7 @@
     "tier_name": "仵作",
     "status": "active",
     "life_status": "alive",
-    "condition": "完好·失去师父",
+    "condition": "完好·得手",
     "injury_level": 0,
     "injury_desc": "无伤",
     "location": "loc_001",
@@ -158,7 +248,7 @@
       "崔敬亭": "崔大人",
       "周伯": "师父"
     },
-    "want": "救出师父",
+    "want": "确认这份东西能不能用",
     "arc_history": [
       {
         "chapter": "ch_001",
@@ -213,10 +303,55 @@
         "physiological_leak": "",
         "status_in": "完好·崩溃边缘",
         "status_out": "完好·失去师父"
+      },
+      {
+        "chapter": "ch_008",
+        "want": "替裴砚争出时间",
+        "fear": "师父白死",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "完好·失去师父",
+        "status_out": ""
+      },
+      {
+        "chapter": "ch_009",
+        "want": "替裴砚执笔记录",
+        "fear": "写下的东西没有法理效力",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "完好·孤注一掷",
+        "status_out": ""
+      },
+      {
+        "chapter": "ch_011",
+        "want": "接过这件事",
+        "fear": "接不住",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "完好·心生希望",
+        "status_out": ""
+      },
+      {
+        "chapter": "ch_012",
+        "want": "找到带押的原件",
+        "fear": "空手而回",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "完好·独自赴险",
+        "status_out": "完好·得手"
+      },
+      {
+        "chapter": "ch_013",
+        "want": "确认这份东西能不能用",
+        "fear": "白跑一夜",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "完好·得手",
+        "status_out": ""
       }
     ],
-    "fear": "失去最后的亲人",
-    "last_seen_ch": "ch_006"
+    "fear": "白跑一夜",
+    "last_seen_ch": "ch_013"
   },
   "p_004": {
     "id": "p_004",

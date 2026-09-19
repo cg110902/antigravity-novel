@@ -9,15 +9,19 @@
       "沈拂云"
     ],
     "first_seen_ch": "ch_001",
-    "last_seen_ch": "ch_006",
-    "total_co_occurrences": 6,
+    "last_seen_ch": "ch_013",
+    "total_co_occurrences": 10,
     "chapters": [
       "ch_001",
       "ch_002",
       "ch_003",
       "ch_004",
       "ch_005",
-      "ch_006"
+      "ch_006",
+      "ch_008",
+      "ch_009",
+      "ch_011",
+      "ch_013"
     ],
     "history": [
       {
@@ -49,13 +53,33 @@
         "chapter": "ch_006",
         "dynamic": "生死与共",
         "subtext": "同一个人死在他们面前"
+      },
+      {
+        "chapter": "ch_008",
+        "dynamic": "同舟",
+        "subtext": "一个用律，一个用行规"
+      },
+      {
+        "chapter": "ch_009",
+        "dynamic": "共谋",
+        "subtext": "两个人把十年前的话重新写了一遍"
+      },
+      {
+        "chapter": "ch_011",
+        "dynamic": "交棒",
+        "subtext": "一个退到暗处，一个走到明处"
+      },
+      {
+        "chapter": "ch_013",
+        "dynamic": "并肩",
+        "subtext": "一个看出破绽，一个去递"
       }
     ],
     "last_interaction_summary": {
-      "chapter": "ch_006",
-      "dynamic": "生死与共",
-      "unspoken_subtext": "同一个人死在他们面前",
-      "tension": 15,
+      "chapter": "ch_013",
+      "dynamic": "并肩",
+      "unspoken_subtext": "一个看出破绽，一个去递",
+      "tension": 26,
       "affinity": 0
     }
   },
@@ -69,23 +93,41 @@
       "崔敬亭"
     ],
     "first_seen_ch": "ch_002",
-    "last_seen_ch": "ch_002",
-    "total_co_occurrences": 1,
+    "last_seen_ch": "ch_014",
+    "total_co_occurrences": 4,
     "chapters": [
-      "ch_002"
+      "ch_002",
+      "ch_007",
+      "ch_010",
+      "ch_014"
     ],
     "history": [
       {
         "chapter": "ch_002",
         "dynamic": "上下相制·各怀所图",
         "subtext": "一个要翻案，一个要收口"
+      },
+      {
+        "chapter": "ch_007",
+        "dynamic": "刀锋相抵",
+        "subtext": "彼此都知道对方知道"
+      },
+      {
+        "chapter": "ch_010",
+        "dynamic": "当庭对决",
+        "subtext": "一个讲事实，一个讲程序"
+      },
+      {
+        "chapter": "ch_014",
+        "dynamic": "终局对坐",
+        "subtext": "仇人交出了自己唯一的凭据"
       }
     ],
     "last_interaction_summary": {
-      "chapter": "ch_002",
-      "dynamic": "上下相制·各怀所图",
-      "unspoken_subtext": "一个要翻案，一个要收口",
-      "tension": 70,
+      "chapter": "ch_014",
+      "dynamic": "终局对坐",
+      "unspoken_subtext": "仇人交出了自己唯一的凭据",
+      "tension": 30,
       "affinity": 0
     }
   },

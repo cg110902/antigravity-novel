@@ -1,21 +1,19 @@
 {
   "current_vol": "vol_01",
-  "current_ch": "ch_006",
-  "last_timeline": "永乐十二年·正月二十·丑时",
-  "last_location": "仵作行后院·火场",
-  "last_chapter_type": "爆发",
+  "current_ch": "ch_014",
+  "last_timeline": "永乐十二年·正月二十五·午时",
+  "last_location": "顺天府·正堂",
+  "last_chapter_type": "卷末",
   "present_characters": [
     "裴砚",
-    "沈拂云",
-    "周伯"
+    "崔敬亭"
   ],
   "active_foreshadowings": [
-    "GUN-001",
-    "KNO-001",
     "GUN-003",
-    "GUN-002"
+    "MIS-002",
+    "KNO-002"
   ],
-  "latest_word_count": 992,
-  "last_dramatic_goal": "周伯死于后院火场，手中攥着半页旧档；裴砚在火场外看着，救不及",
-  "last_cliffhanger": "半页纸上只剩一个字：崔"
+  "latest_word_count": 902,
+  "last_dramatic_goal": "崔敬亭承认锁门，却说下令的另有其人；被押走前把念珠留给裴砚",
+  "last_cliffhanger": "念珠第三颗撬开，里面是半个礼部的印"
 }

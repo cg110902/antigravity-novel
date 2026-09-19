@@ -91,5 +91,124 @@
       "沈拂云",
       "周伯"
     ]
+  },
+  "ch_007": {
+    "chapter_id": "ch_007",
+    "volume_id": "vol_01",
+    "title": "念珠",
+    "timeline": "永乐十二年·正月二十一·巳时",
+    "location": "顺天府衙·西厢值房",
+    "chapter_type": "交锋",
+    "dramatic_goal": "裴砚以查案为名求见崔敬亭，故意提起灯市；崔敬亭捻念珠的手停在第三颗",
+    "cliffhanger": "崔敬亭说：裴评事，你父亲当年也是这么坐着的",
+    "word_count": 793,
+    "present_characters": [
+      "裴砚",
+      "崔敬亭"
+    ]
+  },
+  "ch_008": {
+    "chapter_id": "ch_008",
+    "volume_id": "vol_01",
+    "title": "调令",
+    "timeline": "永乐十二年·正月二十二·辰时",
+    "location": "大理寺·评事值房",
+    "chapter_type": "压制",
+    "dramatic_goal": "一纸调令要把裴砚外放；沈拂云替他压下三日",
+    "cliffhanger": "裴砚说：三日够了",
+    "word_count": 724,
+    "present_characters": [
+      "裴砚",
+      "沈拂云"
+    ]
+  },
+  "ch_009": {
+    "chapter_id": "ch_009",
+    "volume_id": "vol_01",
+    "title": "三页供状",
+    "timeline": "永乐十二年·正月二十二·亥时",
+    "location": "大理寺·评事值房",
+    "chapter_type": "推进",
+    "dramatic_goal": "裴砚默诵出早被销毁的三页供状内容，沈拂云执笔重录",
+    "cliffhanger": "重录供状的最后一行，写着崔敬亭的名字",
+    "word_count": 722,
+    "present_characters": [
+      "裴砚",
+      "沈拂云"
+    ]
+  },
+  "ch_010": {
+    "chapter_id": "ch_010",
+    "volume_id": "vol_01",
+    "title": "对簿",
+    "timeline": "永乐十二年·正月二十三·巳时",
+    "location": "大理寺·正堂",
+    "chapter_type": "爆发",
+    "dramatic_goal": "大理寺堂上，裴砚以重录供状指认崔敬亭锁死坊门",
+    "cliffhanger": "崔敬亭笑了：这份供状，谁画的押？",
+    "word_count": 892,
+    "present_characters": [
+      "裴砚",
+      "崔敬亭"
+    ]
+  },
+  "ch_011": {
+    "chapter_id": "ch_011",
+    "volume_id": "vol_01",
+    "title": "无押之状",
+    "timeline": "永乐十二年·正月二十三·申时",
+    "location": "大理寺·评事值房",
+    "chapter_type": "低谷",
+    "dramatic_goal": "重录供状因无画押被驳；裴砚被停职待参",
+    "cliffhanger": "沈拂云连夜去了义庄",
+    "word_count": 814,
+    "present_characters": [
+      "裴砚",
+      "沈拂云"
+    ]
+  },
+  "ch_012": {
+    "chapter_id": "ch_012",
+    "volume_id": "vol_01",
+    "title": "第七具的尸格",
+    "timeline": "永乐十二年·正月二十四·丑时",
+    "location": "义庄·底档房",
+    "chapter_type": "推进",
+    "dramatic_goal": "沈拂云找出第七具尸格的原件——上面有崔敬亭亲笔的复核画押",
+    "cliffhanger": "画押的日期，比报案早了一日",
+    "word_count": 721,
+    "present_characters": [
+      "沈拂云"
+    ]
+  },
+  "ch_013": {
+    "chapter_id": "ch_013",
+    "volume_id": "vol_01",
+    "title": "早了一日",
+    "timeline": "永乐十二年·正月二十四·卯时",
+    "location": "大理寺·评事值房",
+    "chapter_type": "反转",
+    "dramatic_goal": "早一日的画押证明崔敬亭在案发前已知死者身份；灯市与焚尸两案并为一案",
+    "cliffhanger": "崔敬亭主动请见裴砚",
+    "word_count": 830,
+    "present_characters": [
+      "裴砚",
+      "沈拂云"
+    ]
+  },
+  "ch_014": {
+    "chapter_id": "ch_014",
+    "volume_id": "vol_01",
+    "title": "灯下不照",
+    "timeline": "永乐十二年·正月二十五·午时",
+    "location": "顺天府·正堂",
+    "chapter_type": "卷末",
+    "dramatic_goal": "崔敬亭承认锁门，却说下令的另有其人；被押走前把念珠留给裴砚",
+    "cliffhanger": "念珠第三颗撬开，里面是半个礼部的印",
+    "word_count": 902,
+    "present_characters": [
+      "裴砚",
+      "崔敬亭"
+    ]
   }
 }

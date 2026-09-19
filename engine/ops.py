@@ -463,6 +463,12 @@ def get_beats_scaffold(workspace: Path, chapter_id: str, write_file: bool = True
         for _cat, _label in [("person", "人物"), ("item", "道具"), ("gun", "GUN"), ("kno", "KNO"),
                              ("mis", "MIS"), ("location", "地点"), ("faction", "势力"),
                              ("debt", "恩怨"), ("lock", "锁定事实")]:
+            # v4.3.3 BUG#39：恩怨 ID 自 BUG#6 起改为按（章节+双方+类型）派生的
+            # DEBT-AUTO-<sha1> 稳定幂等键，由引擎自动生成；速查表若仍报 DEBT-001，
+            # 会诱导写手在细纲手填序号 ID，与台账实际格式两套并存。此处如实标注。
+            if _cat == "debt":
+                _id_parts.append(f"{_label}: 引擎自动派生（细纲 debts 无需填 id）")
+                continue
             _id_parts.append(f"{_label}: {_tracker.get_next_id(_cat)}")
         id_cheat_block = "   - " + " ｜ ".join(_id_parts)
     except Exception:

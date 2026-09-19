@@ -589,7 +589,7 @@ locked_facts: []
               str(cl("items.json")["it_001"]["charges"]))
         check("长程台账零漂移·资金池", cl("ledger.json")["pools"] == {"灵石": -100},
               str(cl("ledger.json")["pools"]))
-        check("长程台账零漂移·人物", len(cl("persons.json")) == 11)
+        check("长程台账零漂移·人物", len(cl("persons.json")) == 12)
         check("长程台账零漂移·恩怨", len(cl("debts.json")) == 10)
         check("长程台账零漂移·锁定事实", len(cl("locked.json")) == 10)
         _ln = cl("lines.json")
@@ -617,8 +617,8 @@ locked_facts: []
         r = run(cw, "cruise", "ch_011", "--once")
         check("跨卷巡航自动定位新卷", "vol=vol_02" in r.stdout)
         check("充能耗尽时正确刹车", "🛑" in r.stdout and "充能已耗尽" in r.stdout)
-        check("BUG#18 刹车章不污染人物台账（无幽灵 p_017）",
-              "p_017" not in cl("persons.json") and len(cl("persons.json")) == 16,
+        check("BUG#18 刹车章不污染人物台账（无幽灵 p_018）",
+              "p_018" not in cl("persons.json") and len(cl("persons.json")) == 17,
               f"{len(cl('persons.json'))} 人")
         check("BUG#18 刹车章不污染地点台账（无幽灵 loc_016）",
               "loc_016" not in cl("places.json") and len(cl("places.json")) == 15)
@@ -665,6 +665,49 @@ locked_facts: []
         check("BUG#20 复活角色但遗留死亡弧光被拦截",
               "台账生死状态自相矛盾" in rc.stdout and rc.returncode == 1, rc.stdout[:300])
         _pj.write_text(_orig_persons, encoding="utf-8")
+
+        # BUG#37 (P1)：present_characters 的 id 与 name 错配无人校验。
+        # sync 以 name 为准回写 persons → 被冒名者姓名遭覆盖、死亡记到无关角色头上，
+        # 而 check 全程 0 error。修复后应在 check 阶段硬阻断。
+        import re as _re37
+        _b37 = ws / "outlines/vol_01/beats/ch_002.md"
+        if _b37.exists():
+            _o37 = _b37.read_text(encoding="utf-8")
+            _pdb37 = json.loads((ws / "state/persons.json").read_text(encoding="utf-8"))
+            _first = _re37.search(r'- id: "(p_\d+)"\n\s+name: "([^"]*)"', _o37)
+            if _first and _first.group(1) in _pdb37:
+                _other = next((v.get("name") for k, v in _pdb37.items()
+                               if k != _first.group(1) and v.get("name")), "张冠李戴")
+                _t37 = _o37[:_first.start()] + _re37.sub(
+                    r'(- id: "p_\d+"\n\s+name: ")[^"]*(")', lambda m: m.group(1) + _other + m.group(2),
+                    _o37[_first.start():], count=1)
+                _b37.write_text(_t37, encoding="utf-8")
+                rc = run(ws, "check", "ch_002")
+                check("BUG#37 id/name 错配被硬阻断",
+                      rc.returncode != 0 and "与姓名不一致" in (rc.stdout + rc.stderr),
+                      (rc.stdout + rc.stderr)[:200])
+                _b37.write_text(_o37, encoding="utf-8")
+                rc = run(ws, "check", "ch_002")
+                check("BUG#37 还原后恢复通过", rc.returncode == 0, (rc.stdout + rc.stderr)[:200])
+
+        # BUG#38 (P2)：地点按细纲 location 字面建号，无同名归并。
+        # 「顺天府正堂」与「顺天府·正堂」仅差间隔号即被登记为两个 loc_ID。
+        _plj = ws / "state/places.json"
+        _orig_pl = _plj.read_text(encoding="utf-8")
+        _pldb = json.loads(_orig_pl)
+        if _pldb:
+            _k0 = sorted(_pldb)[0]
+            _n0 = str(_pldb[_k0].get("name", "甲地"))
+            _pldb["loc_899"] = {"id": "loc_899", "name": _n0[:1] + "·" + _n0[1:],
+                                "sensory_anchor": "x", "environment_rules": "y"}
+            _plj.write_text(json.dumps(_pldb, ensure_ascii=False, indent=2), encoding="utf-8")
+            rc = run(ws, "check")
+            check("BUG#38 归一化同名地点重复登记被提示",
+                  "地点重复登记" in rc.stdout and "loc_899" in rc.stdout,
+                  rc.stdout[:200])
+            _plj.write_text(_orig_pl, encoding="utf-8")
+            rc = run(ws, "check")
+            check("BUG#38 还原后无重复告警", "地点重复登记" not in rc.stdout)
 
         _ij = ws / "state/items.json"
         _orig_items = _ij.read_text(encoding="utf-8")

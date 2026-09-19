@@ -86,7 +86,7 @@ templates/
 4. **强类型物理通用字段（Entities Schema 核心白名单）**：
    底层状态表 `实体四表（persons/items/factions/places）` 按白名单读取以下法定字段（未知字段被引擎忽略、不参与校验）。各角色向状态表登记实体时，**应严格使用以下法定字段**：
    - 🆔 **标识与类型**：
-     - `id`: 唯一物理 ID（终身不可变：`p_001`, `it_001`, `fac_001`, `loc_001`；台账侧另有引擎自动生成的 `GUN-001` 伏笔 / `KNO-001` 知识点 / `MIS-001` 谜团 / `DEBT-001` 恩怨 / `LOCK-001` 锁定 / `ms_001` 里程碑，发号一律走 `id next`）
+     - `id`: 唯一物理 ID（终身不可变：`p_001`, `it_001`, `fac_001`, `loc_001`；台账侧另有引擎自动生成的 `GUN-001` 伏笔 / `KNO-001` 知识点 / `MIS-001` 谜团 / `DEBT-AUTO-<hash>` 恩怨（引擎按「章节+双方+类型」自动派生，细纲无需填写 id）/ `LOCK-001` 锁定 / `ms_001` 里程碑，发号一律走 `id next`）
      - `name`: 实体中文法定全名（唯一主键）
      - `type`: 实体类型（严格枚举：`person`, `item`, `location`, `place`, `faction`, `other`）
      - `role`: 角色叙事定位（合法白名单：`protagonist` / `deuteragonist` / `antagonist` / `ally` / `supporting`（配角，引擎缺省值）等）
