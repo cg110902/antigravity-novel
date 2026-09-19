@@ -24,6 +24,11 @@ from engine.probes import run_all_probes
 from engine.state import StateManager, _load_json
 
 _SLOT_PATTERN = re.compile(r"\{\{slot:")
+# v4.3.2 缺陷#29：反引号代码跨度内的 `{{slot:...}}` 是文档在**描述**槽位语法本身
+# （如 templates/outlines/volume_outline.md 的「卷末判定契约」条款），并非待填槽位。
+# 旧版裸匹配把它算作未填占位符 ⇒ 每本新书 init 后都凭空背一个永远消不掉的槽位，
+# Stage 0C「全部填实」门禁在设计上就无法达成。此处先剥离行内代码跨度再计数。
+_INLINE_CODE = re.compile(r"`+[^`\n]*`+")
 
 
 def _scan_unfilled_slots(workspace: Path, warnings: List[str]) -> int:
@@ -40,7 +45,7 @@ def _scan_unfilled_slots(workspace: Path, warnings: List[str]) -> int:
             txt = p.read_text(encoding="utf-8-sig", errors="replace")
         except Exception:
             continue
-        n = len(_SLOT_PATTERN.findall(txt))
+        n = len(_SLOT_PATTERN.findall(_INLINE_CODE.sub("", txt)))
         if n:
             warnings.append(f"未填占位符 ×{n}: {p.relative_to(workspace)}（Stage 0C 门禁要求全部填实）")
             total += n
@@ -333,7 +338,7 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
     except Exception:
         pass
 
-    # 3.2.5 强类型枚举白名单巡检（v4.3.2 缺陷#27）
+    # 3.4 强类型枚举白名单巡检（v4.3.2 缺陷#27）
     #
     # 背景：templates/README.md 九处宣称 type/role/status/life_status/attitude 为
     # 「严格枚举」，实测引擎**零校验**——把 life_status 改成 '半死不活'、
@@ -381,7 +386,7 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
     except Exception:
         pass
 
-    # 3.2.6 定稿 ⇄ 合账对账巡检（v4.3.2 缺陷#28）
+    # 3.5 定稿 ⇄ 合账对账巡检（v4.3.2 缺陷#28）
     #
     # 背景：单章 sync 依序写 14 张表，每张各自原子（_save_json 用 tmp+os.replace），
     # 但**整体无事务**。实测把 debts.json 替换为目录让第 4.5 节 os.replace 单点失败，
@@ -415,7 +420,7 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
     except Exception:
         pass
 
-    # 3.3 里程碑时钟超期巡检（v4.3.2 缺陷#25）
+    # 3.6 里程碑时钟超期巡检（v4.3.2 缺陷#25）
     #
     # 背景：伏笔有 3.2 节的超期告警，里程碑却零校验——`milestones.json` 此前
     # 全文只在坏表清单里出现过一次。Stage 0B/0E (Architect) 唯一的写命令就是
@@ -446,7 +451,7 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
     except Exception:
         pass
 
-    # 3.4 台账内部交叉引用完整性巡检（v4.3.2 缺陷#20，实现见 scan_ledger_integrity）
+    # 3.7 台账内部交叉引用完整性巡检（v4.3.2 缺陷#20，实现见 scan_ledger_integrity）
     #
     # 背景：Stage 4C (novel-evolution) 平账时全靠手工编辑 state/*.json，而此前
     # check 只校验「细纲 ➔ 台账」单向引用，对台账内部交叉引用零设防——实测 5 类

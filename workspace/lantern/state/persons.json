@@ -1,0 +1,122 @@
+{
+  "p_001": {
+    "id": "p_001",
+    "name": "裴砚",
+    "type": "person",
+    "role": "protagonist",
+    "aliases": [
+      "裴评事",
+      "裴大人"
+    ],
+    "card": "characters/protagonist.md",
+    "summary": "大理寺评事，灯市案幸存孤儿",
+    "tier_rank": 2,
+    "tier_name": "大理寺评事（从七品）",
+    "status": "active",
+    "life_status": "alive",
+    "condition": "完好",
+    "injury_level": 0,
+    "injury_desc": "无伤",
+    "location": "loc_001",
+    "faction": "大理寺",
+    "attitude": "neutral",
+    "sensory_anchor": "洗得发白的青色官袍，腰间一枚豁口铜灯签",
+    "address_matrix": {
+      "沈拂云": "沈仵作",
+      "崔敬亭": "崔通判",
+      "周伯": "周老"
+    },
+    "want": "查清城南焚尸案",
+    "fear": "再一次救不下火场里的人",
+    "need": "放下幸存者的负疚",
+    "lie": "查到底就能赎清十年前的罪",
+    "quirk": "用指节轻叩尸床边沿数时辰",
+    "taboo": "拿死者尸身做交易",
+    "arc_history": []
+  },
+  "p_002": {
+    "id": "p_002",
+    "name": "崔敬亭",
+    "type": "person",
+    "role": "antagonist",
+    "aliases": [
+      "崔通判",
+      "崔青天",
+      "崔大人"
+    ],
+    "card": "characters/antagonist.md",
+    "summary": "顺天府通判，灯市案真凶",
+    "tier_rank": 6,
+    "tier_name": "顺天府通判（正六品）",
+    "status": "active",
+    "life_status": "alive",
+    "condition": "完好",
+    "injury_level": 0,
+    "injury_desc": "无伤",
+    "location": "loc_004",
+    "faction": "顺天府",
+    "attitude": "hostile",
+    "sensory_anchor": "紫檀念珠，第三颗有烧痕",
+    "address_matrix": {
+      "裴砚": "裴评事",
+      "沈拂云": "沈仵作"
+    },
+    "want": "在旧案翻出前钉死卷宗",
+    "fear": "被人指认",
+    "quirk": "捻念珠停在第三颗",
+    "arc_history": []
+  },
+  "p_003": {
+    "id": "p_003",
+    "name": "沈拂云",
+    "type": "person",
+    "role": "deuteragonist",
+    "aliases": [
+      "沈仵作"
+    ],
+    "summary": "仵作行女仵作，验骨第一手",
+    "tier_rank": 2,
+    "tier_name": "仵作",
+    "status": "active",
+    "life_status": "alive",
+    "condition": "完好",
+    "injury_level": 0,
+    "injury_desc": "无伤",
+    "location": "loc_001",
+    "faction": "仵作行",
+    "attitude": "friendly",
+    "sensory_anchor": "袖口常年卷到肘，腕上一道旧疤",
+    "address_matrix": {
+      "裴砚": "裴评事",
+      "崔敬亭": "崔大人",
+      "周伯": "师父"
+    },
+    "want": "守住尸格不被改",
+    "arc_history": []
+  },
+  "p_004": {
+    "id": "p_004",
+    "name": "周伯",
+    "type": "person",
+    "role": "supporting",
+    "aliases": [
+      "周老"
+    ],
+    "summary": "仵作行头目，沈拂云的师父",
+    "tier_rank": 2,
+    "tier_name": "仵作行头目",
+    "status": "active",
+    "life_status": "alive",
+    "condition": "完好",
+    "injury_level": 0,
+    "injury_desc": "无伤",
+    "location": "loc_002",
+    "faction": "仵作行",
+    "attitude": "neutral",
+    "address_matrix": {
+      "裴砚": "裴大人",
+      "沈拂云": "云丫头"
+    },
+    "arc_history": []
+  }
+}

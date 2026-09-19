@@ -1,0 +1,41 @@
+{
+  "fac_001": {
+    "id": "fac_001",
+    "name": "大理寺",
+    "type": "faction",
+    "scale": "中央官署",
+    "leader": "大理寺卿",
+    "hq": "loc_005",
+    "attitude": "neutral",
+    "diplomacy": {
+      "顺天府": "neutral",
+      "仵作行": "friendly"
+    }
+  },
+  "fac_002": {
+    "id": "fac_002",
+    "name": "顺天府",
+    "type": "faction",
+    "scale": "京畿衙署",
+    "leader": "崔敬亭",
+    "hq": "loc_004",
+    "attitude": "hostile",
+    "diplomacy": {
+      "大理寺": "neutral",
+      "仵作行": "hostile"
+    }
+  },
+  "fac_003": {
+    "id": "fac_003",
+    "name": "仵作行",
+    "type": "faction",
+    "scale": "民间行会",
+    "leader": "周伯",
+    "hq": "loc_002",
+    "attitude": "friendly",
+    "diplomacy": {
+      "大理寺": "friendly",
+      "顺天府": "hostile"
+    }
+  }
+}

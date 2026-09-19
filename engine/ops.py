@@ -704,6 +704,31 @@ Stage 5 proposal auto 将自动提取并反向回填至细纲与台账：
 def finalize_chapter(workspace: Path, chapter_id: str) -> Dict[str, Any]:
     """吸纳 Auditor 预制修补配方，完成正文替换定稿生成 final/ch_XXX.md。"""
     _, vol_id = _find_volume_outline(workspace, chapter_id)
+
+    # v4.3.2 缺陷#30：槽位闸门必须前移到 finalize。
+    #
+    # 旧版只有 sync 检查细纲残留 {{slot:}}（ops.py sync_chapter 第 1066 行），
+    # finalize 完全不看细纲 —— 实测细纲含 41 处未填槽位时 finalize 仍 exit 0，
+    # 把正文定稿写进 final/，而随后的 sync 永远 exit 1 拒绝入账。
+    # 章节就此卡死在「已定稿但合不了账」的状态：正文已落盘、台账永远缺这一章，
+    # 且 director 的 S5 短路链（finalize && proposal && sync）会在第三步才炸，
+    # 此时 final 已经生成，作者必须手工回删才能重来。
+    # 闸门前移后，未填细纲在第一步就被拦下，不产生任何脏产物。
+    _bf = workspace / "outlines" / vol_id / "beats" / f"{chapter_id}.md"
+    if not _bf.exists():
+        _bf = workspace / "outlines" / f"{chapter_id}.md"
+    if _bf.exists():
+        _hits = _find_unfilled_slots(_bf.read_text(encoding="utf-8-sig", errors="replace"))
+        if _hits:
+            raise GuardError(
+                f"第 {chapter_id} 章细纲仍含 {len(_hits)} 处未填占位符（如 {_hits[0]}），已拒绝定稿。",
+                solution=(
+                    f"请先派发 Stage 1 (novel-screenwriter) 将 {_bf.name} 的全部 {{{{slot:}}}} 槽位填实"
+                    f"（未使用的可选块整段删除或置 []）；确认需推翻重排可运行 "
+                    f"`python studio.py beats new {chapter_id} --write --force` 重新装配。"
+                ),
+            )
+
     manuscript_dir = workspace / "manuscript" / vol_id
     # 严格挑选存在且字数大于 0 的有效稿件（v4.2.4 修复：跳过 0 字节半成品，防止产出空 final）
     candidates = [

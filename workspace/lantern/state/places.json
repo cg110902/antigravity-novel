@@ -1,0 +1,52 @@
+{
+  "loc_001": {
+    "id": "loc_001",
+    "name": "城南义庄",
+    "type": "place",
+    "danger_level": 1,
+    "desc": "停放无主尸身之所，终年阴冷",
+    "atmosphere": "石床、草席、灰烬味",
+    "sensory_anchor": "石床冷硬，草席下压着陈年灰烬味",
+    "environment_rules": "义庄夜不闭户，尸身按序编号，不得移位"
+  },
+  "loc_002": {
+    "id": "loc_002",
+    "name": "仵作行后院",
+    "type": "place",
+    "danger_level": 2,
+    "desc": "仵作行存放旧档与器具的院落",
+    "atmosphere": "油灯、樟木箱、药气",
+    "sensory_anchor": "油灯昏黄，樟木箱与药气混作一处",
+    "environment_rules": "后院旧档只准行内人调阅，需杂役引路"
+  },
+  "loc_003": {
+    "id": "loc_003",
+    "name": "灯市旧址",
+    "type": "place",
+    "danger_level": 1,
+    "desc": "十年前大火后未重建的空坊",
+    "atmosphere": "焦木桩、三道坊门残基",
+    "sensory_anchor": "焦木桩立在雪地里，三道坊门只剩残基",
+    "environment_rules": "灯市旧址荒废十年，无人夜宿"
+  },
+  "loc_004": {
+    "id": "loc_004",
+    "name": "顺天府正堂",
+    "type": "place",
+    "danger_level": 3,
+    "desc": "崔敬亭坐镇之处",
+    "atmosphere": "紫檀、茶香、匾额",
+    "sensory_anchor": "紫檀案几，茶香压着墨味，匾额高悬",
+    "environment_rules": "顺天府正堂非传不得擅入"
+  },
+  "loc_005": {
+    "id": "loc_005",
+    "name": "大理寺正堂",
+    "type": "place",
+    "danger_level": 2,
+    "desc": "复核刑狱、对簿之所",
+    "atmosphere": "高阶、卷宗架、铜磬",
+    "sensory_anchor": "高阶之上一架卷宗，铜磬声长",
+    "environment_rules": "大理寺正堂对簿须三方到齐"
+  }
+}

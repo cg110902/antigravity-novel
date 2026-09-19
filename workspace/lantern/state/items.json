@@ -1,0 +1,22 @@
+{
+  "it_001": {
+    "id": "it_001",
+    "name": "豁口铜灯签",
+    "type": "item",
+    "holder": "p_001",
+    "status": "active",
+    "grade": "信物",
+    "charges": -1,
+    "desc": "裴砚随身十年的半枚灯签，灯市案遗物"
+  },
+  "it_002": {
+    "id": "it_002",
+    "name": "验骨银针",
+    "type": "item",
+    "holder": "p_001",
+    "status": "active",
+    "grade": "工具",
+    "charges": 6,
+    "desc": "祖传验骨银针一套，每验一具耗损一根"
+  }
+}
