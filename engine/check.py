@@ -381,6 +381,40 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
     except Exception:
         pass
 
+    # 3.2.6 定稿 ⇄ 合账对账巡检（v4.3.2 缺陷#28）
+    #
+    # 背景：单章 sync 依序写 14 张表，每张各自原子（_save_json 用 tmp+os.replace），
+    # 但**整体无事务**。实测把 debts.json 替换为目录让第 4.5 节 os.replace 单点失败，
+    # 前序的 items/ledger 已落盘（charges 7→6、灵石 -10→-20），而末尾的 sync_log
+    # 未记录该章 —— 形成半提交。所幸 sync 本身幂等，重跑不会二次扣账。
+    #
+    # 真正无人兜底的是更普遍的一类：章节已定稿（final/ch_XXX.md 存在）却从未合账
+    # （sync_log 无该章）。此前 `sync_log.json` 在 check 全文**只出现在坏表清单里**，
+    # 零对账逻辑 —— 整章剧情的台账变更永久遗失且全链路零告警。
+    try:
+        _synced = _load_json(workspace / "state" / "sync_log.json", default={})
+        _synced_keys = set(_synced.keys()) if isinstance(_synced, dict) else {
+            (x.get("chapter_id") or x.get("chapter")) for x in _synced if isinstance(x, dict)
+        }
+        _ms_root = workspace / "manuscript"
+        if _ms_root.is_dir():
+            for _vd in sorted(_ms_root.iterdir()):
+                _fdir = _vd / "final"
+                if not _fdir.is_dir():
+                    continue
+                for _ff in sorted(_fdir.glob("ch_*.md")):
+                    _cid = _ff.stem
+                    if _cid not in _synced_keys:
+                        warnings.append(
+                            f"章节已定稿但未合账: {_vd.name}/final/{_ff.name} 已落盘，"
+                            f"但 state/sync_log.json 中无 {_cid} 记录——该章的台账变更"
+                            f"（人物/道具/伏笔/资金/恩怨）很可能整章遗失。"
+                            f"\n      💡 方案：运行 `python studio.py sync {_cid}` 补合账"
+                            f"（sync 幂等，已合账的章重跑不会二次扣账）。"
+                        )
+    except Exception:
+        pass
+
     # 3.3 里程碑时钟超期巡检（v4.3.2 缺陷#25）
     #
     # 背景：伏笔有 3.2 节的超期告警，里程碑却零校验——`milestones.json` 此前

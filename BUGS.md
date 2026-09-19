@@ -414,3 +414,35 @@ $ python3 tests/regression_test.py
 | `beats.md` 细纲字段契约 | ✅ 第 7 轮第 1 项已核（见 BUG#21），模板侧 14 字段与脚手架产出完全一致 |
 
 **回归**：`python3 tests/regression_test.py` → **116 项全通过 / 0 失败**。
+
+### BUG#28 【P0 已修已验】章节已定稿却从未合账，全链路零告警
+
+- **排查路径**：第 6 项源码审查中考察 sync 的**事务性**。单章 sync 依序写 **14 张表**，
+  每张各自原子（`_save_json` = `tempfile.mkstemp` + `fsync` + `os.replace`，
+  失败会清理 tmp 并 re-raise，实现正确且全引擎唯一），但**整体无事务**。
+- **半提交复现**：把 `state/debts.json` 替换为同名目录，令第 4.5 节的 `os.replace`
+  单点失败。结果前序的 items/ledger **已落盘**（`charges` 7→6、`灵石` -10→-20），
+  而末尾的 `sync_log` 未记录该章 —— 确为半提交，`sync` 正确返回 **exit 4**。
+  - ✅ **风险被兜住**：sync 幂等性生效，重跑 `sync ch_003` 未二次扣账（items/ledger 值不变）。
+    故半提交本身**不单独立为缺陷**。
+- **真正的缺口**：更普遍的一类是章节已定稿（`final/ch_XXX.md` 存在）却从未合账
+  （`sync_log` 无该章）。实测 ch_002 定稿落盘后未合账，`check` **完全无感**——
+  此前 `sync_log.json` 在 `engine/check.py` 全文**只出现在坏表清单里**，零对账逻辑。
+  整章剧情的人物/道具/伏笔/资金/恩怨变更永久遗失，且体检报 0 errors。
+- **修复**：`engine/check.py` 新增 **3.2.6 节「定稿 ⇄ 合账对账巡检」**，
+  遍历各卷 `final/ch_*.md` 与 `sync_log` 取差集，逐章报 warning 并给出补合账命令，
+  同时说明 sync 幂等、重跑安全。
+- **验证**：ch_002 被精准命中；补跑 `sync ch_002` 后告警自动消失；
+  `workspace/testbook` 干净基线零误报。
+
+### 第 7 轮第 6 项：源码审查其他结论
+
+| 核查项 | 结论 |
+|---|---|
+| `_save_json` 原子性 | ✅ tmp+fsync+`os.replace`，失败清理并 re-raise；全引擎**唯一实现**，无副本漂移 |
+| 24 处 `except: pass` | ✅ 逐处核对均为解析兜底/可选字段容错，**未发现吞掉写盘失败**的情形 |
+| sync 多表事务性 | ⚠️ 无跨表事务，但**幂等性兜住重跑**；衍生的对账缺口已由 BUG#28 补齐 |
+| 非 JSON 写盘（`write_text` ×15） | ✅ 单文件写入，失败即上抛，无静默截断风险 |
+| 异常退出码 | ✅ 写盘失败正确归类 exit 4（未预期异常），与 AGENTS.md 退出码铁律一致 |
+
+**回归**：`python3 tests/regression_test.py` → **116 项全通过 / 0 失败**。
