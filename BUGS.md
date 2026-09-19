@@ -336,3 +336,41 @@ $ python3 tests/regression_test.py
   （check 记 warning 避免 exit 4 截断报告；reconcile 记一行说明），不得在函数内自行吞掉。
 
 **回归**：`python3 tests/regression_test.py` → **116 项全通过 / 0 失败**。
+
+### BUG#25 【P1 已修已验】里程碑零校验：可排产「已过去的章」与第 0 章，且永不告警
+
+- **背景**：延续 BUG#24 的排查模式（职责要求 vs 准跑命令实际能力），
+  对 Stage 0B/0E (Architect) 唯一的写命令 `milestone add` 做输入压测。
+- **现象**：
+  - `--target-ch 0`、`--target-ch 1`（全书已推进至 ch_004）、`--target-ch 99999`、
+    以及与现存里程碑完全重复的排产，**全部 exit=0 静默落盘**（仅 `-5` 被 argparse 挡下）；
+  - 消费侧同样零设防：`milestones.json` 在 `engine/check.py` 全文**只在坏表清单里出现过一次**，
+    无任何内容校验。伏笔有 3.2 节「超期未决」告警，里程碑却没有对称逻辑。
+- **后果**：目标章被剧情甩在身后的里程碑，在 cockpit 里**永远显示「⏳ 待达成」**，
+  主控据此以为主线仍在轨，实为一张永不兑现的空头支票。
+- **修复**：
+  ① `engine/ops.py` `milestone_add` 入口校验——`target_ch` 非 `>=1` 整数，
+     或 `<=` 当前推进章次，一律 `GuardError` 拦截（exit 1），并指引改用 `milestone achieve`；
+  ② `engine/check.py` 新增 **3.3 节「里程碑时钟超期巡检」**，与 3.2 节伏笔时钟对称，
+     对未达成且目标章已被超越的里程碑报 warning。
+- **验证**：`/tmp/ag2` 中 `--target-ch 20` 通过、`--target-ch 1` 与 `0` 均被拦截（exit 1）；
+  `/tmp/ag` 存量脏数据被 check 正确报出 ms_002/ms_003 两条超期告警。
+
+### 第 7 轮第 4 项：其余 Agent 全量扫描结论
+
+按 BUG#24 的模式逐份核对 10 份手册的「职责要求 vs 准跑命令白名单实际能力」：
+
+| Agent | 准跑命令 | 结论 |
+|---|---|---|
+| director | 全量 16 条（S1–S5 + Scenario E） | ✅ 卷末三连 reconcile/rollup/export 实测均 exit 0 |
+| architect | `milestone add`、`check`、`init` | ⚠️ 检出 **BUG#25**（已修） |
+| evolution | `simulate impact`/`snapshot`/`check`/`ask` | ✅ 第 6 轮已验；本轮修 **BUG#23** 补全 target_ch 波及面 |
+| librarian | `evidence candidates`/`reconcile`/`ask` | ⚠️ 检出 **BUG#24**（已修） |
+| screenwriter | 无（零 CLI） | ⚠️ 检出 **BUG#21**（已修） |
+| auditor / dehydrator / drafter / tuner / profiler | 无（纯文本工序） | ✅ 无命令即无能力缺口 |
+
+**手稿链路一致性**：drafter(`raw/ch_XXX_v1.md`) ➔ dehydrator(`_v2.md`) ➔ tuner(`_v3.md`)
+➔ auditor(读 `_v3.md` + `log/audit/ch_XXX.md`) ➔ finalize(`final/`)，
+五份手册声称的路径与引擎 `evidence_candidates` 的回溯查找顺序完全一致，无偏差。
+
+**回归**：`python3 tests/regression_test.py` → **116 项全通过 / 0 失败**。

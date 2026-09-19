@@ -21,7 +21,7 @@ from engine.config import load_config
 from engine.id_tracker import check_id_integrity
 from engine.parser import parse_frontmatter
 from engine.probes import run_all_probes
-from engine.state import StateManager
+from engine.state import StateManager, _load_json
 
 _SLOT_PATTERN = re.compile(r"\{\{slot:")
 
@@ -330,6 +330,37 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
         for pid, prec in places_scan.items():
             if not prec.get("sensory_anchor") and not prec.get("environment_rules") and not prec.get("summary"):
                 warnings.append(f"地点数据残缺: 地点 [{pid}] {prec.get('name')} 缺少感官物象 (sensory_anchor) 与环境规则 (environment_rules)。\n      💡 方案：请在 state/places.json 中补充环境物象以支持写手渲染空间感。")
+    except Exception:
+        pass
+
+    # 3.3 里程碑时钟超期巡检（v4.3.2 缺陷#25）
+    #
+    # 背景：伏笔有 3.2 节的超期告警，里程碑却零校验——`milestones.json` 此前
+    # 全文只在坏表清单里出现过一次。Stage 0B/0E (Architect) 唯一的写命令就是
+    # milestone add，排产的目标章一旦被剧情甩在身后，cockpit 仍永远显示
+    # 「⏳ 待达成」，主控据此以为主线仍在轨，实为一张永不兑现的空头支票。
+    try:
+        _ms = _load_json(workspace / "state" / "milestones.json", default=[])
+        _cur = state_mgr.get_current().get("current_ch", "ch_001")
+        _mc = re.search(r"(\d+)$", _cur)
+        _cur_num = int(_mc.group(1)) if _mc else 0
+        for _m in (_ms if isinstance(_ms, list) else []):
+            if not isinstance(_m, dict) or _m.get("status") == "achieved":
+                continue
+            _tc = _m.get("target_ch")
+            _tn = int(_tc) if isinstance(_tc, int) else (
+                int(re.search(r"(\d+)$", str(_tc)).group(1))
+                if _tc and re.search(r"(\d+)$", str(_tc)) else None
+            )
+            if _tn is None:
+                continue
+            if _cur_num > _tn:
+                warnings.append(
+                    f"里程碑排产超期: [{_m.get('id')}] 《{_m.get('title')}》 目标为第 {_tn} 章，"
+                    f"当前已推进至 {_cur} 仍未达成。"
+                    f"\n      💡 方案：若已在剧情中兑现，请将其 status 改为 achieved；"
+                    f"若仍要推进，请改排到未来章次。"
+                )
     except Exception:
         pass
 

@@ -1916,6 +1916,27 @@ def milestone_add(workspace: Path, title: str, target_ch: int, desc: str) -> Dic
     """新增里程碑。"""
     ms_file = workspace / "state" / "milestones.json"
     milestones = _load_json(ms_file, default=[])
+
+    # v4.3.2 缺陷#25：入口校验。milestone add 是 Stage 0B/0E (Architect) 唯一的写命令，
+    # 旧版对 target_ch 零校验——实测 `--target-ch 0` 与指向已定稿章次均被静默接受，
+    # 落盘后 cockpit 永远显示「⏳ 待达成」，成为一张永不兑现的空头支票。
+    if not isinstance(target_ch, int) or target_ch < 1:
+        raise GuardError(
+            f"里程碑目标章非法: --target-ch {target_ch}（必须为 >= 1 的整数）。"
+            "\n      💡 方案：里程碑用于排产未来主线节点，请填写真实章号（如 --target-ch 20）。"
+        )
+    try:
+        _cur_raw = _load_json(workspace / "state" / "current.json", default={}).get("current_ch", "")
+        _cm = re.search(r"(\d+)$", str(_cur_raw))
+        _cur_num = int(_cm.group(1)) if _cm else 0
+    except Exception:
+        _cur_num = 0
+    if _cur_num and target_ch <= _cur_num:
+        raise GuardError(
+            f"里程碑目标章已被剧情甩在身后: --target-ch {target_ch}，但全书已推进至 {_cur_raw}。"
+            "\n      💡 方案：里程碑只能排产未来章次。若该节点已在剧情中兑现，"
+            "请改用 `python studio.py milestone achieve <ms_id>` 登记达成。"
+        )
     # v4.2.1 缺陷#14：按现存最大编号 +1 发号（旧版 len+1，删除后补建会撞号）
     max_n = 0
     for m0 in milestones:
