@@ -4,9 +4,10 @@
 1. 配置完整性（project.json 存在性、关键字段与损坏硬失败）
 2. 未填占位符闸门 ({{slot:...}}) —— bible/characters/entities/outlines 全量扫描（warning 级清单）
 3. 实体 ID 唯一性与因果引用校验（id_tracker.check_id_integrity）
-4. 单章确定性物理/事实探针体检：
+4. 单章确定性物理/事实探针体检（四探针矩阵：字数遥测/认知盲区/法定称谓/物象落地）：
    - 阻断级（errors）：空正文（0字）、确认级角色认知泄露
    - 提醒级（warnings）：疑似泄露、伏笔/道具物象未落地、称谓缺位、细纲 chapter_id 与文件名不一致
+5.5 状态表损坏隔离残留巡检（.corrupt-* 文件 warning 显形）
 5. 状态表数据异常巡检（如 charges 非法值）
 """
 from __future__ import annotations
@@ -102,6 +103,19 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
         except Exception as e:
             errors.append(f"状态表损坏: state/{rel}（{e}）。\n      💡 方案：请用 `python studio.py snapshot rollback <快照名>` 恢复最近快照。")
 
+    # v4.3：损坏隔离残留显形——.corrupt-* 文件是硬失败机制的历史遗迹，
+    # 长期堆积说明曾发生过状态表损坏且未处置，须以 warning 提醒审计。
+    state_dir = workspace / "state"
+    if state_dir.exists():
+        corrupt_leftovers = sorted(p.name for p in state_dir.glob("*.corrupt-*"))
+        if corrupt_leftovers:
+            warnings.append(
+                f"状态表损坏隔离残留 ×{len(corrupt_leftovers)}: {', '.join(corrupt_leftovers[:5])}"
+                + (" …" if len(corrupt_leftovers) > 5 else "")
+                + "。\n      💡 方案：这些是历史上损坏被自动隔离的状态表副本。若当前体检全域通过且无业务异常，"
+                  "确认无用后可手动删除；若需要取证请先归档再清理。"
+            )
+
     # 3. 状态表数据异常巡检（只读告警，不静默改数）
     state_mgr = StateManager(workspace)
     try:
@@ -123,7 +137,7 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
     errors.extend(id_res.get("errors", []))
     warnings.extend(id_res.get("warnings", []))
 
-    # 5. 若指定了章节，进行单章七探针体检
+    # 5. 若指定了章节，进行单章物理探针体检（字数遥测/认知泄露/称谓落地/物象落地）
     probe_results = None
     if chapter_id:
         curr_vol = state_mgr.get_current().get("current_vol", "vol_01")

@@ -40,7 +40,7 @@ description: Universal executive showrunner, chief playwright, and pipeline orch
 | 指令含【设定重构 / 大改设定 / 修改历史正文】 | **Scenario C** | 委派 `Stage 4C - Evolution` 在独立沙盒处置，主控不改文 |
 | 指令含【查账 / 查事实 / 剧情推演】 | **Scenario D** | 本地运行 `ask` / `calendar` / `status` / `trace`；深度研判派发临时子代理 |
 | 指令含【开新卷 / 换卷 / 下一卷 / 编新卷大纲】<br/>或卷末三连（reconcile/rollup/export）触发停机 | **Scenario E** | 卷末自动输出【换卷跃迁就绪卡】；作者确认后（自动换卷 / 注入新脑洞 / 极速起卷），派发 **Stage 0E (Architect-Volume)** 执行战力二次锚定与人物交接，交付 `vol_XX/outline.md` ➔ `milestone add` ➔ `check` (0 errors) ➔ 输出【新卷启航卡】，随时启动下一章 S1 |
-| 指令含【回滚 / 撤销 / 时光机 / 恢复到第 X 章】 | **Scenario F** | 运行 `python studio.py snapshot rollback <snapshot_name> -w "<wk>"` ➔ 验证 `check` ➔ 输出【时光机回滚就绪卡】停机（亦支持作者直接从 `snapshots/ch_XXX_*.zip` 解压全量覆盖 `workspace/<书名>/` 完成纯手工回滚，零心智负担） |
+| 指令含【回滚 / 撤销 / 时光机 / 恢复到第 X 章】 | **Scenario F** | 运行 `python studio.py snapshot rollback <snapshot_name> -w "<wk>"` ➔ 验证 `check` ➔ 输出【时光机回滚就绪卡】停机（**始终把 `snapshot rollback` 命令作为唯一标准路径**：它会先自动备份当前现场为 `pre_rollback_<时间戳>`，并按快照清单对齐清除快照后新增的文件） |
 
 ---
 
@@ -59,7 +59,7 @@ description: Universal executive showrunner, chief playwright, and pipeline orch
 | **S3A** | 重塑派发 | 处于 S2 成功退出态 | 依照【模块 3】下发 `Stage 3A - Dehydrator` 标准槽位派发令 | 收到 Dehydrator 完工回执且 `raw/ch_XXX_v2.md` 物理落盘 | ➔ **S3B** | 同上 |
 | **S3B** | 语感抛光派发 | 处于 S3A 成功退出态 | 依照【模块 3】下发 `Stage 3B - Tuner` 标准槽位派发令 | 收到 Tuner 完工回执且 `raw/ch_XXX_v3.md` 物理落盘 | ➔ **S4** | 同上 |
 | **S4** | 内容质检评估 | 处于 S3B 成功退出态 | 1. 预置报告：`python studio.py audit ch_XXX --write -w "<wk>"`<br/>2. 派发 `Stage 4A - Auditor` | **Auditor 绿灯收集栅栏**：4A 回执（配方已入报告）已收到，且无 Level 2 异常汇报 | ➔ **S5** | 回执含 `[Level 2 复杂深层冲突]` ➔ 熔断转入 Stage 4C 委派 Evolution |
-| **S5** | 安全短路收口与自动备份 | 处于 S4 绿灯态 | 执行单行短路命令（退出码非 0 即熔断，完工即刻自动备份）：<br/>`python studio.py finalize ch_XXX -w "<wk>" ; if ($LASTEXITCODE -eq 0) { python studio.py proposal auto ch_XXX --write --force -w "<wk>" } ; if ($LASTEXITCODE -eq 0) { python studio.py sync ch_XXX -w "<wk>" } ; if ($LASTEXITCODE -eq 0) { python studio.py snapshot create "ch_XXX" -w "<wk>" }` | 命令全线退出码 0，`final/ch_XXX.md` 存在，台账合账成功且快照落地 | ➔ **DONE** | finalize/sync/snapshot 阻断 ➔ Stage 4C 急救 |
+| **S5** | 安全短路收口与自动备份 | 处于 S4 绿灯态 | 执行单行短路命令（退出码非 0 即熔断，完工即刻自动备份）：<br/>PowerShell：`python studio.py finalize ch_XXX -w "<wk>" ; if ($LASTEXITCODE -eq 0) { python studio.py proposal auto ch_XXX --write --force -w "<wk>" } ; if ($LASTEXITCODE -eq 0) { python studio.py sync ch_XXX -w "<wk>" } ; if ($LASTEXITCODE -eq 0) { python studio.py snapshot create "ch_XXX" -w "<wk>" }`<br/>bash/zsh 等价（&& 短路）：`python studio.py finalize ch_XXX -w "<wk>" && python studio.py proposal auto ch_XXX --write --force -w "<wk>" && python studio.py sync ch_XXX -w "<wk>" && python studio.py snapshot create "ch_XXX" -w "<wk>"` | 命令全线退出码 0，`final/ch_XXX.md` 存在，台账合账成功且快照落地 | ➔ **DONE** | finalize/sync/snapshot 阻断 ➔ Stage 4C 急救 |
 | **DONE** | 交付停机 | 处于 S5 成功退出态 | 1. 单章模式：输出【模块 4】标准交付卡片 ➔ **立即停止所有工具调用，交还控制权**<br/>2. 巡航模式：输出单行心跳 ➔ 主控循环推进下一章（未达终点不交还控制权） | 彻底停机 / 循环下一章 | 触达卷末 ➔ 卷末结算停机 |
 
 ---
@@ -155,7 +155,7 @@ description: Universal executive showrunner, chief playwright, and pipeline orch
 - 书籍工作区：workspace/<书名> ｜ 目标分卷：vol_XX（起始章：ch_XXX）
 - 执行阶段：Stage 0E (Architect-Volume)
 - 核心输入：上一卷末对账数据、bible/02_power_system.md 战力标尺、outlines/main_plot.md 宏观规划、新卷想法（如有）
-- 执行指令：战力标尺二次校准 ➔ 地缘与人物交接 ➔ 确立新卷商业绝活与 30 章潮汐大纲 ➔ 物理落盘 outlines/vol_XX/outline.md（禁传 ArtifactMetadata） ➔ 运行 studio.py milestone add ➔ 确认 check 0 报错 ➔ 3 行回执交卷
+- 执行指令：战力标尺二次校准 ➔ 地缘与人物交接 ➔ 确立新卷商业绝活与 25~40 章潮汐大纲 ➔ 物理落盘 outlines/vol_XX/outline.md（禁传 ArtifactMetadata） ➔ 运行 studio.py milestone add ➔ 确认 check 0 报错 ➔ 3 行回执交卷
 ```
 
 > 🛑 **防添油加醋物理锁**：
@@ -187,10 +187,10 @@ description: Universal executive showrunner, chief playwright, and pipeline orch
 ### 🔄 【Novel Studio · 换卷跃迁就绪卡片】（卷末三连封存后自动输出）
 
 - 🏆 **分卷圆满结算**：第 [X] 卷 《[分卷名]》 已全线封存！
-- 📊 **本卷最终战果**：共 [N] 章 ｜ 累计 [M] 万字 ｜ 卷末对账平账 100% ｜ 导出读者成书：`exports/vol_XX.txt`
+- 📊 **本卷最终战果**：共 [N] 章 ｜ 累计 [M] 万字 ｜ 卷末对账平账 100% ｜ 导出读者成书：`export/<书名>.md`（默认 md；`--format txt` 得 `<书名>.txt`）
 - 🎯 **长程剧情坐标**：主角当前境界：[境界名] ｜ 新地图前瞻：[下一卷舞台]
 - 💡 **换卷接续姿态（请指示）**：
-  - **姿态 A（一键自动起卷）**：回复【继续写下一卷】或【自动换卷】，主控依据全书大纲全自动编织下一卷 30 章细纲与战力防崩校准；
+  - **姿态 A（一键自动起卷）**：回复【继续写下一卷】或【自动换卷】，主控依据全书大纲全自动编织下一卷 25~40 章细纲与战力防崩校准；
   - **姿态 B（作者注入新脑洞）**：直接在聊天框回复你对下一卷的新想法（或放入 `workspace/user_input.txt`），主控提纯编入新卷；
   - **姿态 C（暂作休整）**：先阅读已导出的成书，随时唤醒主控。
 
@@ -214,7 +214,7 @@ description: Universal executive showrunner, chief playwright, and pipeline orch
 - 📊 **当前状态**：当前最新有效章节：`ch_YYY` ｜ 台账平账 100% ｜ 系统校验 0 errors
 - 💡 **后续接续姿态（请指示）**：
   - **姿态 A（重写该章）**：输入“继续写”或“重写当前章”，主控从当前节点重新启动 S1 编剧流水线；
-  - **姿态 B（纯手工全量覆盖）**：所有历史快照均完整保存在 `snapshots/ch_XXX_*.zip`。若需手动回滚，直接将目标快照 `.zip` 内的所有内容解压并全量覆盖回 `workspace/<书名>/`，无需挑拣文件，一步到位！随后运行 `studio.py check` 验证即可。
+  - **姿态 B（谨慎 · 纯手工全量覆盖）**：所有历史快照完整保存在 `snapshots/ch_XXX_*.zip`。⚠️ **仅当命令行不可用时的末路方案**：直接解压覆盖**不会**自动备份现场、也**不会**清除快照生成后新增的文件（残留的"未来章节"正文/细纲/台账会让 `check` 与 `sync` 读到穿越数据）。若必须手工操作：先自行把 `workspace/<书名>/` 整体备份，再**清空** zip 受管清单涉及的子目录（`state/`、`manuscript/`、`outlines/`、`log/`、`pack.md`、`dossier.md`、`project.json`），最后才解压覆盖并运行 `studio.py check` 验证。日常请一律使用姿态 A 之外的 `snapshot rollback` 命令。
 
 ---
 ```
@@ -260,7 +260,12 @@ description: Universal executive showrunner, chief playwright, and pipeline orch
      `S1 (beats new + 编剧 + pack) ➔ S2 (Drafter) ➔ S3A (Dehydrator) ➔ S3B (Tuner) ➔ S4 (audit + Auditor)`；
    - **确定性原子收口**：Auditor 绿灯后，统一且唯一执行 S5 级联短路收口命令完成定稿与平账：
      ```powershell
+     # PowerShell（Windows）
      python studio.py finalize ch_XXX -w "<wk>" ; if ($LASTEXITCODE -eq 0) { python studio.py proposal auto ch_XXX --write --force -w "<wk>" } ; if ($LASTEXITCODE -eq 0) { python studio.py sync ch_XXX -w "<wk>" } ; if ($LASTEXITCODE -eq 0) { python studio.py snapshot create "ch_XXX" -w "<wk>" }
+     ```
+     ```bash
+     # bash / zsh（macOS / Linux）等价单行（&& 天然短路，退出码非 0 即熔断）
+     python studio.py finalize ch_XXX -w "<wk>" && python studio.py proposal auto ch_XXX --write --force -w "<wk>" && python studio.py sync ch_XXX -w "<wk>" && python studio.py snapshot create "ch_XXX" -w "<wk>"
      ```
    - **严禁依赖 `cruise` 进行收口**：单章收口一律走上述 S5 级联命令，彻底杜绝命令二义性。
 
@@ -279,8 +284,14 @@ description: Universal executive showrunner, chief playwright, and pipeline orch
    当巡航触达当前分卷的最后一章并完成封存时，必须强制刹车停机！
    执行卷末三连命令：
    ```powershell
-   python studio.py reconcile vol_XX --write -w "<wk>" ; python studio.py rollup vol_XX -w "<wk>" ; python studio.py export -w "<wk>"
+   # PowerShell（Windows）
+   python studio.py state rollup vol_XX -w "<wk>" ; python studio.py reconcile vol_XX --write -w "<wk>" ; python studio.py export -w "<wk>"
    ```
+   ```bash
+   # bash / zsh（macOS / Linux）等价（&& 短路：任一失败即熔断，与退出码契约对齐）
+   python studio.py state rollup vol_XX -w "<wk>" && python studio.py reconcile vol_XX --write -w "<wk>" && python studio.py export -w "<wk>"
+   ```
+   > 注：卷末三连顺序为 rollup ➔ reconcile ➔ export，与引擎 `cruise` 卷末自动刹车链完全一致；`rollup` 是 `state` 的子命令（v4.3 起独占此名，裸 `rollup` 会触发 CLI 语法错误盒 exit 2）。
    卷末对账自动覆盖普通的逢十巡检，导出成书后彻底停机呈交作者。
 2. **Level 2 剧情死锁刹车**：
    若当章质检回执中出现 `[Level 2 复杂深层冲突]`，巡航立即暂停！主控提取靶点委派 `Stage 4C - Evolution` 前去沙盒急救。验证 `check` 0 报错并完成当章 S5 收口后，方可恢复后续巡航。

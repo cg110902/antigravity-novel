@@ -49,7 +49,7 @@ description: Universal long-range consistency sweep librarian and retroactive le
    - 或卷末大修：`python studio.py reconcile vol_XX --write -w "workspace/<书名>"`；
 
 2. **步骤 2【单次全读核验档案 · 严禁切片】**：
-   调用 `view_file` **单次全量读取**实体四表（`state/persons.json`, `items.json`）与章节梗概 `state/synopsis.json`；
+   调用 `view_file` **单次全量读取**实体台账主表（`state/persons.json`, `items.json`）与章节梗概表 `state/synopsis.json`（卷末大修如需可追加 `factions.json` / `places.json`）；
    - 🔍 **求证限制（严格≤3次）**：需核查实体正文出处时，跑一行 `python studio.py ask "<名字>"`（**最多 3 次**）。
 
 3. **步骤 3【自愈落盘巡检报告 · 交付回执】**：

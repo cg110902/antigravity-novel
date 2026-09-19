@@ -89,7 +89,7 @@ templates/
      - `id`: 唯一物理 ID（终身不可变：`p_001`, `it_001`, `fac_001`, `loc_001`；台账侧另有引擎自动生成的 `GUN-001` 伏笔 / `KNO-001` 知识点 / `MIS-001` 谜团 / `DEBT-001` 恩怨 / `LOCK-001` 锁定 / `ms_001` 里程碑，发号一律走 `id next`）
      - `name`: 实体中文法定全名（唯一主键）
      - `type`: 实体类型（严格枚举：`person`, `item`, `location`, `place`, `faction`, `other`）
-     - `role`: 角色叙事定位（如 `protagonist`, `deuteragonist`, `antagonist`, `ally` 等）
+     - `role`: 角色叙事定位（合法白名单：`protagonist` / `deuteragonist` / `antagonist` / `ally` / `supporting`（配角，引擎缺省值）等）
      - `aliases`: 别名、代号、尊号列表（`array[str]`）
      - `card`: 对应全息卡相对路径（核心实体如 `"characters/主角.md"`，次要路人留空 `""`）
      - `summary`: 实体一句话核心定位（`str`）

@@ -37,26 +37,54 @@ def _extract_dialogues_with_speakers(text: str, known_names: List[str]) -> List[
     dialogues: List[Tuple[Optional[str], str]] = []
     known = sorted([n for n in known_names if n], key=len, reverse=True)
 
+    # v4.3：说话人归属重写——旧版「前置优先 + 名字后仅看距离」会把上一句动作主语
+    # 错配给后置式对白（“「…」苏晚脱口而出。” 错认成前句的林渊），确认级泄露漏检。
+    # 新规则按证据强度分级：句首名+言语动词(后置式铁证) ➔ 名+言语动词/冒号(前置式铁证)
+    # ➔ 近距宽松兜底（仅后置宽松，前置宽松正是误配根源，弃用——归属失败宁交疑似级）。
+    _SPEECH_VERBS = "说道问答喊吼喝叫嚷骂嘀咕低语咆哮怒斥冷笑回断言讲聊吟哼解释补充嘲讽讥笑喊叫道"
+
+    def _find_after(following: str) -> Optional[str]:
+        s = following.lstrip("。，、！？：；’\"”」》 \n")
+        for name in known:
+            if s.startswith(name):
+                tail = s[len(name):len(name) + 25]
+                if any(v in tail for v in _SPEECH_VERBS):
+                    return name
+        return None
+
     def _find_before(context: str) -> Optional[str]:
         for name in known:
             pos = context.rfind(name)
             if pos >= 0:
                 tail = context[pos + len(name):]
-                if len(tail) <= 25:  # 名字与引号之间应为同一动作句
+                if len(tail) <= 25 and (any(v in tail for v in _SPEECH_VERBS)
+                                        or tail.rstrip().endswith(("：", ":"))):
                     return name
         return None
 
-    def _find_after(following: str) -> Optional[str]:
+    def _find_after_loose(following: str) -> Optional[str]:
         for name in known:
             pos = following.find(name)
             if 0 <= pos <= 30:
                 return name
         return None
 
+    # v4.3 缺陷#C7：对白识别兼容中文弯引号 “…”、直角引号 「…」 与英文直引号 "…"
+    # （旧版只认弯引号，Drafter 若写成直引号对白，认知泄露探针会全军覆没）
+    spans: List[Tuple[int, int, str]] = []
     for m in re.finditer(r"[“「](.*?)[”」]", text, flags=re.DOTALL):
-        start = max(0, m.start() - 60)
-        speaker = _find_before(text[start:m.start()]) or _find_after(text[m.end():m.end() + 35])
-        dialogues.append((speaker, m.group(1)))
+        spans.append((m.start(), m.end(), m.group(1)))
+    for m in re.finditer(r'"([^"\n]{2,}?)"', text):
+        spans.append((m.start(), m.end(), m.group(1)))
+    spans.sort(key=lambda s: s[0])
+    for m_start, m_end, content in spans:
+        start = max(0, m_start - 60)
+        speaker = (
+            _find_after(text[m_end:m_end + 35])
+            or _find_before(text[start:m_start])
+            or _find_after_loose(text[m_end:m_end + 35])
+        )
+        dialogues.append((speaker, content))
     return dialogues
 
 
@@ -184,7 +212,10 @@ def probe_grounding(text: str, frontmatter: Dict[str, Any]) -> Dict[str, Any]:
             grams.extend(run[i:i + 2] for i in range(0, max(1, len(run) - 1), 1))
         return grams
 
-    for fd in (frontmatter.get("foreshadowing_deltas") or []):
+    # v4.3：单 dict 形态统一包裹为列表（与 state.py 归一化口径一致）
+    raw_fd = frontmatter.get("foreshadowing_deltas") or []
+    fd_list = [raw_fd] if isinstance(raw_fd, dict) else (raw_fd if isinstance(raw_fd, list) else [])
+    for fd in fd_list:
         if not isinstance(fd, dict):
             continue
         action = str(fd.get("action", "plant")).lower()
@@ -198,7 +229,9 @@ def probe_grounding(text: str, frontmatter: Dict[str, Any]) -> Dict[str, Any]:
             misses.append({"kind": "伏笔", "ref": str(fd.get("id", "")), "hint": name or desc[:20]})
 
     sd = frontmatter.get("state_deltas") or {}
-    for it in (sd.get("items") or []):
+    raw_it = sd.get("items") or []
+    it_list = [raw_it] if isinstance(raw_it, dict) else (raw_it if isinstance(raw_it, list) else [])
+    for it in it_list:
         if isinstance(it, dict):
             iname = str(it.get("name", "")).strip()
             iid = str(it.get("id", "")).strip()
@@ -224,7 +257,16 @@ def run_all_probes(text: str, frontmatter: Dict[str, Any],
     for pid, p in (persons_db or {}).items():
         if isinstance(p, dict) and p.get("name"):
             name_by_id[pid] = p["name"]
-    present_ids = [c.get("id") for c in (frontmatter.get("present_characters") or []) if isinstance(c, dict)]
+    # v4.3：present_ids 兼容字符串紧凑形态（[p_001, p_003] 此前被整段跳过，
+    # 导致「盲区角色在场，他人公开提及」的疑似级提醒失效）
+    present_ids: List[str] = []
+    raw_pc = frontmatter.get("present_characters") or []
+    pc_list = [raw_pc] if isinstance(raw_pc, (str, dict)) else (raw_pc if isinstance(raw_pc, list) else [])
+    for c in pc_list:
+        if isinstance(c, dict) and c.get("id"):
+            present_ids.append(str(c["id"]).strip())
+        elif isinstance(c, str) and c.strip():
+            present_ids.append(c.strip())
     blind_spots = (frontmatter.get("epistemology") or {}).get("blind_spots", {})
 
     total_words = _count_total(text)

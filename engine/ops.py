@@ -36,6 +36,25 @@ def _chapter_num(chapter_id: str) -> int:
     return int(m.group(1)) if m else 0
 
 
+_SLOT_RE = re.compile(r"\{\{slot:[^}]*\}\}")
+
+
+def _find_unfilled_slots(text: str) -> List[str]:
+    """扫描文本中残留的 {{slot:...}} 占位符，返回去重后的槽位名列表（保序）。"""
+    return list(dict.fromkeys(m.group(0) for m in _SLOT_RE.finditer(text or "")))
+
+
+def _clean_slot_value(value: Any, default: str) -> str:
+    """卷纲/模板取值清洗：空值或仍含 {{slot:}} 占位符时回落默认值（v4.3 缺陷#C9）。
+
+    杜绝卷纲未填槽位串沿 卷纲 ➔ beats ➔ sync ➔ synopsis ➔ 简报/导出书名 一路漂流污染。
+    """
+    v = str(value or "").strip()
+    if not v or "{{" in v:
+        return default
+    return v
+
+
 def _find_volume_outline(workspace: Path, chapter_id: str) -> Tuple[Optional[Path], str]:
     """寻找包含该章节的分卷大纲路径及所属卷号。"""
     cnum = _chapter_num(chapter_id)
@@ -271,9 +290,10 @@ def get_beats_scaffold(workspace: Path, chapter_id: str, write_file: bool = True
     pdata = _load_json(project_file, default={})
     protagonist = pdata.get("protagonist", "主角")
 
-    title = chapter_info.get("title", f"第{chapter_id}章")
-    event = chapter_info.get("event", "核心事件推进与破局")
-    cliff = chapter_info.get("cliffhanger", "章末悬念定格")
+    # v4.3 缺陷#C9：卷纲取值先过槽位清洗，未填卷纲槽位串不得注入 beats 脚手架
+    title = _clean_slot_value(chapter_info.get("title"), f"第{chapter_id}章")
+    event = _clean_slot_value(chapter_info.get("event"), "核心事件推进与破局")
+    cliff = _clean_slot_value(chapter_info.get("cliffhanger"), "章末悬念定格")
 
     scaffold = tpl_text
     scaffold = re.sub(r"\{\{slot:chapter_id\|[^}]*\}\}", chapter_id, scaffold)
@@ -305,7 +325,9 @@ def get_beats_scaffold(workspace: Path, chapter_id: str, write_file: bool = True
             synopsis_db = ledger.get_synopsis()
             if prev_id in synopsis_db:
                 s_rec = synopsis_db[prev_id]
-                s_sum = s_rec.get("summary", "")
+                # v4.3 缺陷#C11：synopsis 真实键名是 dramatic_goal（state.py 写入），
+                # 旧版误读从不存在的 "summary" 键，简报【上一章核心进展】区块永远缺席
+                s_sum = s_rec.get("dramatic_goal") or s_rec.get("summary", "")
                 s_cliff = s_rec.get("cliffhanger", "")
                 parts = []
                 if s_sum:
@@ -359,11 +381,25 @@ def get_beats_scaffold(workspace: Path, chapter_id: str, write_file: bool = True
     debts = ledger.get_debts()
     d_lines = []
     for d in debts:
-        target = d.get("target", "")
+        target = d.get("target_char") or d.get("target", "")
         dtype = d.get("type", "grudge")
         desc = d.get("desc", "")
         d_lines.append(f"   - 恩怨对象 [{target}] ({dtype})：{desc}")
     debt_block = "\n".join(d_lines) if d_lines else "   - 暂无未清算因果血仇或重大誓言债务"
+
+    # 4.5 下一可用物理 ID 速查（v4.3 缺陷#C14：编剧零命令/零 JSON，取号防 collision 唯一途径）
+    id_cheat_block = ""
+    try:
+        from engine.id_tracker import IdTracker
+        _tracker = IdTracker(workspace)
+        _id_parts = []
+        for _cat, _label in [("person", "人物"), ("item", "道具"), ("gun", "GUN"), ("kno", "KNO"),
+                             ("mis", "MIS"), ("location", "地点"), ("faction", "势力"),
+                             ("debt", "恩怨"), ("lock", "锁定事实")]:
+            _id_parts.append(f"{_label}: {_tracker.get_next_id(_cat)}")
+        id_cheat_block = "   - " + " ｜ ".join(_id_parts)
+    except Exception:
+        id_cheat_block = "   - （ID 速查生成失败，可运行 `python studio.py id next <类型>` 查询）"
 
     # 5. 编译 Markdown 编剧机要简报
     dossier_text = f"""<!-- ==============================================================================
@@ -387,6 +423,9 @@ def get_beats_scaffold(workspace: Path, chapter_id: str, write_file: bool = True
 
 ⚖️ 【未清算恩怨情仇账（暗流张力）】
 {debt_block}
+
+🆔 【下一可用物理 ID 速查（新埋线索/新登场实体/新恩怨请从此取号，严禁自编撞号 ID）】
+{id_cheat_block}
 ============================================================================== -->"""
 
     if "{{slot:engine_briefing_dossier}}" in scaffold:
@@ -637,6 +676,16 @@ def sync_chapter(workspace: Path, chapter_id: str, force: bool = False, refresh:
         )
 
     content = beats_file.read_text(encoding="utf-8-sig", errors="replace")
+    # v4.3 缺陷#A5 修复（SSOT 咽喉槽位闸门）：
+    # 旧版 sync 对残留 {{slot:...}} 占位符照单全收——槽位字符串被当成实体 ID 写入
+    # persons/lines/relations 核心台账，并沿 synopsis 漂流入简报与导出书名。此处硬闸：
+    # 细纲任意位置残留槽位即拒绝入账，守护「细纲=唯一事实源」的数据纯度。
+    _slot_hits = _find_unfilled_slots(content)
+    if _slot_hits:
+        raise GuardError(
+            f"第 {chapter_id} 章细纲仍含 {len(_slot_hits)} 处未填占位符（如 {_slot_hits[0]}），已拒绝原子封存。",
+            solution=f"请先派发 Stage 1 (novel-screenwriter) 将 {beats_file.name} 的全部 {{{{slot:}}}} 槽位填实（未使用的可选块整段删除或置 []）；确认需推翻重排可运行 `python studio.py beats new {chapter_id} --write --force` 重新装配。",
+        )
     frontmatter, body_text = parse_frontmatter(content)
     if not frontmatter:
         raise BusinessError(
@@ -725,6 +774,10 @@ def sync_chapter(workspace: Path, chapter_id: str, force: bool = False, refresh:
         "final_sha1": final_sha1,
         "synced_at": datetime.now().isoformat(timespec="seconds"),
         "forced": bool(force),
+        # v4.3 R2：封存条目补齐展示元数据（旧版只有指纹/时间戳，
+        # trace ch_XXX 与各类封存清单拿不到章节名与入账字数）
+        "title": str(frontmatter.get("title", "") or ""),
+        "word_count": word_count,
     }
     _save_json(sync_log_file, sync_log)
 
@@ -749,7 +802,11 @@ def sync_chapter(workspace: Path, chapter_id: str, force: bool = False, refresh:
 
 
 def get_cockpit(workspace: Path) -> Dict[str, Any]:
-    """主控态势大盘感知 (cockpit)。"""
+    """主控态势大盘感知（结构化 dict 版对外 API）。
+
+    注：CLI `cockpit`/`status` 的人读渲染走 engine/cockpit.py render_cockpit（v4.3 R2
+    已补充资金池遥测与航标槽位清洗）；本函数保留作为程序化消费的结构化入口。
+    """
     ledger = StateLedger(workspace)
     curr = ledger.get_current()
     active_f = ledger.get_active_foreshadowings()
@@ -820,6 +877,14 @@ def ask_fact(workspace: Path, query: str) -> List[str]:
         if query in it.get("name", "") or query in it.get("holder", "") or query in iid:
             results.append(f"[道具] {it.get('name')} ({iid}) - 持有人: {it.get('holder')}, 可用次数: {it.get('charges')}")
 
+    # v4.3 缺陷#C5：补全势力与地点档案检索（此前 ask 对这两类实体完全失明）
+    for fid, f in ledger.get_factions().items():
+        if query in f.get("name", "") or query in f.get("leader", "") or query in fid:
+            results.append(f"[势力] {f.get('name')} ({fid}) - 领袖: {f.get('leader', '未知')}, 总部: {f.get('headquarters', '未知')}")
+    for pid, p in ledger.get_places().items():
+        if query in p.get("name", "") or query in p.get("summary", "") or query in pid:
+            results.append(f"[地点] {p.get('name')} ({pid}) - 危险等级: {p.get('danger_level', '未知')}")
+
     # 查伏笔
     for fid, f in ledger.get_foreshadowings().items():
         if query in f.get("name", "") or query in f.get("desc", "") or query in fid:
@@ -840,11 +905,34 @@ def ask_fact(workspace: Path, query: str) -> List[str]:
         if query in txt:
             results.append(f"[设定文档] 见 bible/{bf.name}")
 
+    # v4.3 缺陷#C5：检索已封存正文证据切片（Librarian/Evolution 正文溯源依赖）。
+    # 只扫 final 定稿（SSOT —— raw 草稿非封存事实）；每条证据截短，控制 stdout 体量。
+    ms_root = workspace / "manuscript"
+    if ms_root.exists():
+        ev_hits = 0
+        for final_md in sorted(ms_root.glob("*/final/ch_*.md")):
+            try:
+                ptxt = final_md.read_text(encoding="utf-8-sig", errors="replace")
+            except OSError:
+                continue
+            idx = ptxt.find(query)
+            if idx >= 0:
+                snippet = ptxt[max(0, idx - 20): idx + len(query) + 30].replace("\n", " ").strip()
+                results.append(f"[正文证据] {final_md.parent.parent.name}/{final_md.stem}: …{snippet}…")
+                ev_hits += 1
+                if ev_hits >= 3:
+                    break
+
     return results[:12]
 
 
 def evidence_candidates(workspace: Path, chapter_id: str) -> Dict[str, Any]:
-    """打捞章节正文中尚未登记为核心实体的候选专有名词或次要角色。"""
+    """打捞当章细纲（SSOT）中已声明但尚未在台账建档的实体候选。
+
+    v4.3 说明：本命令仅扫描细纲 frontmatter 声明（new_entities / present_characters /
+    state_deltas.items），不做正文实体识别（确定性引擎不做 NLP 猜测）；正文检索请用
+    `python studio.py ask "<名字>"`（可命中 final 定稿证据切片）。
+    """
     _, vol_id = _find_volume_outline(workspace, chapter_id)
     cands_files = [
         workspace / "manuscript" / vol_id / "final" / f"{chapter_id}.md",
@@ -888,20 +976,35 @@ def evidence_candidates(workspace: Path, chapter_id: str) -> Dict[str, Any]:
     if beats_file.exists():
         try:
             b_fm, _ = parse_frontmatter(beats_file.read_text(encoding="utf-8-sig", errors="replace"))
-            for ne in (b_fm.get("new_entities") or []):
+            # v4.3：单 dict 形态统一包裹为列表（与 state.py 归一化口径一致）
+            raw_ne = b_fm.get("new_entities") or []
+            new_ents = [raw_ne] if isinstance(raw_ne, dict) else (raw_ne if isinstance(raw_ne, list) else [])
+            for ne in new_ents:
                 if isinstance(ne, dict):
                     ename = str(ne.get("name", "")).strip()
                     etype = str(ne.get("type", "person")).strip()
                     if ename and ename not in known_names and ename not in seen:
                         seen.add(ename)
                         candidates.append({"name": ename, "type": etype, "suggested_role": ne.get("role", "supporting")})
-            for c in (b_fm.get("present_characters") or []):
-                if isinstance(c, dict):
+            raw_pc = b_fm.get("present_characters") or []
+            pres_list = [raw_pc] if isinstance(raw_pc, (str, dict)) else (raw_pc if isinstance(raw_pc, list) else [])
+            persons_db = ledger.get_persons()
+            for c in pres_list:
+                if isinstance(c, str):
+                    # 字符串紧凑形态：按 ID 检查台账是否已建档
+                    cid = c.strip()
+                    cname = str(persons_db.get(cid, {}).get("name", "") or "")
+                    if cid and cid not in persons_db and (not cname or cname not in known_names) and cid not in seen:
+                        seen.add(cid)
+                        candidates.append({"name": cname or cid, "type": "person", "suggested_role": "supporting"})
+                elif isinstance(c, dict):
                     cname = str(c.get("name", "")).strip()
                     if cname and cname not in known_names and cname not in seen:
                         seen.add(cname)
                         candidates.append({"name": cname, "type": "person", "suggested_role": c.get("role", "supporting")})
-            for it in ((b_fm.get("state_deltas") or {}).get("items") or []):
+            raw_it = (b_fm.get("state_deltas") or {}).get("items") or []
+            it_list = [raw_it] if isinstance(raw_it, dict) else (raw_it if isinstance(raw_it, list) else [])
+            for it in it_list:
                 if isinstance(it, dict):
                     iname = str(it.get("name", "")).strip()
                     if iname and iname not in known_names and iname not in seen:
@@ -1247,14 +1350,40 @@ def snapshot_rollback(workspace: Path, name_or_file: str) -> Dict[str, Any]:
                     f"快照包含非法越级路径，已中止回滚: {info.filename}",
                     solution="该快照压缩包可能损坏或包含非法路径，请选用其他快照或联系系统管理员。",
                 )
+        zip_names = {info.filename.replace("\\", "/") for info in zf.infolist()}
         zf.extractall(workspace)
 
+    # v4.3 缺陷#A4 修复（回滚残留未来章节）：
+    # 旧版 rollback 只是覆盖式解压——快照之后才产生的 manuscript/outlines/state 文件
+    # 原样残留，被回滚的"未来章节"继续出现在 export 成书里。现做快照域全量对齐：
+    # 受管目录中不在快照清单内的文件一律清除（.bak 与 .corrupt-* 安全产物除外），
+    # 使工作区真正回到快照时刻。snapshots/、export/、pack.md 等非受管域不受影响。
+    removed_files: List[str] = []
+    for folder in ["bible", "characters", "entities", "outlines", "state", "manuscript", "log"]:
+        d = workspace / folder
+        if not d.exists():
+            continue
+        for f in sorted(d.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+            rel = f.relative_to(workspace).as_posix()
+            if f.is_file():
+                if rel not in zip_names and ".corrupt-" not in f.name and not f.name.endswith(".bak"):
+                    try:
+                        f.unlink()
+                        removed_files.append(rel)
+                    except OSError:
+                        pass
+            elif f.is_dir():
+                try:
+                    f.rmdir()  # 仅清除已腾空的目录
+                except OSError:
+                    pass
 
     return {
         "name": target_zip.stem,
         "restored_from": str(target_zip),
         "target_file": target_zip.name,
         "pre_rollback_snapshot": pre_snap,
+        "removed_files": removed_files,
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "message": f"成功回滚工作区至快照: {target_zip.name}（回滚前状态已自动备份: {Path(pre_snap).name}）",
     }

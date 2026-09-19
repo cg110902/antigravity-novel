@@ -30,6 +30,20 @@ def _s(v: Any, default: str = "") -> str:
     return str(v) if v is not None else default
 
 
+_SLOT_TOKEN = re.compile(r"\{\{slot:[^}|\n]*(?:\|([^}]*))?\}\}")
+
+
+def _outline_clean(v: Any, default: str = "待大纲细化") -> str:
+    """v4.3 R2：航标展示的卷纲取值先过槽位清洗——未填卷纲不再把
+    {{slot:ch_0XX_title|自行设定}} 原始槽位串糊进大盘（v4.2 实测槽位汤）。"""
+    txt = str(v or "")
+    if "{{slot:" not in txt:
+        return txt or default
+    txt = _SLOT_TOKEN.sub(lambda m: (m.group(1) or "").split("|")[-1].strip() if m.group(1) else "", txt)
+    txt = re.sub(r"\s{2,}", " ", txt).strip(" 　，,。;；")
+    return txt or default
+
+
 def _rhythm_panel(timeline: List[Dict[str, Any]], current_num: int, window: int = 10) -> List[str]:
     """近 N 章节奏遥测面板（数据源：synopsis/timeline 的 chapter_type 与 word_count）。"""
     recent = [t for t in timeline if _ch_num(t.get("chapter_id", "")) <= current_num][-window:]
@@ -102,8 +116,9 @@ def render_cockpit(workspace: Path) -> str:
             t_id = f"ch_{c_num + off:03d}"
             info = parse_volume_outline(v_text, t_id)
             if info:
-                event = _s(info.get("event"))[:40]
-                upcoming_lines.append(f"     - {t_id}: 《{info.get('title')}》 ➔ {event}{'…' if len(_s(info.get('event'))) > 40 else ''}")
+                _t = _outline_clean(info.get("title"), default="（标题待定）")
+                event = _outline_clean(info.get("event"))[:40]
+                upcoming_lines.append(f"     - {t_id}: 《{_t}》 ➔ {event}{'…' if len(_outline_clean(info.get('event'))) > 40 else ''}")
 
     output = f"""================================================================================
 🎮 【Novel Studio {__version__} · Showrunner Cockpit 态势感知大盘】
@@ -180,6 +195,22 @@ def render_cockpit(workspace: Path) -> str:
         output += "\n" + "\n".join(upcoming_lines)
     else:
         output += "\n   (下一章待分卷大纲细化)"
+
+    # v4.3 R2：经济面遥测——资金池余额与近笔流水（旧版大盘对经济系统完全失明）
+    ledger_db = state_mgr.get_ledger()
+    pools = ledger_db.get("pools", {}) if isinstance(ledger_db, dict) else {}
+    txs = ledger_db.get("transactions", []) if isinstance(ledger_db, dict) else []
+    output += f"\n\n💰 【资金池与近笔流水 (Pools: {len(pools)} 池 ｜ 流水 {len(txs)} 笔)】"
+    if pools:
+        pool_str = " ｜ ".join(f"`{k}`: {v}" for k, v in list(pools.items())[:6])
+        output += f"\n   - 池余额：{pool_str}"
+        if txs:
+            last_txs = txs[-3:]
+            for tx in last_txs:
+                output += (f"\n   - [第 {tx.get('chapter', '?')} 章] {tx.get('pool', '?')} "
+                           f"{tx.get('delta', 0):+} （事由: {str(tx.get('reason', ''))[:24]}）")
+    else:
+        output += "\n   (尚未声明任何货币池，经济系统未启用)"
 
     # 查主线里程碑规划
     ms_file = workspace / "state" / "milestones.json"
