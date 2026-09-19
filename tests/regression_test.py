@@ -633,7 +633,88 @@ locked_facts: []
               f"{exported2.count('### 第 ')} 章")
         check("巡航后全书体检通过", run(cw, "check").returncode == 0)
 
-        print("\n=== 11. 快照 ===")
+        print("\n=== 11. Stage 4C 演进平账（evolution）===")
+        # simulate impact：ID 与姓名必须给出完全一致的结论
+        r_id = run(ws, "simulate", "impact", "--entity", "p_003", "--action", "retcon")
+        r_nm = run(ws, "simulate", "impact", "--entity", "韩姨", "--action", "retcon")
+        check("BUG#19 simulate 按 ID 与按姓名结论一致",
+              r_id.stdout == r_nm.stdout and r_id.returncode == 0,
+              "ID 与姓名测算结果不一致")
+        check("BUG#19 simulate 输出归一后的物理 ID 与类型",
+              "(p_003 ｜ person)" in r_id.stdout, r_id.stdout[:200])
+        r_it = run(ws, "simulate", "impact", "--entity", "it_001")
+        check("BUG#19 simulate 支持道具 ID", "｜ item)" in r_it.stdout)
+        r_ln = run(ws, "simulate", "impact", "--entity", "GUN-001")
+        check("BUG#19 simulate 支持伏笔 ID", "｜ line)" in r_ln.stdout)
+        r_un = run(ws, "simulate", "impact", "--entity", "查无此人")
+        check("BUG#19 无法解析的实体给出显式告警", "未在台账解析到该实体" in r_un.stdout)
+        r_p1 = run(ws, "simulate", "impact", "--entity", "p_001")
+        check("BUG#19 simulate 揭示恩怨链波及面", "关联恩怨链" in r_p1.stdout, r_p1.stdout[:300])
+        check("BUG#19 simulate 揭示关系网波及面", "关联关系网" in r_p1.stdout)
+
+        # check：台账内部交叉引用完整性（evolution 手改 state/ 后的唯一兜底）
+        check("演进前台账自洽（无误报）", run(ws, "check").returncode == 0)
+        _pj = ws / "state/persons.json"
+        _orig_persons = _pj.read_text(encoding="utf-8")
+        _pd = json.loads(_orig_persons)
+        _pd["p_003"]["life_status"] = "alive"
+        _pd["p_003"]["arc_history"] = [{"chapter": "ch_006", "status_out": "病故于旧货店"}]
+        _pj.write_text(json.dumps(_pd, ensure_ascii=False, indent=2), encoding="utf-8")
+        rc = run(ws, "check")
+        check("BUG#20 复活角色但遗留死亡弧光被拦截",
+              "台账生死状态自相矛盾" in rc.stdout and rc.returncode == 1, rc.stdout[:300])
+        _pj.write_text(_orig_persons, encoding="utf-8")
+
+        _ij = ws / "state/items.json"
+        _orig_items = _ij.read_text(encoding="utf-8")
+        _idb = json.loads(_orig_items)
+        _idb["it_001"]["holder"] = "p_999"
+        _ij.write_text(json.dumps(_idb, ensure_ascii=False, indent=2), encoding="utf-8")
+        rc = run(ws, "check")
+        check("BUG#20 道具持有者指向幽灵 ID 被拦截",
+              "台账引用断裂" in rc.stdout and "it_001" in rc.stdout and rc.returncode == 1)
+        _ij.write_text(_orig_items, encoding="utf-8")
+
+        _dj = ws / "state/debts.json"
+        _orig_debts = _dj.read_text(encoding="utf-8")
+        _ddb = json.loads(_orig_debts)
+        _ddb.append({"id": "DEBT-900", "source_char": "p_888", "target_char": "p_777",
+                     "type": "grudge", "desc": "指向幽灵", "created_ch": "ch_002"})
+        _dj.write_text(json.dumps(_ddb, ensure_ascii=False, indent=2), encoding="utf-8")
+        rc = run(ws, "check")
+        check("BUG#20 恩怨双方指向幽灵 ID 被拦截",
+              rc.stdout.count("台账引用断裂") >= 2 and "DEBT-900" in rc.stdout)
+        _dj.write_text(_orig_debts, encoding="utf-8")
+
+        _lj = ws / "state/lines.json"
+        _orig_lines = _lj.read_text(encoding="utf-8")
+        _ldb = json.loads(_orig_lines)
+        _ldb["GUN-001"]["status"] = "resolved"
+        _ldb["GUN-001"].pop("resolved_ch", None)
+        _lj.write_text(json.dumps(_ldb, ensure_ascii=False, indent=2), encoding="utf-8")
+        rc = run(ws, "check")
+        check("BUG#20 伏笔 resolved 却无回收章被拦截",
+              "台账伏笔字段残缺" in rc.stdout and rc.returncode == 1)
+        _lj.write_text(_orig_lines, encoding="utf-8")
+
+        check("回填后台账恢复自洽", run(ws, "check").returncode == 0)
+        check("引擎内置泛指持有者「主角」不误报断裂",
+              "持有者 [主角]" not in run(ws, "check").stdout)
+
+        # 完整演进工作流：快照 → 手术 → 拦截 → 补全 → 放行 → 回滚复原
+        run(ws, "snapshot", "create", "pre_evolution_rt")
+        _pd = json.loads(_pj.read_text(encoding="utf-8"))
+        _pd["p_003"]["life_status"] = "alive"
+        _pd["p_003"]["arc_history"] = [{"chapter": "ch_006", "status_out": "重伤被救走（假死）"}]
+        _pj.write_text(json.dumps(_pd, ensure_ascii=False, indent=2), encoding="utf-8")
+        check("完整平账后体检放行", run(ws, "check").returncode == 0)
+        _snap = sorted((ws / "snapshots").glob("pre_evolution_rt_*.zip"))[-1].stem
+        run(ws, "snapshot", "rollback", _snap)
+        check("演进快照可完整复原台账",
+              json.loads(_pj.read_text(encoding="utf-8"))["p_003"]["life_status"] == "deceased")
+        check("回滚后体检通过", run(ws, "check").returncode == 0)
+
+        print("\n=== 12. 快照 ===")
         r = run(ws, "snapshot", "create", "rt")
         check("快照创建", r.returncode == 0)
         snap = sorted((ws / "snapshots").glob("rt_*.zip"))[-1].stem

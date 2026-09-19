@@ -642,14 +642,29 @@ def main(argv: Optional[List[str]] = None) -> int:
         elif args.command == "simulate":
             sim_res = simulate_impact(ws, getattr(args, "entity", ""), action=getattr(args, "action", "retcon") or "retcon")
             print(f"🔬 【因果波及与风险测算报告】")
-            print(f"   - 测算实体：{sim_res['entity']} ｜ 拟定动作：{sim_res['action']}")
+            _ident = sim_res["entity"]
+            if sim_res.get("entity_kind", "unknown") != "unknown":
+                _ident = (f"{sim_res['resolved_name']} ({sim_res['resolved_id']}"
+                          f" ｜ {sim_res['entity_kind']})")
+            print(f"   - 测算实体：{_ident} ｜ 拟定动作：{sim_res['action']}")
             print(f"   - 风险等级：{sim_res['risk_level']}")
             if sim_res["affected_chapters"]:
-                print(f"   - 波及章节：{', '.join(sim_res['affected_chapters'])}")
-            if sim_res["affected_lines"]:
-                print(f"   - 关联伏笔：{', '.join(sim_res['affected_lines'])}")
-            if sim_res["affected_locked_facts"]:
-                print(f"   - 关联锁定事实：{', '.join(sim_res['affected_locked_facts'])}")
+                print(f"   - 波及章节 ({len(sim_res['affected_chapters'])})："
+                      f"{', '.join(sim_res['affected_chapters'])}")
+            for _label, _key in (
+                ("关联伏笔", "affected_lines"),
+                ("关联锁定事实", "affected_locked_facts"),
+                ("关联恩怨链", "affected_debts"),
+                ("关联关系网", "affected_relations"),
+                ("关联道具", "affected_items"),
+                ("关联地点", "affected_places"),
+                ("关联里程碑", "affected_milestones"),
+            ):
+                _vals = sim_res.get(_key) or []
+                if _vals:
+                    print(f"   - {_label} ({len(_vals)})：")
+                    for _v in _vals:
+                        print(f"      · {_v}")
             print(f"   - 操作指引：{sim_res['recommendation']}")
             return 0
 

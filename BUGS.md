@@ -213,3 +213,60 @@ $ python3 tests/regression_test.py
 
 ### 回归
 `tests/regression_test.py` 扩充至 **99 项断言全通过**（新增巡航段 21 项），并将测试书生成器固化为 `tests/_cruise_fixture.py`。
+
+
+---
+
+# 第 6 轮：Stage 4C 演进平账路径（novel-evolution）专项审查
+
+用户提出的关键疑问：作者中途提复杂改动/新想法、与既有逻辑冲突时，evolution 平账涉及大量数据库操作，它到底跑什么命令、靠不靠得住。
+
+## 首要结论：evolution 没有任何"平账命令"
+
+通读 `.agents/skills/evolution/SKILL.md` 后确认，它的全部机器能力只有 **4 条只读/备份命令**：
+`simulate impact`（风险测算）、`snapshot create/rollback`（备份回滚）、`check`（验收）、`ask`（检索，≤3 次）。
+
+**真正的台账改动全靠手工编辑 `state/*.json`**（手册明示用 `replace_file_content`/`write_to_file`）。也就是说整条演进路径上只有两道机械防线：**事前靠 `simulate impact` 估风险，事后靠 `check` 验收**。这两者一旦失准，作者的复杂改动就是在无保护状态下动刀。实测发现：**两道防线当时都是漏的**。
+
+### BUG#19（P0）`simulate impact` 用物理 ID 测算几乎全盲，且漏扫六张表
+- 复现（同一个角色，两种写法结论相反）：
+  - `simulate impact --entity 齐鸣` → **HIGH**，命中 LOCK-002；
+  - `simulate impact --entity p_005` → **LOW（低风险·局部微创修改）**，零波及。
+- 根因：旧实现只做**字面子串匹配**，扫 timeline/synopsis/lines/locked 四张表。而 `timeline.present_characters` 存的是人名、`locked.fact` 里写的也是人名，于是 ID 形态全部落空。
+- 致命性：evolution 手册的命令示例恰恰写作 `--entity p_001`。**照着手册跑，会对一个触碰法定事实的高危改动拿到"低风险"的假绿灯**，然后直接动刀。这是 Stage 4C 唯一的事前闸门。
+- 附带漏报：完全未扫 `debts`/`relations`/`items`/`places`/`entity_timeline`/`milestones` 六张表——而恩怨链与关系网正是改人设、改生死时最先崩的地方；手册还明文要求核对"是否颠覆既定里程碑"，旧版从未读过该表。
+- 修复：先用既有的 `_resolve_person_id`/`_resolve_item_id` 把实体归一到物理 ID，再以「ID+名称+别名」别名集合扫描**全部十个维度**；报告回显归一后的 `姓名 (ID ｜ 类型)`；支持 person/item/line/place 四类 ID 直查；解析不到时显式告警「此结论仅供参考」，不再静默给 LOW。
+- 修复后同一案例：`p_005` 与 `齐鸣` 输出完全一致，且新揭示出旧版看不见的 **2 条恩怨链 + 1 条关系网**（`DEBT-003 齐鸣之死的血债` 等）——这正是改写齐鸣生死时最会崩的部分。
+
+### BUG#20（P0）`check` 对台账内部交叉引用零设防，evolution 验收形同虚设
+- 复现：向一本健康的书注入 5 类典型手改破绽，`check` **全部 0 error 放行**：
+  1. 改 `life_status: alive` 复活角色，但 `arc_history` 仍留着死亡记录；
+  2. 删掉角色 `p_003`，但 `relations`/`debts` 里仍引用它；
+  3. 伏笔改 `status: resolved` 却没填 `resolved_ch`；
+  4. 道具 `holder` 指向不存在的 `p_999`；
+  5. 恩怨双方指向幽灵 ID。
+- 根因：`check` 只校验「细纲 ➔ 台账」单向引用，从不校验台账**内部**自洽。
+- 影响：evolution 唯一的验收闸门失效，手改平账没有任何机械兜底；上述脏数据会长期潜伏，直到某次 pack/sync 才以诡异形式爆发。
+- 修复：新增 **3.4 节「台账内部交叉引用完整性巡检」**，覆盖 6 类校验（生死自洽 / 道具持有者 / 恩怨双方 / 关系网双方 / 伏笔闭环字段 / 锁定事实指向章）。人物引用解析接受 ID、姓名、别名及引擎内置泛指（`主角`），避免误报。
+- 配套：坏表导致巡检不可用时降级为 warning 而非上抛 exit 4，保证作者能看到完整体检报告（坏表本身已在 2.5 节以 error 报告）。
+
+### BUG#15 补遗：死亡语义词表漏「病故」等非暴力死亡写法
+回归测试用「病故于旧货店」做样本时暴露：原词表偏战斗向（阵亡/被斩杀/战死…），日常与都市题材常见的**病故/病逝/猝死/离世/去世/咽了气/殉职**等整条漏判。已补入 17 个词。
+
+同时修正一处**架构隐患**：新增的 3.4 节我最初内联复制了一份死亡词表，这正是 BUG#15 的成因（两处词表漂移）。已改为统一引用 `state.py::_DEATH_KEYWORDS` 单一真值源。
+
+### 完整演进工作流实测（齐鸣改假死）
+| 步骤 | 结果 |
+|---|---|
+| 1. `simulate impact --entity p_005` | ✅ HIGH，列出锁定事实 + 2 恩怨链 + 1 关系网 |
+| 2. `snapshot create pre_evolution_齐鸣假死` | ✅ 快照建立 |
+| 3. 半吊子手术（只改 `life_status`） | — |
+| 4. `check` 验收 | ✅ **准确拦截**，指出弧光矛盾并给出补救路径 |
+| 5. 按指引补全（改写 arc_history + 同步 LOCK-002） | ✅ `check` 0 errors 放行 |
+| 6. `snapshot rollback` | ✅ `life_status`、`LOCK-002` 全部完整复原 |
+
+### 手册同步
+已更新 `.agents/skills/evolution/SKILL.md`：补充**测算报告读法**（ID 与姓名等价、十维波及面、未解析告警不可信）与**台账平账自检清单 v4.3.2**（五类必须成对修改的漏项），使手册与新的引擎能力对齐。
+
+### 回归
+`tests/regression_test.py` 扩至 **116 项断言全通过**（新增演进段 17 项）。

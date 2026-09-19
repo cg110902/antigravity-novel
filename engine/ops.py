@@ -1638,55 +1638,215 @@ def simulate_impact(workspace: Path, entity: str, action: str = "retcon") -> Dic
             solution="请通过 --entity 指定要测算的实体名称或 ID，例如: python studio.py simulate impact --entity p_001",
         )
 
+    from engine.state import _resolve_person_id, _resolve_item_id
+
     ledger = StateLedger(workspace)
     timeline = ledger.get_timeline()
     lines = ledger.get_lines()
     locked = ledger.get_locked_facts()
     synopses = ledger.get_synopsis()
+    persons = ledger.get_persons()
+    items = ledger.get_items()
+    places = ledger.get_places()
+    debts = ledger.get_debts()
+    relations = ledger.get_relations()
+    ent_timeline = ledger.get_entity_timeline()
+    milestones = _load_json(workspace / "state" / "milestones.json", default=[])
+
+    # v4.3.2 缺陷#19（P0 · 因果测算漏报）：旧版只按「字面子串」扫 timeline/synopsis/
+    # lines/locked 四张表，造成两类致命漏报——
+    #   1) 用物理 ID 测算几乎全盲。timeline.present_characters 存的是人名，
+    #      locked.fact 里写的也是人名，于是 `--entity p_005` 报 LOW·零波及，
+    #      而等价的 `--entity 齐鸣` 报 HIGH·触碰锁定事实。evolution 手册的命令
+    #      示例恰恰写作 `--entity p_001`——照手册跑会拿到「无风险」的假绿灯，
+    #      然后一刀切在法定事实上。这是 Stage 4C 唯一的事前风险闸门，不能瞎。
+    #   2) 漏扫 debts / relations / items / places / entity_timeline / milestones
+    #      六张表，而恩怨链与关系网恰恰是改人设、改生死时最先崩的地方；
+    #      手册还明文要求核对「是否颠覆既定里程碑」，旧版从未读过该表。
+    # 现修正为：先把实体归一到物理 ID（复用既有的 _resolve_person_id/_resolve_item_id），
+    # 再以「ID + 名称 + 别名」别名集合对全部十个维度扫描。
+    aliases: set = {entity}
+    canonical_id = entity
+    canonical_name = entity
+    entity_kind = "unknown"
+
+    def _add(v: Any) -> None:
+        s = str(v or "").strip()
+        if s:
+            aliases.add(s)
+
+    _pid = _resolve_person_id(entity, persons)
+    _iid = _resolve_item_id(entity, items)
+    if _pid:
+        entity_kind, canonical_id = "person", _pid
+        _prec = persons.get(_pid, {})
+        canonical_name = str(_prec.get("name") or _pid)
+        _add(_pid)
+        _add(canonical_name)
+        for _a in (_prec.get("aliases") or []):
+            _add(_a)
+    elif _iid:
+        entity_kind, canonical_id = "item", _iid
+        _irec = items.get(_iid, {})
+        canonical_name = str(_irec.get("name") or _iid)
+        _add(_iid)
+        _add(canonical_name)
+        for _a in (_irec.get("aliases") or []):
+            _add(_a)
+    else:
+        for _db, _kind in ((places, "place"), (lines, "line")):
+            for _k, _v in (_db or {}).items():
+                _nm = str(_v.get("name", "")).strip() if isinstance(_v, dict) else ""
+                if entity == _k or (_nm and entity == _nm):
+                    entity_kind, canonical_id = _kind, _k
+                    canonical_name = _nm or _k
+                    _add(_k)
+                    _add(_nm)
+                    break
+            if entity_kind != "unknown":
+                break
+
+    def _hit(*vals: Any) -> bool:
+        blob = " ".join(str(v) for v in vals if v is not None)
+        return any(a in blob for a in aliases)
 
     affected_chapters: List[str] = []
     affected_lines: List[str] = []
     affected_locked: List[str] = []
+    affected_debts: List[str] = []
+    affected_relations: List[str] = []
+    affected_items: List[str] = []
+    affected_places: List[str] = []
+    affected_milestones: List[str] = []
 
-    # 查时间线与在场记录
+    def _mark_ch(ch: Any) -> None:
+        c = str(ch or "").strip()
+        if c and c not in affected_chapters:
+            affected_chapters.append(c)
+
+    # 1. 时间线与在场记录（present_characters 可能存名、也可能存 ID）
     for t in timeline:
-        ch = t.get("chapter_id", "")
-        chars = t.get("present_characters", [])
-        if any(entity in str(c) for c in chars) or entity in str(t.get("dramatic_goal", "")) or entity in str(t.get("cliffhanger", "")):
-            if ch not in affected_chapters:
-                affected_chapters.append(ch)
+        if _hit(t.get("present_characters"), t.get("dramatic_goal"),
+                t.get("cliffhanger"), t.get("location"), t.get("title")):
+            _mark_ch(t.get("chapter_id"))
 
-    # 查梗概
-    for ch, syn in synopses.items():
-        if entity in str(syn.get("dramatic_goal", "")) or entity in str(syn.get("cliffhanger", "")) or entity in str(syn.get("present_characters", [])):
-            if ch not in affected_chapters:
-                affected_chapters.append(ch)
+    # 2. 章节梗概
+    for ch, syn in (synopses or {}).items():
+        if not isinstance(syn, dict):
+            continue
+        if _hit(syn.get("dramatic_goal"), syn.get("cliffhanger"),
+                syn.get("present_characters"), syn.get("summary"), syn.get("title")):
+            _mark_ch(ch)
 
-    # 查伏笔
-    for lid, l in lines.items():
-        if entity in l.get("name", "") or entity in l.get("desc", ""):
-            affected_lines.append(f"{lid}: {l.get('name')}")
+    # 3. 实体时间线索引（专为「某实体在哪些章出现」而建，旧版完全未用）
+    for _eid, _rec in (ent_timeline or {}).items():
+        _nm = _rec.get("name") if isinstance(_rec, dict) else None
+        if _eid in aliases or (_nm and _hit(_nm)):
+            _chs = _rec.get("chapters") if isinstance(_rec, dict) else None
+            for _c in (_chs or []):
+                _mark_ch(_c.get("chapter_id") if isinstance(_c, dict) else _c)
 
-    # 查锁定事实
-    for lf in locked:
-        if entity in lf.get("fact", ""):
+    # 4. 伏笔（顺带把埋设/回收章计入波及面）
+    for lid, l in (lines or {}).items():
+        if not isinstance(l, dict):
+            continue
+        if lid in aliases or _hit(l.get("name"), l.get("desc")):
+            affected_lines.append(f"{lid}: {l.get('name')} [{l.get('status')}]")
+            _mark_ch(l.get("planted_ch"))
+            _mark_ch(l.get("resolved_ch"))
+
+    # 5. 锁定事实
+    for lf in (locked or []):
+        if not isinstance(lf, dict):
+            continue
+        if lf.get("id") in aliases or _hit(lf.get("fact")):
             affected_locked.append(f"{lf.get('id')}: {lf.get('fact')}")
+            _mark_ch(lf.get("established_ch"))
 
-    # 风险评估
+    # 6. 恩怨链（改人设/改生死时最易崩的一环）
+    for d in (debts or []):
+        if not isinstance(d, dict):
+            continue
+        if _hit(d.get("source_char"), d.get("target_char"), d.get("desc")):
+            affected_debts.append(
+                f"{d.get('id', 'DEBT')}: {d.get('source_char')} ➔ {d.get('target_char')}"
+                f" [{d.get('type', '恩怨')}] {d.get('desc', '')}"
+            )
+            _mark_ch(d.get("created_ch"))
+
+    # 7. 关系网
+    for pair, r in (relations or {}).items():
+        if not isinstance(r, dict):
+            continue
+        if pair in aliases or _hit(r.get("source_id"), r.get("target_id"), r.get("dynamic_label")):
+            affected_relations.append(
+                f"{r.get('source_id')}➔{r.get('target_id')}: {r.get('dynamic_label', '')}"
+                f" (张力 {r.get('tension')})"
+            )
+            for h in (r.get("history") or []):
+                if isinstance(h, dict):
+                    _mark_ch(h.get("chapter"))
+
+    # 8. 道具归属（改角色会牵连其随身物）
+    for iid, irec in (items or {}).items():
+        if not isinstance(irec, dict):
+            continue
+        if iid in aliases or _hit(irec.get("name"), irec.get("holder"), irec.get("summary")):
+            affected_items.append(
+                f"{iid}: {irec.get('name')} (持有: {irec.get('holder')} ｜ 状态: {irec.get('status')})"
+            )
+
+    # 9. 地点
+    for _lid, prec in (places or {}).items():
+        if not isinstance(prec, dict):
+            continue
+        if _lid in aliases or _hit(prec.get("name"), prec.get("summary")):
+            affected_places.append(f"{_lid}: {prec.get('name')}")
+
+    # 10. 里程碑（手册要求核对「是否颠覆既定里程碑」）
+    for ms in (milestones or []):
+        if not isinstance(ms, dict):
+            continue
+        if ms.get("id") in aliases or _hit(ms.get("title"), ms.get("desc")):
+            affected_milestones.append(
+                f"{ms.get('id')}: {ms.get('title')} (目标第 {ms.get('target_ch')} 章 ｜ {ms.get('status')})"
+            )
+
+    affected_chapters.sort(key=lambda c: (len(c), c))
+
+    # 风险评估（纳入新增维度）
+    _breadth = (len(affected_chapters) + len(affected_lines) + len(affected_debts)
+                + len(affected_relations) + len(affected_milestones))
+    _active_hit = [l for l in affected_lines if "[active]" in l]
     if affected_locked:
         risk_level = "HIGH (高风险 · 触碰已锁定法定事实)"
-    elif len(affected_chapters) >= 5 or len(affected_lines) >= 2:
+    elif affected_milestones:
+        risk_level = "HIGH (高风险 · 颠覆已排产里程碑)"
+    elif _active_hit and len(affected_chapters) >= 3:
+        risk_level = "HIGH (高风险 · 撞击活跃伏笔生命周期且跨多章)"
+    elif len(affected_chapters) >= 5 or len(affected_lines) >= 2 or _breadth >= 6:
         risk_level = "MEDIUM (中风险 · 跨多章因果网络，需建立快照精确修补)"
     else:
         risk_level = "LOW (低风险 · 局部微创修改)"
 
+    if entity_kind == "unknown":
+        risk_level += " ⚠️ 未在台账解析到该实体（拼写不符或尚未建档，结论仅供参考）"
+
     return {
         "entity": entity,
+        "resolved_id": canonical_id,
+        "resolved_name": canonical_name,
+        "entity_kind": entity_kind,
         "action": action,
         "risk_level": risk_level,
         "affected_chapters": affected_chapters,
         "affected_lines": affected_lines,
         "affected_locked_facts": affected_locked,
+        "affected_debts": affected_debts,
+        "affected_relations": affected_relations,
+        "affected_items": affected_items,
+        "affected_places": affected_places,
+        "affected_milestones": affected_milestones,
         "recommendation": "修改前必须运行 `python studio.py snapshot create` 建立快照备份！",
     }
 
