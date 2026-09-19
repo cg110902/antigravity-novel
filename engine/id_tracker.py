@@ -776,13 +776,17 @@ def check_id_integrity(workspace: Path, chapter_id: Optional[str] = None) -> Dic
                 return int(m.group(1)) if m else 0
 
             # 1) 按 ID 检查
+            # v4.3.2 缺陷#10：ID 命中后必须短路，否则紧随其后的「按名检索」会对同一个
+            # 死者再报一遍，体检输出出现两条一模一样的阻断错误（实测 ch_007 韩姨 ×2）。
+            _dead_reported = False
             if pid in persons_db and is_deceased(persons_db[pid]):
                 d_ch = get_death_chapter(persons_db[pid])
                 if _ch_num(ch) > _ch_num(d_ch):
                     dead_name = persons_db[pid].get("name") or pid
                     errors.append(f"第 {ch} 章细纲因果严重冲突：角色 [{dead_name}] ({pid}) 已于第 {d_ch} 章阵亡，禁止在后续章节登场！\n      💡 方案：请从 present_characters 中移除该角色，或委派 Stage 4C (novel-evolution) 处理剧情反转。")
+                    _dead_reported = True
             # 2) 按 Name 检查（防止用临时 ID 或中文名登场死者）
-            probe_name = pname or (pid if not pid.startswith("p_") else "")
+            probe_name = "" if _dead_reported else (pname or (pid if not pid.startswith("p_") else ""))
             if probe_name:
                 for _d_id, _d_p in persons_db.items():
                     if is_deceased(_d_p):

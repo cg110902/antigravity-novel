@@ -13,6 +13,7 @@
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -526,6 +527,16 @@ class StateManager:
                     _d = int(it.get("charges_delta", 0))
                 except (ValueError, TypeError):
                     continue
+                # v4.3.2 缺陷#1：预检与应用侧口径必须一致——本章已入账的旧 delta 先冲销，
+                # 否则同章 --force 重放会被自己上一次的扣减误判为透支。
+                _prev_d = 0
+                for _h in _rec.get("transfer_history", []) or []:
+                    if isinstance(_h, dict) and _h.get("chapter") == ch_id:
+                        try:
+                            _prev_d += int(_h.get("charges_delta", 0) or 0)
+                        except (ValueError, TypeError):
+                            pass
+                _d = _d - _prev_d
                 if _rec.get("charges", -1) >= 0 and _rec.get("charges", 0) + _d < 0:
                     _fatal.append(
                         f"道具规则阻断：道具 [{it.get('name') or _iid}] ({_iid}) 充能已耗尽 "
@@ -668,8 +679,20 @@ class StateManager:
                     delta_int = int(c_delta)
                 except (ValueError, TypeError):
                     delta_int = 0
+                # v4.3.2 缺陷#1（充能重放非幂等）：本章若已入账过 charges_delta，
+                # 必须先冲销旧值再应用新值——否则 `sync --force` 每重放一次就真扣一次，
+                # 连扣数次后引擎反被自己的透支守卫阻断（实测 3→2→1→0→GuardError）。
+                # transfer_history 是同章唯一流水凭据（同章记录已按 chapter 去重替换）。
+                _prev_delta = 0
+                for _h in irecord.get("transfer_history", []) or []:
+                    if isinstance(_h, dict) and _h.get("chapter") == ch_id:
+                        try:
+                            _prev_delta += int(_h.get("charges_delta", 0) or 0)
+                        except (ValueError, TypeError):
+                            pass
+                _net_delta = delta_int - _prev_delta
                 if irecord.get("charges", -1) >= 0:
-                    new_charges = irecord["charges"] + delta_int
+                    new_charges = irecord["charges"] + _net_delta
                     if new_charges >= 0:
                         irecord["charges"] = new_charges
 
@@ -757,6 +780,16 @@ class StateManager:
                 lrecord = lines_db.get(fid, LineRecord(id=fid, name=fname or fid).to_dict())
                 if fname:
                     lrecord["name"] = fname
+                # v4.3.2 缺陷#2（伏笔分类恒为 GUN）：LineRecord.type 默认 "GUN"，且旧版
+                # 既不读细纲显式 type、也不按 ID 前缀推断 ⇒ KNO-001/MIS-001 全被记成 GUN，
+                # schema 承诺的 GUN/KNO/MIS 三分类形同虚设（trace 报告同步误导）。
+                _explicit_type = str(fd.get("type", "") or "").upper().strip()
+                if _explicit_type in ("GUN", "KNO", "MIS"):
+                    lrecord["type"] = _explicit_type
+                else:
+                    _m_pref = re.match(r"^(GUN|KNO|MIS)-", fid.upper())
+                    if _m_pref:
+                        lrecord["type"] = _m_pref.group(1)
                 if fdesc:
                     lrecord["desc"] = fdesc
 
@@ -837,7 +870,14 @@ class StateManager:
                 d_type = str(dd.get("type", "grudge")).strip()
                 d_desc = str(dd.get("desc", "")).strip()
                 d_action = str(dd.get("action", "record")).strip().lower()
-                d_id = str(dd.get("id", f"DEBT-{len(debts_db)+1:03d}")).strip()
+                # v4.3.2 缺陷#6（恩怨重放膨胀）：缺省 id 旧版按 len(debts_db)+1 发号，
+                # 随表长漂移 ⇒ 同章 --force 重放每次都算「新恩怨」，实测三次重放出
+                # DEBT-001/002/003 三条相同记录。templates/beats.md 默认就不带 id，
+                # 这条路径是常态而非边角。改为按（章节+双方+类型）派生稳定幂等键。
+                d_id = str(dd.get("id", "") or "").strip()
+                if not d_id:
+                    _seed = f"{ch_id}|{d_source}|{d_target}|{d_type}"
+                    d_id = "DEBT-AUTO-" + hashlib.sha1(_seed.encode("utf-8")).hexdigest()[:8]
 
                 if d_action == "record":
                     # v4.2 幂等数据层：同 id 恩怨替换而非追加（--force 重放不翻倍）

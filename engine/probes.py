@@ -449,6 +449,18 @@ def run_all_probes(text: str, frontmatter: Dict[str, Any],
     for pid, p in (persons_db or {}).items():
         if isinstance(p, dict) and p.get("name"):
             name_by_id[pid] = p["name"]
+    # v4.3.2 缺陷#4（首登场角色泄密漏判）：旧版 name_by_id 只取台账。
+    # 而首章/新角色登场章在 audit 时人物尚未 sync 入账 ⇒ 盲区角色名解析不到，
+    # 「本人对白泄密」被降级成疑似（warning），同一份正文等 sync 之后再 check
+    # 又会突然升级为确认级 error，判定随时点漂移。此处并入细纲 present_characters
+    # 的 id→name 声明（细纲是 SSOT，优先级高于尚未入账的台账）。
+    _raw_pc_names = frontmatter.get("present_characters") or []
+    _pc_name_list = [_raw_pc_names] if isinstance(_raw_pc_names, (str, dict)) else (
+        _raw_pc_names if isinstance(_raw_pc_names, list) else []
+    )
+    for _c in _pc_name_list:
+        if isinstance(_c, dict) and _c.get("id") and _c.get("name"):
+            name_by_id[str(_c["id"]).strip()] = str(_c["name"]).strip()
     # v4.3：present_ids 兼容字符串紧凑形态（[p_001, p_003] 此前被整段跳过，
     # 导致「盲区角色在场，他人公开提及」的疑似级提醒失效）
     present_ids: List[str] = []

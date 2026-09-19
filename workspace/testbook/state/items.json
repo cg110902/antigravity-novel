@@ -1,0 +1,52 @@
+{
+  "it_001": {
+    "id": "it_001",
+    "name": "灰烬打火机",
+    "holder": "p_001",
+    "charges": 0,
+    "status": "active",
+    "durability": "外壳开裂",
+    "sensory_anchor": "",
+    "location": "随身",
+    "summary": "能焚烧他人三分钟记忆的灰烬制品，代价是持有者的一段记忆",
+    "established_ch": "ch_001",
+    "last_seen_ch": "ch_003",
+    "transfer_history": [
+      {
+        "chapter": "ch_001",
+        "holder_change": "p_001",
+        "charges_delta": -1,
+        "remaining_charges": 2,
+        "status": "active"
+      },
+      {
+        "chapter": "ch_004",
+        "holder_change": "p_001 -> p_001",
+        "charges_delta": 0,
+        "remaining_charges": 0,
+        "status": "destroyed"
+      },
+      {
+        "chapter": "ch_003",
+        "holder_change": "p_001 -> p_001",
+        "charges_delta": -2,
+        "remaining_charges": 0,
+        "status": "active"
+      }
+    ]
+  },
+  "it_002": {
+    "id": "it_002",
+    "name": "待填写道具名",
+    "holder": "主角",
+    "charges": -1,
+    "status": "active",
+    "durability": "完好",
+    "sensory_anchor": "",
+    "location": "随身",
+    "summary": "",
+    "established_ch": "ch_002",
+    "last_seen_ch": "ch_002",
+    "transfer_history": []
+  }
+}

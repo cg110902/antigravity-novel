@@ -170,7 +170,12 @@ def render_cockpit(workspace: Path) -> str:
     output += f"\n\n⚖️ 【全书未清算恩怨情仇账 (Unsettled Debts: {len(unpaid_debts)} 笔)】"
     if unpaid_debts:
         for d in unpaid_debts[:4]:
-            output += f"\n   - [{d.get('type', '恩怨')}] 涉及: `{d.get('target_char')}` ｜ 事由: {d.get('desc')} ｜ 立于第 {d.get('created_ch')} 章"
+            # v4.3.2 缺陷#8：旧版只打印 target_char，丢失结怨发起方，
+            # 「p_002 → p_001 的血债」在大盘上显示成「涉及 p_001」，方向不明。
+            # 与 pack.py / ops.py 的 dossier 对齐为双向展示。
+            _d_src = d.get("source_char") or "未知"
+            _d_tgt = d.get("target_char") or "未知"
+            output += f"\n   - [{d.get('type', '恩怨')}] `{_d_src}` ➔ `{_d_tgt}` ｜ 事由: {d.get('desc')} ｜ 立于第 {d.get('created_ch')} 章"
     else:
         output += "\n   (恩怨两清，暂无未结血仇或悬赏人情)"
 

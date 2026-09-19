@@ -543,8 +543,53 @@ def get_beats_scaffold(workspace: Path, chapter_id: str, write_file: bool = True
     }
 
 
-def audit_chapter(workspace: Path, chapter_id: str, write_file: bool = True) -> Dict[str, Any]:
-    """运行机械探针生成质检报告骨架 (audit)。"""
+def _audit_has_author_content(text: str) -> bool:
+    """判定审计报告是否已承载 Auditor 的人工成果（配方 / 涌现事实），用于防覆盖守卫。
+
+    判据（任一命中即视为有成果，宁可保守不覆盖）：
+    1. 出现非占位的 TargetContent/ReplacementContent 配方对；
+    2. 第 3 节登记了非占位的涌现事实行（[阵亡]/[新登场]/[道具变动]）。
+    模板自带的示例占位（待修改原句 / 待填写角色名 / 待填写道具名…）一律不算成果。
+    """
+    if not text:
+        return False
+    placeholders = ("待修改原句", "通俗修改后原句", "待填写角色名", "待填写新角色名", "待填写道具名", "待填写")
+
+    for m in re.finditer(
+        r"(?:TargetContent|原句|原文)[:：]\s*```(?:text|markdown|txt)?[ \t]*\r?\n(.*?)\r?\n\s*```",
+        text, flags=re.DOTALL | re.IGNORECASE,
+    ):
+        if m.group(1).strip() and not any(ph in m.group(1) for ph in placeholders):
+            return True
+
+    for raw_line in text.splitlines():
+        line = re.sub(r"^[-*+]\s*", "", raw_line.strip())
+        if not re.match(r"^\[(?:阵亡|死亡|牺牲|新登场|新实体|新角色|新人物|道具变动|道具获得|道具损毁)", line):
+            continue
+        if not any(ph in line for ph in placeholders):
+            return True
+    return False
+
+
+def _is_placeholder_value(value: str) -> bool:
+    """判定审计报告字段值是否为模板占位示例（v4.3.2 缺陷#3）。
+
+    旧版三处分支各自维护精确匹配黑名单，item 分支漏掉「待填写道具名」，
+    导致每跑一次带默认模板的 `proposal auto` 就往 items.json 塞一件
+    `it_00X / 待填写道具名 / holder: 主角` 的幽灵道具。改为统一前缀/关键词判定。
+    """
+    v = str(value or "").strip()
+    if not v or v in ("无", "示例", "略", "-", "N/A", "n/a"):
+        return True
+    return any(v.startswith(k) for k in ("待填写", "待补充", "示例", "如：", "例如"))
+
+
+def audit_chapter(workspace: Path, chapter_id: str, write_file: bool = True,
+                  force: bool = False) -> Dict[str, Any]:
+    """运行机械探针生成质检报告骨架 (audit)。
+
+    v4.3.2：已含 Auditor 人工成果的报告默认拒绝覆盖（--force 重置并留 .bak）。
+    """
     _, vol_id = _find_volume_outline(workspace, chapter_id)
     prose_candidates = [
         workspace / "manuscript" / vol_id / "raw" / f"{chapter_id}_v3.md",
@@ -630,11 +675,30 @@ Stage 5 proposal auto 将自动提取并反向回填至细纲与台账：
 -->
 """
     target_audit = workspace / "log" / "audit" / f"{chapter_id}.md"
+    # v4.3.2 缺陷#5（审计成果被覆盖）：旧版无条件重写 log/audit/ch_XXX.md。
+    # 而 cruise.supervise_once 每章起手就调 audit_chapter(write_file=True)，
+    # 于是 Auditor 已写入的【修补配方】与【正文涌现事实】在 finalize/proposal
+    # 读取之前就被抹掉 ⇒ AGENTS.md 公理一的「意图与实况双向闭环」在巡航路径上失效。
+    # 现对齐 `beats new --write` 的守卫惯例：已有作者成果时拒绝覆盖，--force 才重置并留 .bak。
+    preserved = False
     if write_file:
         _ensure_dir(target_audit.parent)
-        target_audit.write_text(audit_md, encoding="utf-8")
+        if target_audit.exists() and not force and _audit_has_author_content(
+            target_audit.read_text(encoding="utf-8-sig", errors="replace")
+        ):
+            preserved = True
+        else:
+            if force and target_audit.exists():
+                shutil.copy(target_audit, target_audit.with_name(target_audit.name + ".bak"))
+            target_audit.write_text(audit_md, encoding="utf-8")
 
-    return {"chapter_id": chapter_id, "word_count": words, "target_audit": str(target_audit), "probe_results": probe_results}
+    return {
+        "chapter_id": chapter_id,
+        "word_count": words,
+        "target_audit": str(target_audit),
+        "probe_results": probe_results,
+        "preserved": preserved,
+    }
 
 
 def finalize_chapter(workspace: Path, chapter_id: str) -> Dict[str, Any]:
@@ -806,7 +870,7 @@ def proposal_auto(workspace: Path, chapter_id: str) -> Dict[str, Any]:
                 cname = kv.get("角色") or kv.get("人物") or kv.get("姓名") or kv.get("名称") or kv.get("name") or (pos[0] if pos else "")
                 desc = kv.get("说明") or kv.get("原因") or kv.get("场景") or kv.get("事实") or kv.get("描述") or (pos[1] if len(pos) > 1 else "正文确认阵亡")
                 cname = cname.strip()
-                if cname and cname not in ("待填写", "示例", "待填写角色名", "无"):
+                if cname and not _is_placeholder_value(cname):
                     emergent_deaths.append({"name": cname, "desc": desc.strip()})
 
             elif cat == "entity":
@@ -814,7 +878,7 @@ def proposal_auto(workspace: Path, chapter_id: str) -> Dict[str, Any]:
                 ename = kv.get("名称") or kv.get("姓名") or kv.get("角色") or kv.get("实体") or kv.get("name") or (pos[0] if pos else "")
                 edesc = kv.get("描述") or kv.get("说明") or kv.get("定位") or kv.get("特征") or (pos[1] if len(pos) > 1 else "")
                 ename = ename.strip()
-                if ename and ename not in ("待填写", "示例", "待填写新角色名", "无"):
+                if ename and not _is_placeholder_value(ename):
                     emergent_entities.append({"type": etype.strip(), "name": ename, "summary": edesc.strip()})
 
             elif cat == "item":
@@ -832,7 +896,7 @@ def proposal_auto(workspace: Path, chapter_id: str) -> Dict[str, Any]:
                         istatus_or_holder = pos[1] if len(pos) > 1 else "active"
                 idesc = kv.get("说明") or kv.get("描述") or (pos[2] if len(pos) > 2 else "")
                 iname = iname.strip()
-                if iname and iname not in ("待填写", "示例", "无"):
+                if iname and not _is_placeholder_value(iname):
                     emergent_items.append({"name": iname, "holder_or_status": istatus_or_holder.strip(), "desc": idesc.strip()})
 
     # 将涌现事实合并至提案与细纲
@@ -1351,7 +1415,13 @@ def reconcile_volume(workspace: Path, volume_id: str, write_file: bool = False) 
     # 伏笔对账（v4.2.4 修复：准确限定为当前卷闭环的伏笔，名副其实）
     lines = ledger.get_lines()
     vol_ch_set = {t.get("chapter_id") for t in vol_timeline if t.get("chapter_id")}
-    active_in_vol = [l for l in lines.values() if l.get("status") == "active"]
+    # v4.3.2 缺陷#7：旧版 active_in_vol 未做任何卷过滤（变量名却带 _in_vol），
+    # 与紧邻的 resolved_in_vol（已按 vol_ch_set 过滤）口径不一致 ⇒ 多卷之后每卷
+    # 对账报告都把全书活跃伏笔重复列一遍。活跃伏笔按「埋设章属于本卷」归属本卷；
+    # 跨卷遗留（埋于前卷、至今未回收）单列，避免既漏报又串卷。
+    _active_all = [l for l in lines.values() if l.get("status") == "active"]
+    active_in_vol = [l for l in _active_all if l.get("planted_ch") in vol_ch_set]
+    active_carried_over = [l for l in _active_all if l.get("planted_ch") not in vol_ch_set]
     resolved_in_vol = [l for l in lines.values() if l.get("status") == "resolved" and l.get("resolved_ch") in vol_ch_set]
 
     def _num(cid: str) -> int:
@@ -1359,8 +1429,9 @@ def reconcile_volume(workspace: Path, volume_id: str, write_file: bool = False) 
         return int(m.group(1)) if m else 0
 
     latest_ch_num = max((_num(t.get("chapter_id", "")) for t in timeline), default=0)
+    # 逾期判定覆盖全部活跃伏笔（含前卷遗留），卷末必清清单不得因归卷而漏报
     overdue_lines = [
-        l for l in active_in_vol
+        l for l in _active_all
         if l.get("target_ch") and _num(l.get("target_ch", "")) < latest_ch_num
     ]
 
@@ -1390,11 +1461,16 @@ def reconcile_volume(workspace: Path, volume_id: str, write_file: bool = False) 
     if not resolved_in_vol:
         report_lines.append("  - (本卷暂无已回收伏笔)")
 
-    report_lines.append(f"\n- **仍活跃待跨卷回收伏笔 ({len(active_in_vol)} 条)**：")
+    report_lines.append(f"\n- **本卷埋设、仍活跃待回收伏笔 ({len(active_in_vol)} 条)**：")
     for a in active_in_vol:
         report_lines.append(f"  - [{a.get('id')}] {a.get('name')} (埋于: {a.get('planted_ch')} ｜ 描述: {a.get('desc')})")
     if not active_in_vol:
-        report_lines.append("  - (全部伏笔已收束平账)")
+        report_lines.append("  - (本卷埋设的伏笔已全部收束平账)")
+
+    if active_carried_over:
+        report_lines.append(f"\n- **前卷遗留、跨卷仍未回收伏笔 ({len(active_carried_over)} 条)**：")
+        for a in active_carried_over:
+            report_lines.append(f"  - [{a.get('id')}] {a.get('name')} (埋于: {a.get('planted_ch')} ｜ 描述: {a.get('desc')})")
 
     if overdue_lines:
         report_lines.append(f"\n- **⛔ 已逾期未回收 ({len(overdue_lines)} 条 · 本卷必清清单)**：")
@@ -1431,6 +1507,7 @@ def reconcile_volume(workspace: Path, volume_id: str, write_file: bool = False) 
         "chapters_count": len(vol_timeline),
         "total_words": vol_words,
         "active_lines": len(active_in_vol),
+        "active_carried_over": len(active_carried_over),
         "resolved_lines": len(resolved_in_vol),
         "overdue_lines": [l.get("id") for l in overdue_lines],
         "report_file": str(target_path) if target_path else None,

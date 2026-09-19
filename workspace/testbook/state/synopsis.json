@@ -1,0 +1,64 @@
+{
+  "ch_001": {
+    "chapter_id": "ch_001",
+    "volume_id": "vol_01",
+    "title": "灰烬打火机",
+    "timeline": "灰烬历七年·初秋·九月初三·黄昏",
+    "location": "城南拆迁楼·七层",
+    "chapter_type": "破局",
+    "dramatic_goal": "沈决在拆迁楼里被裴照堵住，第一次点燃灰烬打火机，烧掉了对方三分钟的记忆。",
+    "cliffhanger": "裴照忘了刚才的事，却低头看见自己手背上被烫出的编号。",
+    "word_count": 619,
+    "present_characters": [
+      "沈决",
+      "裴照"
+    ]
+  },
+  "ch_002": {
+    "chapter_id": "ch_002",
+    "volume_id": "vol_01",
+    "title": "三分钟的窟窿",
+    "timeline": "灰烬历七年·初秋·九月初四·上午",
+    "location": "西巷旧货店",
+    "chapter_type": "铺垫",
+    "dramatic_goal": "沈决试图查证编号来源，发现每次点燃都要以自己的一段记忆偿付。",
+    "cliffhanger": "沈决想不起母亲的脸。",
+    "word_count": 418,
+    "present_characters": [
+      "沈决",
+      "韩姨"
+    ]
+  },
+  "ch_003": {
+    "chapter_id": "ch_003",
+    "volume_id": "vol_01",
+    "title": "清算组的门",
+    "timeline": "灰烬历七年·初秋·九月初五·夜",
+    "location": "清算组档案室",
+    "chapter_type": "爆发",
+    "dramatic_goal": "沈决主动闯入清算组档案室，用最后两次充能换出全家档案。",
+    "cliffhanger": "档案袋里掉出一张照片，照片上的沈决站在裴照身边。",
+    "word_count": 281,
+    "present_characters": [
+      "沈决",
+      "裴照",
+      "齐鸣"
+    ]
+  },
+  "ch_004": {
+    "chapter_id": "ch_004",
+    "volume_id": "vol_01",
+    "title": "灰烬熄灭",
+    "timeline": "灰烬历七年·初秋·九月初五·深夜",
+    "location": "清算组档案室",
+    "chapter_type": "回收",
+    "dramatic_goal": "齐鸣为掩护沈决死于火场，沈决烧掉打火机，与裴照结下血债。",
+    "cliffhanger": "灰烬散尽，沈决在灰里摸到了第二枚打火机。",
+    "word_count": 265,
+    "present_characters": [
+      "沈决",
+      "裴照",
+      "齐鸣"
+    ]
+  }
+}

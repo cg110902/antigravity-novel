@@ -197,6 +197,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_audit = subparsers.add_parser("audit", help="运行探针生成质检报告")
     p_audit.add_argument("chapter_id")
     p_audit.add_argument("--write", action="store_true")
+    p_audit.add_argument("--force", action="store_true", help="强制重置已含 Auditor 成果的质检报告（自动备份 .bak）")
     p_audit.add_argument("-w", "--workspace", default=None)
 
     # finalize
@@ -476,9 +477,14 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 0
 
         elif args.command == "audit":
-            a_res = audit_chapter(ws, args.chapter_id, write_file=args.write)
+            a_res = audit_chapter(ws, args.chapter_id, write_file=args.write,
+                                  force=getattr(args, "force", False))
             if args.write:
-                print(f"🔍 探针骨架已生成: {a_res['target_audit']} (字数: {a_res['word_count']})")
+                if a_res.get("preserved"):
+                    print(f"🛡️ 已保留既有质检报告（含 Auditor 修补配方/涌现事实，未覆盖）: {a_res['target_audit']} (字数: {a_res['word_count']})")
+                    print("   💡 如需按最新正文重置探针骨架，请追加 --force（旧报告自动备份为 .bak）。")
+                else:
+                    print(f"🔍 探针骨架已生成: {a_res['target_audit']} (字数: {a_res['word_count']})")
             else:
                 print(f"👀 预览模式（未落盘）: 字数: {a_res['word_count']}")
             return 0

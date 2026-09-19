@@ -1,0 +1,146 @@
+{
+  "p_001<->p_002": {
+    "pair": [
+      "p_001",
+      "p_002"
+    ],
+    "names": [
+      "沈决",
+      "裴照"
+    ],
+    "first_seen_ch": "ch_001",
+    "last_seen_ch": "ch_003",
+    "total_co_occurrences": 3,
+    "chapters": [
+      "ch_001",
+      "ch_003",
+      "ch_004"
+    ],
+    "history": [
+      {
+        "chapter": "ch_001",
+        "dynamic": "猎物与猎手·暂时错位",
+        "subtext": "沈决怕的不是被抓，是被看穿他什么都不会"
+      },
+      {
+        "chapter": "ch_003",
+        "dynamic": "猎物与猎手·暂时错位",
+        "subtext": "沈决怕的不是被抓，是被看穿他什么都不会"
+      },
+      {
+        "chapter": "ch_004",
+        "dynamic": "血债·不死不休",
+        "subtext": "照片上的手还搭在他肩上"
+      }
+    ],
+    "last_interaction_summary": {
+      "chapter": "ch_003",
+      "dynamic": "血债·不死不休",
+      "unspoken_subtext": "照片上的手还搭在他肩上",
+      "tension": 95,
+      "affinity": 0
+    }
+  },
+  "p_001<->p_003": {
+    "pair": [
+      "p_001",
+      "p_003"
+    ],
+    "names": [
+      "沈决",
+      "韩姨"
+    ],
+    "first_seen_ch": "ch_002",
+    "last_seen_ch": "ch_002",
+    "total_co_occurrences": 1,
+    "chapters": [
+      "ch_002"
+    ],
+    "history": [
+      {
+        "chapter": "ch_002",
+        "dynamic": "互相隐瞒·旧识",
+        "subtext": "她认得这编号，却装不认得"
+      }
+    ],
+    "last_interaction_summary": {
+      "chapter": "ch_002",
+      "dynamic": "互相隐瞒·旧识",
+      "unspoken_subtext": "她认得这编号，却装不认得",
+      "tension": 40,
+      "affinity": 0
+    }
+  },
+  "p_001<->p_005": {
+    "pair": [
+      "p_001",
+      "p_005"
+    ],
+    "names": [
+      "沈决",
+      "齐鸣"
+    ],
+    "first_seen_ch": "ch_003",
+    "last_seen_ch": "ch_003",
+    "total_co_occurrences": 2,
+    "chapters": [
+      "ch_003",
+      "ch_004"
+    ],
+    "history": [
+      {
+        "chapter": "ch_003",
+        "dynamic": "临时共谋",
+        "subtext": "两个都输不起的人"
+      },
+      {
+        "chapter": "ch_004",
+        "dynamic": "临时共谋",
+        "subtext": "两个都输不起的人"
+      }
+    ],
+    "last_interaction_summary": {
+      "chapter": "ch_003",
+      "dynamic": "临时共谋",
+      "unspoken_subtext": "两个都输不起的人",
+      "tension": 30,
+      "affinity": 0
+    }
+  },
+  "p_002<->p_005": {
+    "pair": [
+      "p_002",
+      "p_005"
+    ],
+    "names": [
+      "裴照",
+      "齐鸣"
+    ],
+    "first_seen_ch": "ch_003",
+    "last_seen_ch": "ch_003",
+    "total_co_occurrences": 2,
+    "chapters": [
+      "ch_003",
+      "ch_004"
+    ],
+    "history": [
+      {
+        "chapter": "ch_003",
+        "dynamic": "同场",
+        "subtext": ""
+      },
+      {
+        "chapter": "ch_004",
+        "dynamic": "同场",
+        "subtext": ""
+      }
+    ],
+    "last_interaction_summary": {
+      "chapter": "ch_003",
+      "dynamic": "同场",
+      "unspoken_subtext": "",
+      "tension": 20,
+      "affinity": 0
+    }
+  }
+}

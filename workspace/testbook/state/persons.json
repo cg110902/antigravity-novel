@@ -1,0 +1,180 @@
+{
+  "p_001": {
+    "id": "p_001",
+    "name": "沈决",
+    "role": "protagonist",
+    "type": "person",
+    "tier_rank": 1,
+    "tier_name": "初始实力阶层",
+    "life_status": "alive",
+    "condition": "记忆缺失·想不起母亲的脸",
+    "status": "active",
+    "attitude": "friendly",
+    "established_ch": "ch_001",
+    "last_seen_ch": "ch_002",
+    "card": "characters/protagonist.md",
+    "arc_history": [
+      {
+        "chapter": "ch_001",
+        "want": "拖过这个黄昏，不交出灰烬",
+        "fear": "被发现他根本不懂灰烬的用法",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "旧伤未愈·强撑镇定",
+        "status_out": "左肩旧伤撕裂·首次持灰"
+      },
+      {
+        "chapter": "ch_004",
+        "want": "带档案活着出去",
+        "fear": "再失去一段记忆",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "左肩渗血·力竭",
+        "status_out": "重伤·记忆残缺"
+      },
+      {
+        "chapter": "ch_003",
+        "want": "取走全家档案",
+        "fear": "记忆被烧空",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "记忆有缺口·亢奋",
+        "status_out": "又失一段记忆·左肩渗血"
+      },
+      {
+        "chapter": "ch_002",
+        "want": "查出编号来历",
+        "fear": "发现代价不可逆",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "左肩旧伤撕裂·记忆有缺口",
+        "status_out": "记忆缺失·想不起母亲的脸"
+      }
+    ],
+    "want": "查出编号来历",
+    "fear": "发现代价不可逆"
+  },
+  "p_002": {
+    "id": "p_002",
+    "name": "裴照",
+    "role": "antagonist",
+    "type": "person",
+    "tier_rank": 2,
+    "tier_name": "反派阶层",
+    "life_status": "alive",
+    "condition": "戒备",
+    "status": "active",
+    "attitude": "hostile",
+    "established_ch": "ch_001",
+    "last_seen_ch": "ch_003",
+    "card": "characters/antagonist.md",
+    "arc_history": [
+      {
+        "chapter": "ch_001",
+        "want": "当场收缴灰烬并带走沈决",
+        "fear": "上级发现他私自截留灰烬",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "盛气凌人",
+        "status_out": "丢失三分钟记忆·手背烙印"
+      },
+      {
+        "chapter": "ch_004",
+        "want": "封口",
+        "fear": "合影被人看见",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "失控",
+        "status_out": ""
+      },
+      {
+        "chapter": "ch_003",
+        "want": "抓住闯入者",
+        "fear": "编号来历曝光",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "戒备",
+        "status_out": ""
+      }
+    ],
+    "want": "抓住闯入者",
+    "fear": "编号来历曝光"
+  },
+  "p_003": {
+    "id": "p_003",
+    "name": "韩姨",
+    "role": "ally",
+    "tier_name": "",
+    "condition": "警惕客套",
+    "sensory_anchor": "袖口常年沾着机油味",
+    "address_matrix": {},
+    "want": "把沈决劝离灰烬",
+    "fear": "旧事被翻出来",
+    "summary": "西巷旧货店老板娘，知晓灰烬来历",
+    "established_ch": "ch_002",
+    "last_seen_ch": "ch_002",
+    "life_status": "alive",
+    "arc_history": [
+      {
+        "chapter": "ch_002",
+        "want": "把沈决劝离灰烬",
+        "fear": "旧事被翻出来",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "警惕客套",
+        "status_out": ""
+      }
+    ]
+  },
+  "p_004": {
+    "id": "p_004",
+    "name": "巷口修鞋匠老崔",
+    "role": "supporting",
+    "tier_name": "",
+    "condition": "完好",
+    "sensory_anchor": "",
+    "address_matrix": {},
+    "want": "未锁定",
+    "fear": "未锁定",
+    "summary": "目击沈决进出旧货店的街坊",
+    "established_ch": "ch_002",
+    "last_seen_ch": "ch_002",
+    "life_status": "alive",
+    "arc_history": []
+  },
+  "p_005": {
+    "id": "p_005",
+    "name": "齐鸣",
+    "role": "ally",
+    "tier_name": "",
+    "condition": "被卷入·惊惧",
+    "sensory_anchor": "总在擦一副起雾的眼镜",
+    "address_matrix": {},
+    "want": "保住饭碗",
+    "fear": "被牵连",
+    "summary": "清算组夜班档案员",
+    "established_ch": "ch_003",
+    "last_seen_ch": "ch_003",
+    "life_status": "deceased",
+    "arc_history": [
+      {
+        "chapter": "ch_004",
+        "want": "活下去",
+        "fear": "火",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "惊惧",
+        "status_out": "为掩护沈决死于档案室火场"
+      },
+      {
+        "chapter": "ch_003",
+        "want": "保住饭碗",
+        "fear": "被牵连",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "值夜困倦",
+        "status_out": "被卷入·惊惧"
+      }
+    ]
+  }
+}
