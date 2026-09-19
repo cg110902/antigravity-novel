@@ -16,6 +16,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
 STUDIO = ROOT / "studio.py"
 
 PASS: list[str] = []
@@ -474,7 +475,77 @@ locked_facts: []
         _c = run(ws, "check")
         check("清理违规样本后 check 全书通过", _c.returncode == 0, _c.stdout[-800:])
 
-        print("\n=== 7. 快照 ===")
+        print("\n=== 7. --refresh 语义 ===")
+        f2 = ws / "manuscript/vol_01/final/ch_002.md"
+        old_wc = load(ws, "state/sync_log.json")["ch_002"]["word_count"]
+        f2.write_text(f2.read_text(encoding="utf-8") + "\n\n" + "他久久没有动，风从门缝里钻进来。" * 20,
+                      encoding="utf-8")
+        items_before = json.dumps(load(ws, "state/items.json"), sort_keys=True)
+        r = run(ws, "sync", "ch_002", "--refresh")
+        check("refresh 成功", r.returncode == 0)
+        sl = load(ws, "state/sync_log.json")["ch_002"]
+        new_wc = sl["word_count"]
+        check("BUG#11 refresh 同步 sync_log 字数", new_wc > old_wc, f"{old_wc} -> {new_wc}")
+        check("BUG#11 refresh 同步 timeline 字数",
+              [t2["word_count"] for t2 in load(ws, "state/timeline.json") if t2["chapter_id"] == "ch_002"] == [new_wc])
+        check("BUG#11 refresh 同步 synopsis 字数",
+              load(ws, "state/synopsis.json")["ch_002"]["word_count"] == new_wc)
+        check("BUG#11 refresh 重算全书总字数",
+              load(ws, "project.json")["current_status"]["total_published_words"]
+              == sum(t2.get("word_count", 0) or 0 for t2 in load(ws, "state/timeline.json")))
+        check("refresh 不重放台账增量",
+              json.dumps(load(ws, "state/items.json"), sort_keys=True) == items_before)
+        check("refresh 后指纹已对齐（不再报版本冲突）", run(ws, "sync", "ch_002").returncode == 0)
+        (ws / "outlines/vol_01/beats/ch_008.md").write_text(
+            BEATS_002.replace("ch_002", "ch_008").replace('title: "三分钟的窟窿"', 'title: "未同步章"'),
+            encoding="utf-8")
+        (ws / "manuscript/vol_01/final/ch_008.md").write_text("沈决推开门，屋里没有人。" * 20, encoding="utf-8")
+        r = run(ws, "sync", "ch_008", "--refresh")
+        check("BUG#12 未同步章误用 --refresh 被拦截（不静默穿透成入账）",
+              r.returncode == 1 and "无指纹可刷新" in r.stderr, f"exit={r.returncode}")
+        check("BUG#12 被拦截后确未入账", "ch_008" not in (load(ws, "state/sync_log.json") or {}))
+        (ws / "outlines/vol_01/beats/ch_008.md").unlink()
+
+        print("\n=== 8. 损坏隔离与死亡章判定 ===")
+        (ws / "state/items.json").write_text('{"it_001": {broken', encoding="utf-8")
+        r1 = run(ws, "id", "list", "item")
+        check("坏表首次触碰 exit 4", r1.returncode == 4, f"exit={r1.returncode}")
+        r2 = run(ws, "id", "list", "item")
+        check("BUG#13 坏表隔离后二次调用仍硬失败（不静默空表放行）",
+              r2.returncode == 4, f"exit={r2.returncode}")
+        r3 = run(ws, "sync", "ch_001", "--force")
+        check("BUG#13 台账蒸发态下 sync 亦停机", r3.returncode == 4, f"exit={r3.returncode}")
+        rc = run(ws, "check")
+        check("BUG#14 正主缺席的隔离残骸判为阻断错误",
+              "状态表损坏后未恢复" in rc.stdout and rc.returncode == 1)
+        corrupt = next((ws / "state").glob("items.json.corrupt-*"))
+        shutil.copy(corrupt, ws / "state/items.json.bad")
+        (ws / "state/items.json").write_text(
+            json.dumps({"it_001": {"id": "it_001", "name": "灰烬打火机", "charges": 2,
+                                   "status": "active", "holder": "沈决"}}, ensure_ascii=False),
+            encoding="utf-8")
+        check("恢复正主后恢复放行", run(ws, "id", "list", "item").returncode == 0)
+        rc = run(ws, "check")
+        check("BUG#14 正主已恢复的残骸降级为 warning",
+              "状态表损坏隔离残留" in rc.stdout and "状态表损坏后未恢复" not in rc.stdout)
+        corrupt.unlink()
+        (ws / "state/items.json.bad").unlink()
+
+        from engine.state import get_death_chapter
+        check("BUG#15 中文「死于…」可识别为死亡语义",
+              get_death_chapter({"arc_history": [{"chapter": "ch_004", "status_out": "为掩护主角死于火场"}],
+                                 "last_seen_ch": "ch_003"}) == "ch_004")
+        check("BUG#15 「牺牲」可识别",
+              get_death_chapter({"arc_history": [{"chapter": "ch_007", "status_out": "壮烈牺牲"}]}) == "ch_007")
+        check("BUG#15 arc_history 倒序时取最晚死亡章",
+              get_death_chapter({"arc_history": [
+                  {"chapter": "ch_009", "status_out": "确认阵亡"},
+                  {"chapter": "ch_002", "status_out": "重伤濒死，身死道消"}]}) == "ch_009")
+        check("BUG#15 无死亡语义时取最晚露面章",
+              get_death_chapter({"life_status": "deceased", "last_seen_ch": "ch_003",
+                                 "arc_history": [{"chapter": "ch_005", "status_out": "倒下"}]}) == "ch_005")
+
+        print("\n=== 9. 快照 ===")
         r = run(ws, "snapshot", "create", "rt")
         check("快照创建", r.returncode == 0)
         snap = sorted((ws / "snapshots").glob("rt_*.zip"))[-1].stem

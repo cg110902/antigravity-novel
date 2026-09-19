@@ -104,3 +104,42 @@ Auditor 成果保护与配方闭环、四类硬阻断（空正文 / 未填槽位
 在真实测试书 `workspace/testbook`（4 章成稿）上复测：`check` 0 error；
 `sync --force` 重放 ch_003 两次后 `it_001.charges` 稳定在 0、debts 稳定 3 条；
 历史上被错记为 GUN 的 `KNO-001` 在重新 sync 后自动纠正为 KNO。
+
+
+---
+
+# 第 3 轮：`--refresh`、损坏隔离、死亡章判定（v4.3.2 续）
+
+延续第 1 轮遗留的三项待验证面（`sync --refresh`、JSON 损坏隔离 exit 4），又挖出 5 个缺陷，其中 1 个 P0。
+
+### BUG#13（P0）损坏隔离后，下一条命令静默以空表放行 —— 台账无声蒸发
+- 复现：`echo '{"it_001": {broken' > state/items.json`；`id list item` → exit 4（正确）；**再跑同一条命令 → exit 0，台账显示为空**；`id next item` 从 it_003 退回 it_001。
+- 根因：`engine/state.py::_load_json` 隔离时把坏表 rename 成 `*.corrupt-<ts>`，原路径随之消失；下次调用只看到「文件不存在」，走合法首跑分支返回空表。
+- 影响：与该函数 docstring 明文承诺的「绝不静默以空表继续」**正相反**。发号器会重发已占 ID，随后任一次 `_save_json` 会把空表落盘，真实台账被永久覆盖。AGENTS.md「遇 4 必须停机」的铁律也被绕过——重试一次就"好了"，恰恰是最危险的假象。
+- 修复：`_load_json` 在「文件缺失」分支增加隔离残骸探测，只要同目录存在该表的 `.corrupt-*` 且正主未恢复，持续 RuntimeError（exit 4）直到人工处置。
+
+### BUG#14（P1）`check` 把「正主缺席的隔离残骸」当历史遗迹，仅报 warning
+- 根因：`engine/check.py` 对所有 `.corrupt-*` 一律 warning。
+- 影响：台账正处蒸发态时体检仍可能打出 ✅。
+- 修复：按正主是否已恢复二分——缺席 → error 阻断；已恢复 → 保留 warning。
+
+### BUG#15（P1）死亡章判定漏识中文常用表述 + 取错 arc_history 条目
+- 复现：《灰烬纪元》齐鸣(p_005) 于 ch_004 牺牲，`check` 常驻报错「已于第 ch_003 章阵亡，禁止在后续章节登场」，把他真正的牺牲章反诬为死者复活。
+- 根因：`engine/state.py::get_death_chapter` 两处——① 关键词表只有「阵亡/身死/被斩杀…」，漏掉「死于」「牺牲」等最常见写法，整条 `为掩护沈决死于档案室火场` 不命中，回落到 `last_seen_ch`（ch_003）；② 命中后取首个条目，而 arc_history 实际为倒序，章号会取错。
+- 影响：任何用自然中文描述死亡的书都会在牺牲当章被误判阻断，且错误信息指向错误章号，极难自查。
+- 修复：扩充死亡语义词表至 17 个；改取命中项中**章号最大**者；未命中语义但已 deceased 时取 `last_seen_ch` 与 arc_history 最晚章的较晚者。
+- 效果：`workspace/testbook` 体检由「1 条常驻阻断错误」变为 ✅ 0 error。
+
+### BUG#11（P1）`--refresh` 不更新任何字数统计
+- 复现：ch_002 正文从 418 字润色扩写到 976 字后 `sync --refresh` → `sync_log`/`timeline`/`synopsis`/`project.total_published_words` 全部仍是 418；cockpit 字数曲线、配额与导出统计集体失真。
+- 根因：`engine/ops.py::sync_chapter` 的 refresh 分支只改 `final_sha1`。
+- 说明：字数是正文派生事实而非细纲增量，刷新它不违反「不重复入账」语义；而字数恰恰是文笔修订最常变动的量。
+- 修复：refresh 分支同步刷新四处字数统计，台账增量仍不重放。
+
+### BUG#12（P2）对从未同步过的章使用 `--refresh` 会静默穿透成完整入账
+- 根因：refresh 分支条件为 `if refresh and prev`，`prev` 为空时直接落到正常入账主流程。
+- 影响：与「只刷新指纹、不入账」的承诺相反，而这通常是用户误加参数。
+- 修复：`refresh and not prev` 时 GuardError 阻断，提示改用不带 `--refresh` 的首次入账。
+
+### 回归
+`tests/regression_test.py` 扩充至 **72 项断言全通过**，新增「--refresh 语义」与「损坏隔离与死亡章判定」两个测试段。

@@ -1101,16 +1101,55 @@ def sync_chapter(workspace: Path, chapter_id: str, force: bool = False, refresh:
     prev = sync_log.get(chapter_id)
     if refresh and prev:
         # v4.2 --refresh：纯文笔修订（beats/deltas 未变），只更新指纹不重复入账
+        # v4.3.2 缺陷#11：旧版只改 sha1，字数全线不更新 ⇒ 润色把 418 字扩到 976 字后，
+        # sync_log / timeline / synopsis / project.total_published_words 仍停留在旧值，
+        # cockpit 字数曲线、配额统计、export 统计集体失真（而字数恰恰是文笔修订最常变的量）。
+        # 字数是正文的派生事实、不是细纲增量，刷新它不违反「不重复入账」的语义。
         prev["final_sha1"] = final_sha1
         prev["refreshed_at"] = datetime.now().isoformat(timespec="seconds")
+        prev["word_count"] = word_count
         _save_json(sync_log_file, sync_log)
+
+        _r_ledger = StateLedger(workspace)
+        # timeline.json：同步该章字数
+        _tl = _r_ledger.get_timeline()
+        _tl_hit = False
+        for _t in _tl:
+            if _t.get("chapter_id") == chapter_id:
+                _t["word_count"] = word_count
+                _tl_hit = True
+        if _tl_hit:
+            _save_json(workspace / "state" / "timeline.json", _tl)
+        # synopsis.json：同步该章字数
+        _syn_file = workspace / "state" / "synopsis.json"
+        _syn = _load_json(_syn_file, default={})
+        if isinstance(_syn, dict) and chapter_id in _syn and isinstance(_syn[chapter_id], dict):
+            _syn[chapter_id]["word_count"] = word_count
+            _save_json(_syn_file, _syn)
+        # project.json：按刷新后的 timeline 重算全书累计字数
+        _proj_file = workspace / "project.json"
+        _pdata = _load_json(_proj_file, default={})
+        if isinstance(_pdata, dict):
+            _pdata.setdefault("current_status", {})
+            _pdata["current_status"]["total_published_words"] = sum(
+                t.get("word_count", 0) or 0 for t in _tl
+            )
+            _save_json(_proj_file, _pdata)
+
         return {
             "chapter_id": chapter_id,
             "title": frontmatter.get("title", ""),
             "word_count": word_count,
             "refreshed": True,
-            "note": "已按修订版正文刷新同步指纹，台账增量未重复入账。",
+            "note": "已按修订版正文刷新同步指纹与字数统计，台账增量未重复入账。",
         }
+    if refresh and not prev:
+        # v4.3.2 缺陷#12：旧版 --refresh 对从未同步过的章会静默穿透成一次完整入账，
+        # 与「只刷新指纹、不入账」的承诺相反，且用户往往是误加了该参数。
+        raise GuardError(
+            f"第 {chapter_id} 章尚未同步过，`--refresh` 无指纹可刷新。",
+            solution=f"首次入账请直接运行 `python studio.py sync {chapter_id}`（不带 --refresh）。",
+        )
     if prev and prev.get("final_sha1") == final_sha1 and not force:
         # v4.2.1: --force 现允许同稿重放（数据层增量已按章幂等，重放不翻倍）
         return {

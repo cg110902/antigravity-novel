@@ -114,17 +114,47 @@ def _chapter_num(chapter_id: str) -> int:
     return int(m.group(1)) if m else 0
 
 
+_DEATH_KEYWORDS = (
+    "阵亡", "永久湮灭", "身死", "气绝身亡", "被斩杀", "deceased", "dead",
+    # v4.3.2 缺陷#15：旧词表过窄，漏掉中文最常见的死亡表述。实测「为掩护沈决死于
+    # 档案室火场」整条不命中 ⇒ 回落到 last_seen_ch，把死于 ch_004 的齐鸣判成
+    # 「已于 ch_003 阵亡」，于是他真正的牺牲章 ch_004 被反诬为「死者复活」，
+    # 全书体检对一本完全正常的书常驻 1 条阻断错误。
+    "死于", "牺牲", "殒命", "丧生", "身亡", "毙命", "战死", "烧死", "溺亡", "自尽", "遇害",
+)
+
+
+def _ch_order(cid: str) -> int:
+    m = re.search(r"(\d+)", str(cid or ""))
+    return int(m.group(1)) if m else -1
+
+
 def get_death_chapter(char_data: Any) -> str:
-    """获取角色的阵亡章节。"""
+    """获取角色的阵亡章节。
+
+    v4.3.2 缺陷#15：取 arc_history 中命中死亡语义的**最晚**一章，而非首个命中项
+    —— arc_history 不保证按章序排列（实测实际为倒序），首命中会给出错误章号。
+    """
     if not isinstance(char_data, dict):
         return ""
+    hits = []
     for a in char_data.get("arc_history", []):
         if not isinstance(a, dict):
             continue
         s_out = str(a.get("status_out", "")).lower()
-        if any(k in s_out for k in ("阵亡", "永久湮灭", "身死", "气绝身亡", "被斩杀", "deceased", "dead")):
-            return str(a.get("chapter", ""))
-    return str(char_data.get("last_seen_ch", ""))
+        if any(k in s_out for k in _DEATH_KEYWORDS):
+            hits.append(str(a.get("chapter", "")))
+    if hits:
+        return max(hits, key=_ch_order)
+
+    # 未命中语义关键词但已登记为 deceased（如通过 life_status 显式声明）：
+    # 取「最后露面章」与「弧光轨迹最晚一章」中较晚者，避免把死亡当章误判成复活。
+    cands = [str(char_data.get("last_seen_ch", "") or "")]
+    for a in char_data.get("arc_history", []):
+        if isinstance(a, dict) and a.get("chapter"):
+            cands.append(str(a["chapter"]))
+    cands = [c for c in cands if c]
+    return max(cands, key=_ch_order) if cands else ""
 
 
 def _ensure_dir(p: Path) -> Path:
@@ -139,6 +169,25 @@ def _load_json(p: Path, default: Any = None) -> Any:
       （旧版静默返回 {}，下一次保存会用空表覆盖真实台账，造成无痕数据蒸发）。
     """
     if not p.exists():
+        # v4.3.2 缺陷#13（P0 · 静默空表放行）：损坏隔离把坏表 rename 成 *.corrupt-<ts> 后，
+        # 原路径就此消失。下一条命令走到这里只看到「文件不存在」，当成合法首跑返回空表 ——
+        # 于是第 1 次 exit 4 停机，第 2 次同一命令 exit 0 若无其事，发号器按空表重新发
+        # it_001（实测 `id next item` 从 it_003 退回、`id list` 显示台账为空），
+        # 真实台账被无声抹掉，正好撞穿本函数 docstring 承诺的「绝不静默以空表继续」。
+        # 修正：只要同目录留有该表的隔离残骸且正主缺席，一律持续硬失败直到人工处置。
+        try:
+            leftovers = sorted(q.name for q in p.parent.glob(p.name + ".corrupt-*"))
+        except OSError:
+            leftovers = []
+        if leftovers:
+            raise RuntimeError(
+                f"状态文件缺失但存在损坏隔离残骸: {p.name} 已于此前损坏并被隔离为 "
+                f"{', '.join(leftovers[-3:])}，而正主文件至今未恢复。"
+                f"引擎拒绝以空表继续运行（否则发号器会重发已占 ID、台账将被空表覆盖）。"
+                f"请用 `python studio.py snapshot list` + `snapshot rollback <快照名>` 恢复，"
+                f"或修复隔离文件后改名还原为 {p.name}；确认该表本就应为空时，"
+                f"可手工写入空表（{{}} 或 []）并清理残骸。"
+            )
         return default if default is not None else {}
     try:
         with open(p, "r", encoding="utf-8-sig") as f:

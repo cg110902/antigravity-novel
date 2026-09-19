@@ -108,12 +108,27 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
     state_dir = workspace / "state"
     if state_dir.exists():
         corrupt_leftovers = sorted(p.name for p in state_dir.glob("*.corrupt-*"))
-        if corrupt_leftovers:
+        # v4.3.2 缺陷#14：残骸一律 warning 的定级过轻。残骸分两类，
+        # 「正主已恢复」才是历史遗迹（warning）；「正主仍缺席」意味着该表此刻正处于
+        # 数据蒸发态，必须 error 阻断，否则体检对着一本丢了台账的书打出 ✅。
+        _orphaned, _historic = [], []
+        for name in corrupt_leftovers:
+            origin = name.split(".corrupt-")[0]
+            (_historic if (state_dir / origin).exists() else _orphaned).append(name)
+        if _orphaned:
+            errors.append(
+                f"状态表损坏后未恢复 ×{len(_orphaned)}: {', '.join(_orphaned[:5])}"
+                + (" …" if len(_orphaned) > 5 else "")
+                + "。对应的正主状态表至今缺失，台账处于蒸发态。"
+                  "\n      💡 方案：请立即用 `python studio.py snapshot list` + "
+                  "`snapshot rollback <快照名>` 恢复；或修复隔离文件后改回原名。"
+            )
+        if _historic:
             warnings.append(
-                f"状态表损坏隔离残留 ×{len(corrupt_leftovers)}: {', '.join(corrupt_leftovers[:5])}"
-                + (" …" if len(corrupt_leftovers) > 5 else "")
-                + "。\n      💡 方案：这些是历史上损坏被自动隔离的状态表副本。若当前体检全域通过且无业务异常，"
-                  "确认无用后可手动删除；若需要取证请先归档再清理。"
+                f"状态表损坏隔离残留 ×{len(_historic)}: {', '.join(_historic[:5])}"
+                + (" …" if len(_historic) > 5 else "")
+                + "。\n      💡 方案：这些是历史上损坏被自动隔离的状态表副本（正主已恢复）。"
+                  "若当前体检全域通过且无业务异常，确认无用后可手动删除；若需要取证请先归档再清理。"
             )
 
     # 3. 状态表数据异常巡检（只读告警，不静默改数）
