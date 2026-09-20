@@ -105,8 +105,18 @@ _PERSON_FM_FIELDS: Tuple[str, ...] = (
 _ITEM_FM_FIELDS: Tuple[str, ...] = (
     "card", "summary", "tier_rank", "tier_name", "condition", "max_charges",
     "cost_per_use", "faction", "location", "sensory_anchor",
+    # FIND-CT35（S-1 漏网）：durability 是 schema.ItemRecord 契约字段，细纲
+    # new_entities 显式声明 "durability: 九成新" 旧版被静默丢弃（state_deltas.items
+    # 的 durability 有独立落账路径，new_entities 这条路漏了）。
+    "durability",
 )
-_PLACE_FM_FIELDS: Tuple[str, ...] = ("card", "summary", "danger_tier", "sensory_anchor")
+_PLACE_FM_FIELDS: Tuple[str, ...] = (
+    "card", "summary", "danger_tier", "sensory_anchor",
+    # FIND-CT35 续：danger_level 与 environment_rules 是 schema.PlaceRecord 契约
+    # 字段——check 的「地点数据残缺」巡逻的正是它们，细纲声明却落空等于让作者
+    # 补无可补（只能手搓 state/places.json）。
+    "danger_level", "environment_rules",
+)
 _FACTION_FM_FIELDS: Tuple[str, ...] = (
     "card", "scale_tier", "leader", "headquarters", "core_assets", "diplomacy",
 )
@@ -393,6 +403,22 @@ def _load_json(p: Path, default: Any = None) -> Any:
             f"状态文件 JSON 损坏: {p.name}（{e}）。{dest_hint}。"
             f"引擎拒绝以空表继续运行以防台账蒸发；请用 `python studio.py snapshot list` + `snapshot rollback` "
             f"恢复最近快照，或手工修复该文件后重试。"
+        ) from e
+    except UnicodeDecodeError as e:
+        # FIND-CT2：编码损坏（非 UTF-8 字节）与 JSON 损坏同级——旧版它作为
+        # ValueError 子类被 cli 的「参数校验桶」吞掉，报 exit 1 且文案误导
+        # （用户参数没问题，是表文件被写坏了）。此处隔离 + exit 4 归位。
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        corrupt = p.with_name(p.name + f".corrupt-{ts}")
+        try:
+            p.rename(corrupt)
+            dest_hint = f"坏文件已隔离为: {corrupt.name}"
+        except Exception:
+            dest_hint = "坏文件隔离失败，请手工处理"
+        raise RuntimeError(
+            f"状态文件编码损坏（非 UTF-8 字节）: {p.name}（{e}）。{dest_hint}。"
+            f"引擎拒绝以空表继续运行以防台账蒸发；请用 `python studio.py snapshot list` + `snapshot rollback` "
+            f"恢复最近快照，或以 UTF-8 编码重写该文件后重试。"
         ) from e
     except OSError as e:
         raise RuntimeError(f"状态文件不可读: {p.name}（{e}）。请检查磁盘与权限后重试。") from e
@@ -742,6 +768,9 @@ class StateManager:
         else:
             _pending_entity_writes = []
             persons_db = self.get_persons()
+            # FIND-D1：预检需要吃「内存 items_db」才能看到同章 new_entities 新道具；
+            # 此处保证无论 new_entities 是否为空，items_db 都是内存态。
+            items_db = self.get_items()
 
         # 1. 同步人物与心理状态
         # 注意：此处不可重新 get_persons()——新实体尚未落盘，需沿用上方内存态。
@@ -848,14 +877,41 @@ class StateManager:
                     f"💡 方案：请在细纲 beats/ch_XXX.md 的 present_characters 中移除该角色；若确系复活反转剧情，请先委派 Stage 4C (novel-evolution) 重构人物档案。"
                 )
         if isinstance(item_deltas, list):
-            _items_pre = self.get_items()
+            # FIND-D1（L3·透支预检盲区）：旧版在此从磁盘重读 items 表——同章
+            # new_entities 新道具要到 884 行才落盘，磁盘快照里根本没有它，charges 取
+            # 默认 -1 使透支检查整段跳过；预检"通过"后应用侧发现扣成负值又静默丢弃，
+            # 而 transfer_history 照记 charges_delta ⇒ sync exit 0 且台账自相矛盾
+            # （实测 it_007：charges 停在 2、流水却写着 -3）。
+            # 修正：预检改吃内存 items_db（含新道具），且道具引用解析与应用侧
+            # 统一步走 _resolve_item_id（D2：细纲按名称/非 ID 引用时旧版预检裸 id
+            # 查无此人同样漏检）。预检口径==应用口径。
+            _items_pre = items_db
             for it in item_deltas:
                 if not isinstance(it, dict):
                     continue
-                _iid = str(it.get("id", "")).strip()
+                _raw_id = str(it.get("id", "") or "").strip()
+                _raw_nm = str(it.get("name", "") or "").strip()
+                _iid = _resolve_item_id(_raw_id or _raw_nm, _items_pre) or _raw_id or _raw_nm
                 if not _iid:
                     continue
                 _rec = _items_pre.get(_iid, {})
+                # FIND-CT1：脏值消毒防线（存量）——charges 非 int / < -1 时旧版直接
+                # `None >= 0` TypeError 崩栈成 exit 4「未预期异常」，而 check 本就能
+                # 检出该脏值。此处对齐 check 口径，在写盘前以业务阻断（exit 1 + 方案）
+                # 拦下，杜绝系统级退出码错位。
+                _raw_charges = _rec.get("charges", -1)
+                if (
+                    not isinstance(_raw_charges, int)
+                    or isinstance(_raw_charges, bool)
+                    or _raw_charges < -1
+                ):
+                    _fatal.append(
+                        f"道具规则阻断：道具 [{it.get('name') or _iid}] ({_iid}) 的 charges 值非法: "
+                        f"{_raw_charges!r}（合法范围: >= -1 的整数，-1 为非计数型无限耐久）。\n"
+                        f"💡 方案：请先在 state/items.json 中将该字段修正为合法整数，"
+                        f"或检查细纲 new_entities 中的 charges 声明后重试。"
+                    )
+                    continue
                 try:
                     _d = int(it.get("charges_delta", 0))
                 except (ValueError, TypeError):
@@ -870,11 +926,24 @@ class StateManager:
                         except (ValueError, TypeError):
                             pass
                 _d = _d - _prev_d
-                if _rec.get("charges", -1) >= 0 and _rec.get("charges", 0) + _d < 0:
+                # 口径统一：一律用 _raw_charges（已消毒为合法 int 或 -1），杜绝旧版
+                # `get(..., 0)` 默认 0 与 `get(..., -1)` 默认 -1 的双口径漂移。
+                if _raw_charges >= 0 and _raw_charges + _d < 0:
                     _fatal.append(
                         f"道具规则阻断：道具 [{it.get('name') or _iid}] ({_iid}) 充能已耗尽 "
-                        f"(当前 {_rec.get('charges')}，拟扣减 {_d})，不可透支使用！\n"
+                        f"(当前 {_raw_charges}，拟扣减 {_d})，不可透支使用！\n"
                         f"💡 方案：请在细纲 state_deltas.items 中调整 charges_delta 扣减值，或在前置剧情安排充能。"
+                    )
+                # FIND-D1b（静默无效扣减）：道具 delta 引用了一个 items 表中不存在的 id，
+                # 且带非零 charges_delta——旧版按默认 -1（无限耐久）把扣减静默吞掉，
+                # 台账零变化、零告警。此处显式告警，提示作者先建档或改用正确 id。
+                if _iid not in _items_pre and _d != 0:
+                    warnings.append(
+                        f"道具 [{it.get('name') or _iid}] ({_iid}) 未在 state/items.json 建档，"
+                        f"本章 charges_delta={_d} 已按「非计数型（-1）」忽略，台账不会发生充能变更。\n"
+                        f"      💡 方案：若该道具应为计数型，请在细纲 new_entities 中声明 "
+                        f'{{id: "{_iid}", type: "item", name: "...", charges: <初始次数>, max_charges: <上限>}}；'
+                        f"若引用笔误请修正 id。"
                     )
         if _fatal:
             # 预检不通过：此刻尚未发生任何写盘，新实体随内存一并丢弃（零污染）。
@@ -1072,8 +1141,23 @@ class StateManager:
                         except (ValueError, TypeError):
                             pass
                 _net_delta = delta_int - _prev_delta
-                if irecord.get("charges", -1) >= 0:
-                    new_charges = irecord["charges"] + _net_delta
+                # FIND-CT1：脏值消毒防线（同章新建）——new_entities 本章声明的 charges
+                # 非 int 时（如显式 null），预检读的是落盘前快照拦不到，应用层必须兜底：
+                # 跳过充能变更并告警，其余 delta（持有人/状态）照常入账。
+                _cur_charges = irecord.get("charges", -1)
+                if (
+                    not isinstance(_cur_charges, int)
+                    or isinstance(_cur_charges, bool)
+                    or _cur_charges < -1
+                ):
+                    warnings.append(
+                        f"道具 [{raw_id or iname or iid}] 的 charges 值非法: {_cur_charges!r}"
+                        f"（合法范围: >= -1 的整数，-1 为非计数型无限耐久），本次充能变动已跳过。\n"
+                        f"      💡 方案：请在 state/items.json 中将该字段修正为合法整数后重跑 sync"
+                        f"（或去掉细纲 new_entities 中的 charges 声明）。"
+                    )
+                elif _cur_charges >= 0:
+                    new_charges = _cur_charges + _net_delta
                     if new_charges >= 0:
                         irecord["charges"] = new_charges
 
@@ -1264,7 +1348,11 @@ class StateManager:
                 # 这条路径是常态而非边角。改为按（章节+双方+类型）派生稳定幂等键。
                 d_id = str(dd.get("id", "") or "").strip()
                 if not d_id:
-                    _seed = f"{ch_id}|{d_source}|{d_target}|{d_type}"
+                    # FIND-CT11（ID-4·恩怨静默抹除）：旧种子 `章节|双方|类型` 不含
+                    # 事由——同章同双方同类型不同 desc 的两条恩怨（如既结"杀父之仇"
+                    # 又欠"夺财之恨"，type 均 grudge）算出同一 hash，sync 的「同 id
+                    # 先删后加」把前一条无声抹掉。种子追加 desc，语义才够区分。
+                    _seed = f"{ch_id}|{d_source}|{d_target}|{d_type}|{d_desc}"
                     d_id = "DEBT-AUTO-" + hashlib.sha1(_seed.encode("utf-8")).hexdigest()[:8]
 
                 if d_action == "record":
@@ -1449,6 +1537,14 @@ class StateManager:
             "dramatic_goal": dramatic_goal,
             "cliffhanger": cliffhanger_desc,
         })
+        # FIND-CT23（FN-2 根治 · 同步修复自伤假阳性）：旧版 append 到尾部，
+        # `--force` 重放旧章会把该章条目移到尾部，timeline 陷入乱序——cockpit
+        # 节奏遥测、卷末统计与新加的倒置巡检全部失真。按 chapter_id 数字序
+        # 稳定排序：任何重放顺序下终态一致（幂等的自然延伸）。
+        def _tl_ch_key(_t: Dict[str, Any]) -> int:
+            _mm = re.search(r"(\d+)$", str(_t.get("chapter_id", "")))
+            return int(_mm.group(1)) if _mm else 0
+        timeline_list.sort(key=_tl_ch_key)
         _save_json(self.timeline_file, timeline_list)
 
         # 8. 即时现场快照 (current.json)

@@ -39,6 +39,7 @@ description: Universal narrative logic refiner and prose smoothing engine for No
    - **修正人物表达逻辑**；
    - **修正事实矛盾逻辑**；
    - **修正立场动机逻辑**；
+   - **修正空间跳跃逻辑**；
 
 
 2. **顺滑语句与呼吸节拍**： 

@@ -1,0 +1,69 @@
+{
+  "p_001->p_002": {
+    "pair": "p_001->p_002",
+    "source_id": "p_001",
+    "target_id": "p_002",
+    "affinity": 0,
+    "trust": 50,
+    "tension": 90,
+    "dynamic_label": "公开决裂",
+    "unspoken_subtext": "不死不休",
+    "history": [
+      {
+        "chapter": "ch_001",
+        "dynamic": "表面客套·暗中博弈",
+        "subtext": "都想置对方于死地",
+        "affinity": 0,
+        "tension": 75
+      },
+      {
+        "chapter": "ch_002",
+        "dynamic": "公开决裂",
+        "subtext": "不死不休",
+        "affinity": 0,
+        "tension": 90
+      }
+    ],
+    "last_updated_ch": "ch_002"
+  },
+  "p_001->p_010": {
+    "pair": "p_001->p_010",
+    "source_id": "p_001",
+    "target_id": "p_010",
+    "affinity": -100,
+    "trust": 0,
+    "tension": 0,
+    "dynamic_label": "零张力",
+    "unspoken_subtext": "",
+    "history": [
+      {
+        "chapter": "ch_010",
+        "dynamic": "零张力",
+        "subtext": "",
+        "affinity": -100,
+        "tension": 0
+      }
+    ],
+    "last_updated_ch": "ch_010"
+  },
+  "p_001->p_050": {
+    "pair": "p_001->p_050",
+    "source_id": "p_001",
+    "target_id": "p_050",
+    "affinity": 0,
+    "trust": 50,
+    "tension": 50,
+    "dynamic_label": "单dict关系",
+    "unspoken_subtext": "",
+    "history": [
+      {
+        "chapter": "ch_015",
+        "dynamic": "单dict关系",
+        "subtext": "",
+        "affinity": 0,
+        "tension": 50
+      }
+    ],
+    "last_updated_ch": "ch_015"
+  }
+}

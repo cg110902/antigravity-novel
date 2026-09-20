@@ -1,0 +1,30 @@
+{
+  "GUN-001": {
+    "id": "GUN-001",
+    "name": "矿工铭牌",
+    "type": "GUN",
+    "tier": "A",
+    "status": "active",
+    "planted_ch": "ch_001",
+    "target_ch": "",
+    "revealed_chs": [
+      "ch_002"
+    ],
+    "resolved_ch": "",
+    "desc": "陈默向老矿工出示铭牌",
+    "evidence": ""
+  },
+  "GUN-002": {
+    "id": "GUN-002",
+    "name": "边界伏笔",
+    "type": "GUN",
+    "tier": "A",
+    "status": "active",
+    "planted_ch": "ch_010",
+    "target_ch": "",
+    "revealed_chs": [],
+    "resolved_ch": "",
+    "desc": "字段边界埋设",
+    "evidence": ""
+  }
+}

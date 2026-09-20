@@ -1,0 +1,29 @@
+{
+  "p_001->p_002": {
+    "pair": "p_001->p_002",
+    "source_id": "p_001",
+    "target_id": "p_002",
+    "affinity": 0,
+    "trust": 50,
+    "tension": 90,
+    "dynamic_label": "公开决裂",
+    "unspoken_subtext": "不死不休",
+    "history": [
+      {
+        "chapter": "ch_001",
+        "dynamic": "表面客套·暗中博弈",
+        "subtext": "都想置对方于死地",
+        "affinity": 0,
+        "tension": 75
+      },
+      {
+        "chapter": "ch_002",
+        "dynamic": "公开决裂",
+        "subtext": "不死不休",
+        "affinity": 0,
+        "tension": 90
+      }
+    ],
+    "last_updated_ch": "ch_002"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "fac_010": {
+    "id": "fac_010",
+    "name": "空资产势力",
+    "summary": "零核心资产势力",
+    "established_ch": "ch_010",
+    "scale_tier": 1,
+    "leader": "",
+    "core_assets": [],
+    "diplomacy": {}
+  },
+  "fac_020": {
+    "id": "fac_020",
+    "name": "字符串规模势力",
+    "summary": "字符串 scale_tier",
+    "established_ch": "ch_011",
+    "scale_tier": "一"
+  },
+  "fac_060": {
+    "id": "fac_060",
+    "name": "标准势力",
+    "summary": "",
+    "established_ch": "ch_016"
+  },
+  "fac_061": {
+    "id": "fac_061",
+    "name": "组织势力",
+    "summary": "",
+    "established_ch": "ch_016"
+  }
+}

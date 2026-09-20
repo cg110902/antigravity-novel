@@ -16,11 +16,16 @@ class BusinessError(Exception):
         super().__init__(self.message)
 
     def __str__(self) -> str:
-        if self.solution:
-            if "💡" in self.message:
-                return self.message
-            return f"{self.message}\n💡 解决方案：{self.solution}"
-        return self.message
+        # FIND-CT49（E-1·solution 静默丢弃）：旧版只要 message 内出现任意 "💡"
+        # 就直接返回 message——构造时传入的 solution 被静默丢弃，而 message 与
+        # solution 内容可能实际不同（不等同去重）。依赖 str(e) 的展示路径（审计
+        # 日志、二次包装）因此丢失修复建议。改为精确去重：仅当 message 已内嵌
+        # 同一 solution 时才跳过附加。
+        if not self.solution:
+            return self.message
+        if f"💡 解决方案：{self.solution}" in self.message or f"💡 方案：{self.solution}" in self.message:
+            return self.message
+        return f"{self.message}\n💡 解决方案：{self.solution}"
 
 
 class GuardError(BusinessError):

@@ -184,6 +184,13 @@ def run_cruise(
 ) -> Dict[str, Any]:
     """巡航主循环。once=True 时只处理"稿件已就绪"的章节，不等待（测试/CI 用）。"""
     say = reporter or (lambda s: None)
+    # FIND-CT34（cruise L2·死飞）：下游等待循环 `waited += poll_seconds`，
+    # poll_seconds ≤ 0 时 waited 永不增长 ⇒ `waited < wait_timeout` 恒真 ⇒
+    # 循环退化为 100% CPU 自旋，900s 超时安全网彻底失效，只能靠外力杀进程。
+    # 入口统一钳制到下限 0.5s（0/负数均无轮询意义）。
+    if poll_seconds is None or poll_seconds <= 0:
+        poll_seconds = 0.5
+        say("🚢 [cruise] ⚠️ 轮询间隔 ≤ 0 会导致等待循环死飞（超时安全网失效），已钳制为 0.5s")
     cfg = load_config(workspace)
     max_ch = int(max_chapters) if max_chapters is not None else int(cfg.get("cruise_max_chapters", 10))
     gate_every = int(cfg.get("cruise_human_gate", 0) or 0)

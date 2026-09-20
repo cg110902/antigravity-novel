@@ -46,6 +46,12 @@ CONFIG_GUIDE: Dict[str, str] = {
     "cruise_wait_timeout": "巡航等待作者单章产出的超时秒数",
 }
 
+# FIND-CT48（C-5·零取值范围校验）：正整数旋钮的下限。旧版 token_cap: 0 /
+# cruise_max_chapters: 0 / cruise_wait_timeout: 0 均被接受——token_cap=0 让每章
+# 装配恒报超预算，cruise_max_chapters=0 可能使巡航空转，timeout=0 令超时安全网
+# 形同虚设。分类：严格正整数 vs 允许 0（gate=0 是"关闭"的合法语义）。
+_POSITIVE_INT_KNOBS = ("token_cap", "cruise_max_chapters", "cruise_wait_timeout")
+
 
 def _read_project(workspace: Path) -> Dict[str, Any]:
     p = Path(workspace) / "project.json"
@@ -74,17 +80,63 @@ def load_config(workspace: Path) -> Dict[str, Any]:
     scope = pdata.get("scope") or {}
     if isinstance(scope, dict):
         wpc = scope.get("words_per_chapter")
-        if isinstance(wpc, (list, tuple)) and len(wpc) == 2:
-            try:
-                cfg["words_per_chapter"] = [int(wpc[0]), int(wpc[1])]
-            except (TypeError, ValueError):
-                pass
+        if wpc is not None:
+            # FIND-CT51（C-4·静默回落）：旧版 len!=2 或元素不可 int 化时
+            # `except: pass` 静默回落默认 [1500,2600]——作者的商业体量设定没生效
+            # 却无任何提示，与 engine 段"损坏即硬失败"（_read_project/FIND-CT26）
+            # 的策略不对称。统一：scope 段形态非法即业务阻断并指明修复路径。
+            _bad_reason = ""
+            if not isinstance(wpc, (list, tuple)) or len(wpc) != 2:
+                _bad_reason = f"应为 [min, max] 两元素列表，实际为 {wpc!r}"
+            else:
+                try:
+                    int(wpc[0]); int(wpc[1])
+                except (TypeError, ValueError):
+                    _bad_reason = f"元素须为整数，实际为 {wpc!r}"
+            if _bad_reason:
+                raise BusinessError(
+                    f"project.json 中 scope.words_per_chapter 格式非法（{_bad_reason}）。",
+                    solution=(
+                        "请修正为 `\"words_per_chapter\": [1500, 2600]` 形态（单位：字），"
+                        "或运行 `python studio.py config set words_per_chapter \"[1500, 2600]\"`。"
+                    ),
+                )
+            cfg["words_per_chapter"] = [int(wpc[0]), int(wpc[1])]
 
     engine_cfg = pdata.get("engine") or {}
     if isinstance(engine_cfg, dict):
         for k, v in engine_cfg.items():
             if k in DEFAULT_CONFIG:
-                cfg[k] = v
+                # FIND-CT26（config C-3·读写不对称）：写路径（set_config_value）有
+                # 类型对齐，读路径原样透传——手工编辑 project.json 写入
+                # "token_cap": "15000" 后，pack 的预算比较 str vs int 直接 TypeError
+                # → exit 4。读路径按 DEFAULT_CONFIG 类型做一次确定性 coerce，非法值
+                # 抛 BusinessError（exit 1）并指引 config set 修复，而非下游崩栈。
+                _def = DEFAULT_CONFIG[k]
+                try:
+                    if isinstance(_def, bool):
+                        cfg[k] = bool(v)
+                    elif isinstance(_def, int) and not isinstance(_def, bool):
+                        cfg[k] = int(v)
+                    elif isinstance(_def, float):
+                        cfg[k] = float(v)
+                    elif isinstance(_def, list):
+                        if isinstance(v, (list, tuple)):
+                            cfg[k] = list(v)
+                            if _def and all(isinstance(_d, (int, float)) and not isinstance(_d, bool) for _d in _def):
+                                cfg[k] = [int(x) for x in v]
+                        else:
+                            raise ValueError(f"应为列表，实际为 {type(v).__name__}")
+                    else:
+                        cfg[k] = v
+                except (TypeError, ValueError):
+                    raise BusinessError(
+                        f"project.json 中配置项 '{k}' 类型非法: {v!r}（引擎默认类型: {type(_def).__name__}）。",
+                        solution=(
+                            f"请运行 `python studio.py config set {k} <合法值>` 修正，"
+                            f"或手工编辑 project.json 的 engine 段将该值改为 {json.dumps(_def, ensure_ascii=False)} 同类型。"
+                        ),
+                    )
     return cfg
 
 
@@ -123,10 +175,54 @@ def set_config_value(workspace: Path, key: str, value: Any) -> Dict[str, Any]:
         value = parsed
 
     elif isinstance(default, (int, float)) and not isinstance(default, bool):
-        value = type(default)(value)
+        # FIND-CT24（config C-2·用户错误升级为系统故障）：旧版 `type(default)(value)`
+        # 裸转——value 为 None/非数字串时 int(None)/int("abc") 抛 TypeError/ValueError，
+        # TypeError 不在 cli 的 exit 1 捕获元组里 ⇒ 逃逸成 exit 4「未预期异常」。
+        # 在源头转业务阻断（exit 1 + 正确示例）。
+        try:
+            value = type(default)(value)
+        except (TypeError, ValueError):
+            _tname = "整数" if isinstance(default, int) else "数值"
+            raise BusinessError(
+                f"配置项 '{key}' 格式错误: 无法解析为{_tname}（收到 {value!r}）。",
+                solution=f"正确示例: python studio.py config set {key} {default}",
+            )
     elif isinstance(default, bool):
         if isinstance(value, str):
             value = value.strip().lower() in ("1", "true", "yes", "on")
+
+    # FIND-CT48：正整数旋钮下限校验（0/负数无业务意义且制造空转/恒超预算）
+    if key in _POSITIVE_INT_KNOBS:
+        try:
+            _iv = int(value)
+        except (TypeError, ValueError):
+            raise BusinessError(
+                f"配置项 '{key}' 必须为整数（收到 {value!r}）。",
+                solution=f"正确示例: python studio.py config set {key} {DEFAULT_CONFIG[key]}",
+            )
+        if _iv <= 0:
+            raise BusinessError(
+                f"配置项 '{key}' 必须为正整数（收到 {value!r}，0/负数无意义）。",
+                solution=f"正确示例: python studio.py config set {key} {DEFAULT_CONFIG[key]}",
+            )
+        value = _iv
+
+    # FIND-CT25（config C-1·列表元素类型零校验）：`config set words_per_chapter abc`
+    # 旧版逗号切分回落成 ["abc"] 合法落盘，下游数字比较 TypeError → exit 4。
+    # 列表型旋钮按默认值元素类型强转，失败即业务阻断。
+    if isinstance(value, list) and isinstance(default, list) and default and all(
+        isinstance(_d, (int, float)) and not isinstance(_d, bool) for _d in default
+    ):
+        _conv: List[Any] = []
+        for _el in value:
+            try:
+                _conv.append(int(_el))
+            except (TypeError, ValueError):
+                raise BusinessError(
+                    f"配置项 '{key}' 的列表元素类型错误: {_el!r} 无法解析为整数。",
+                    solution=f"正确示例: python studio.py config set {key} \"[1500, 2600]\"（元素须为整数）",
+                )
+        value = _conv
 
     p = Path(workspace) / "project.json"
     pdata = _read_project(p.parent)

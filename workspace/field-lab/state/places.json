@@ -1,0 +1,131 @@
+{
+  "loc_001": {
+    "id": "loc_001",
+    "name": "黑石矿区·三号矿道",
+    "danger_level": "普通",
+    "sensory_anchor": "",
+    "environment_rules": [],
+    "summary": "",
+    "visited_chapters": [
+      "ch_001"
+    ]
+  },
+  "loc_002": {
+    "id": "loc_002",
+    "name": "黑石矿区·矿务堂",
+    "danger_level": "普通",
+    "sensory_anchor": "",
+    "environment_rules": [],
+    "summary": "",
+    "visited_chapters": [
+      "ch_002"
+    ]
+  },
+  "loc_003": {
+    "id": "loc_003",
+    "name": "黑石矿区·暗巷",
+    "danger_level": "普通",
+    "sensory_anchor": "",
+    "environment_rules": [],
+    "summary": "",
+    "visited_chapters": [
+      "ch_003"
+    ]
+  },
+  "loc_004": {
+    "id": "loc_004",
+    "name": "黑石矿区·主巷",
+    "danger_level": "普通",
+    "sensory_anchor": "",
+    "environment_rules": [],
+    "summary": "",
+    "visited_chapters": [
+      "ch_007",
+      "ch_010",
+      "ch_011",
+      "ch_012",
+      "ch_013",
+      "ch_015",
+      "ch_016",
+      "ch_017"
+    ]
+  },
+  "loc_010": {
+    "id": "loc_010",
+    "name": "空规则地",
+    "danger_level": "",
+    "sensory_anchor": "",
+    "environment_rules": [],
+    "summary": "零环境规则地点",
+    "established_ch": "ch_010",
+    "visited_chapters": [
+      "ch_010"
+    ],
+    "danger_tier": 10
+  },
+  "loc_011": {
+    "id": "loc_011",
+    "name": "感官地",
+    "danger_level": "基础安全区",
+    "sensory_anchor": "硫磺与铁锈味#1",
+    "environment_rules": [],
+    "summary": "带井号物象",
+    "established_ch": "ch_010",
+    "visited_chapters": [
+      "ch_010"
+    ]
+  },
+  "loc_020": {
+    "id": "loc_020",
+    "name": "字符串险地",
+    "danger_level": "基础安全区",
+    "sensory_anchor": "",
+    "environment_rules": [],
+    "summary": "字符串 danger_tier",
+    "established_ch": "ch_011",
+    "visited_chapters": [
+      "ch_011"
+    ],
+    "danger_tier": "高"
+  },
+  "loc_030": {
+    "id": "loc_030",
+    "name": "规则地",
+    "danger_level": "基础安全区",
+    "sensory_anchor": "",
+    "environment_rules": [
+      "规则\"引号\"",
+      "规则#井号",
+      "规则:冒号"
+    ],
+    "summary": "",
+    "established_ch": "ch_012",
+    "visited_chapters": [
+      "ch_012"
+    ]
+  },
+  "loc_060": {
+    "id": "loc_060",
+    "name": "双形态地点A",
+    "danger_level": "基础安全区",
+    "sensory_anchor": "",
+    "environment_rules": [],
+    "summary": "",
+    "established_ch": "ch_016",
+    "visited_chapters": [
+      "ch_016"
+    ]
+  },
+  "loc_061": {
+    "id": "loc_061",
+    "name": "双形态地点B",
+    "danger_level": "基础安全区",
+    "sensory_anchor": "",
+    "environment_rules": [],
+    "summary": "",
+    "established_ch": "ch_016",
+    "visited_chapters": [
+      "ch_016"
+    ]
+  }
+}

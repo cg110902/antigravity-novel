@@ -1,0 +1,157 @@
+[
+  {
+    "chapter_id": "ch_001",
+    "volume_id": "vol_01",
+    "title": "深渊初启",
+    "timeline": "新历47年·霜月三日",
+    "location": "黑石矿区·三号矿道",
+    "chapter_type": "破局",
+    "word_count": 534,
+    "present_characters": [
+      "陈默",
+      "赵无咎"
+    ],
+    "dramatic_goal": "陈默在矿难现场发现铭牌，与赵无咎正面交锋。",
+    "cliffhanger": "赵无咎的佩刀出鞘半寸，又生生停住。"
+  },
+  {
+    "chapter_id": "ch_002",
+    "volume_id": "vol_01",
+    "title": "铭牌与刀",
+    "timeline": "新历47年·霜月三日·午后",
+    "location": "黑石矿区·矿务堂",
+    "chapter_type": "过渡",
+    "word_count": 394,
+    "present_characters": [
+      "陈默"
+    ],
+    "dramatic_goal": "陈默把铭牌交给老矿工，赵无咎公开撕破脸。",
+    "cliffhanger": "老矿工接过铭牌，手开始发抖。"
+  },
+  {
+    "chapter_id": "ch_003",
+    "volume_id": "vol_01",
+    "title": "引爆",
+    "timeline": "新历47年·霜月四日",
+    "location": "黑石矿区·暗巷",
+    "chapter_type": "爆发",
+    "word_count": 217,
+    "present_characters": [
+      "周老实"
+    ],
+    "dramatic_goal": "陈默与周老实突围。",
+    "cliffhanger": ""
+  },
+  {
+    "chapter_id": "ch_007",
+    "volume_id": "vol_01",
+    "title": "七日之约",
+    "timeline": "新历48年·元月七日",
+    "location": "黑石矿区·主巷",
+    "chapter_type": "爆发",
+    "word_count": 220,
+    "present_characters": [
+      "陈默"
+    ],
+    "dramatic_goal": "陈默一次性耗尽爆符突围。",
+    "cliffhanger": ""
+  },
+  {
+    "chapter_id": "ch_010",
+    "volume_id": "vol_01",
+    "title": "边界之章",
+    "timeline": "新历49年·春分",
+    "location": "黑石矿区·主巷",
+    "chapter_type": "铺垫",
+    "word_count": 119,
+    "present_characters": [
+      "陈默"
+    ],
+    "dramatic_goal": "验证字段边界的确定性落账。",
+    "cliffhanger": ""
+  },
+  {
+    "chapter_id": "ch_011",
+    "volume_id": "vol_01",
+    "title": "类型之章",
+    "timeline": "新历49年·谷雨",
+    "location": "黑石矿区·主巷",
+    "chapter_type": "铺垫",
+    "word_count": 49,
+    "present_characters": [
+      "陈默"
+    ],
+    "dramatic_goal": "验证错误类型字段的引擎行为。",
+    "cliffhanger": ""
+  },
+  {
+    "chapter_id": "ch_012",
+    "volume_id": "vol_01",
+    "title": "注入之章",
+    "timeline": "新历49年·立夏",
+    "location": "黑石矿区·主巷",
+    "chapter_type": "铺垫",
+    "word_count": 63,
+    "present_characters": [
+      "陈默"
+    ],
+    "dramatic_goal": "验证注入串的落账保真。",
+    "cliffhanger": ""
+  },
+  {
+    "chapter_id": "ch_013",
+    "volume_id": "vol_01",
+    "title": "超长之章",
+    "timeline": "新历49年·小满",
+    "location": "黑石矿区·主巷",
+    "chapter_type": "铺垫",
+    "word_count": 160,
+    "present_characters": [
+      "陈默"
+    ],
+    "dramatic_goal": "验证 255 字符超长字段。",
+    "cliffhanger": ""
+  },
+  {
+    "chapter_id": "ch_015",
+    "volume_id": "vol_01",
+    "title": "形态之章",
+    "timeline": "新历49年·夏至",
+    "location": "黑石矿区·主巷",
+    "chapter_type": "铺垫",
+    "word_count": 148,
+    "present_characters": [
+      "陈默"
+    ],
+    "dramatic_goal": "验证容器形态变异归一化。",
+    "cliffhanger": ""
+  },
+  {
+    "chapter_id": "ch_016",
+    "volume_id": "vol_01",
+    "title": "枚举之章",
+    "timeline": "新历49年·小暑",
+    "location": "黑石矿区·主巷",
+    "chapter_type": "铺垫",
+    "word_count": 105,
+    "present_characters": [
+      "陈默"
+    ],
+    "dramatic_goal": "验证法定枚举全谱系。",
+    "cliffhanger": ""
+  },
+  {
+    "chapter_id": "ch_017",
+    "volume_id": "vol_01",
+    "title": "组合之章",
+    "timeline": "新历49年·大暑",
+    "location": "黑石矿区·主巷",
+    "chapter_type": "过渡",
+    "word_count": 105,
+    "present_characters": [
+      "陈默"
+    ],
+    "dramatic_goal": "验证非法形态容错。",
+    "cliffhanger": ""
+  }
+]

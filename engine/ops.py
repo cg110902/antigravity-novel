@@ -63,6 +63,56 @@ def _chapter_num(chapter_id: str) -> int:
     return int(m.group(1)) if m else 0
 
 
+# FIND-CT28（ops D-05）：道具「变动」描述的中文状态词 → 法定 status 枚举归一表。
+# 引擎自家 audit 模板第三行示范 `- [道具变动] 道具: X ｜ 变动: 持有者流转或耐久变动`，
+# 旧版 kv 键表没有"变动"⇒ holder_or_status 回落 "active"，按模板填写的 Auditor
+# 100% 把「已损毁」写成 active 入账。
+_ITEM_CHANGE_STATUS_RULES = (
+    ("destroyed", ("损毁", "销毁", "碎裂", "破碎", "折断", "报废", "熔毁", "毁了", "毁掉")),
+    ("consumed", ("消耗", "用掉", "耗尽", "使用殆尽", "耗尽")),
+    ("lost", ("遗失", "丢失", "失落", "丢了", "不见了")),
+)
+
+
+def _normalize_item_change(text: str) -> str:
+    """道具变动描述 → 法定 status 枚举（destroyed/consumed/lost）；非状态语义返回空串。"""
+    t = str(text or "").strip()
+    if not t:
+        return ""
+    for st, kws in _ITEM_CHANGE_STATUS_RULES:
+        if any(k in t for k in kws):
+            return st
+    return ""
+
+
+# FIND-CT10（ops L1 · 路径穿越）：chapter_id / volume_id 曾以裸字符串参与
+# `workspace / "outlines" / vol_id / "beats" / f"{chapter_id}.md"` 拼接——pathlib
+# 语义下绝对路径参数会整体覆盖前缀（`ws / "a" / "/etc/x.md"` → `/etc/x.md`），
+# `../` 序列可逐级逃逸工作区。全命令面（beats/audit/finalize/proposal/sync/
+# evidence/reconcile/rollup）写入前必须过此闸。
+# 策略：只拦危险形态（分隔符/父级/绝对路径/NUL/空），不收紧 ch_1/ch_001 等
+# 存量合法变体（章号归一化由下游 _chapter_num/_find_volume_outline 处理）。
+def _validate_path_id(value: Any, kind: str) -> str:
+    v = str(value or "").strip()
+    if not v:
+        raise GuardError(
+            f"{kind} 为空，拒绝执行。",
+            solution=f"请提供合法的 {kind}（如 chapter_id: ch_001，volume_id: vol_01）。",
+        )
+    bad = [c for c in ("/", "\\", ":", "\0") if c in v]
+    if bad or ".." in v or v.startswith("."):
+        raise GuardError(
+            f"{kind} 含非法路径字符: {value!r}（拒绝穿越工作区边界）。",
+            solution=f"请仅提供名称本体（如 ch_001 / vol_01），不要包含路径分隔符、'..'、盘符或前导点。",
+        )
+    if Path(v).is_absolute():
+        raise GuardError(
+            f"{kind} 不允许为绝对路径: {value!r}。",
+            solution=f"请提供相对于工作区的 {kind} 名称（如 ch_001 / vol_01）。",
+        )
+    return v
+
+
 _SLOT_RE = re.compile(r"\{\{slot:[^}]*\}\}")
 
 
@@ -155,13 +205,43 @@ def init_workspace(workspace: Path, title: str, genre: str, protagonist: str,
     ]:
         (workspace / sub).mkdir(parents=True, exist_ok=True)
 
-    # v4.2.3：--force 重置前备份将被覆盖的既有档案（对齐 beats --force 的 .bak 惯例）
+    # v4.2.3：--force 重置前备份将被覆盖的既有档案
+    # FIND-CT6（ops L1·数据毁灭）：旧版只 .bak 5 个文件（project.json/卷纲/主角卡/
+    # current/milestones），而下方的重置会把 persons/items/lines/locked/debts/
+    # relations/ledger/timeline/synopsis/co_occurrence/entity_timeline/sync_log
+    # 等全部台账覆写为空——一条看似常规的 `init --force` 即可静默抹掉已合账全书
+    # 的事实数据且无 .bak 可恢复。修正：备份范围==覆写范围（整树快照），
+    # 并对已合账书籍输出醒目计数提示。
     if force:
-        for rel in ["project.json", "outlines/vol_01/outline.md",
-                    "characters/protagonist.md", "state/current.json", "state/milestones.json"]:
-            f = workspace / rel
-            if f.exists():
-                shutil.copy(f, f.with_name(f.name + ".bak"))
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_root = workspace / f".init-backup-{ts}"
+        backed: List[str] = []
+        for rel in ["project.json", "state", "outlines", "characters", "entities",
+                    "manuscript", "log"]:
+            src = workspace / rel
+            if not src.exists():
+                continue
+            dst = backup_root / rel
+            try:
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                if src.is_dir():
+                    shutil.copytree(src, dst)
+                else:
+                    shutil.copy(src, dst)
+                backed.append(rel)
+            except Exception as e:
+                raise BusinessError(
+                    f"--force 重置前备份失败: {rel}（{e}），已中止以防数据丢失。",
+                    solution="请检查磁盘空间与文件权限后重试；或先运行 `python studio.py snapshot create` 手动备份。",
+                )
+        if backed:
+            print(f"🛡️ --force 重置前已完成整树备份（{len(backed)} 项）: {backup_root.name}/")
+        _sync_log_pre = _load_json(workspace / "state" / "sync_log.json", default={})
+        if isinstance(_sync_log_pre, dict) and _sync_log_pre:
+            print(
+                f"⚠️ 警告：本书已有 {len(_sync_log_pre)} 章合账记录，--force 将重置全部台账，"
+                f"备份位于 {backup_root.name}/（确认无需保留时可删除）。"
+            )
 
     today = datetime.now().strftime("%Y-%m-%d")
 
@@ -300,6 +380,7 @@ def get_beats_scaffold(workspace: Path, chapter_id: str, write_file: bool = True
     （旧版会静默用空模板覆盖主控填好的细纲，实测造成 SSOT 数据销毁）。
     确认重置需显式 force=True（CLI 加 --force），旧文件自动备份为 *.bak。
     """
+    _validate_path_id(chapter_id, "chapter_id")
     ledger = StateLedger(workspace)
     curr_state = ledger.get_current()
     active_foreshadows = ledger.get_active_foreshadowings()
@@ -623,6 +704,7 @@ def audit_chapter(workspace: Path, chapter_id: str, write_file: bool = True,
 
     v4.3.2：已含 Auditor 人工成果的报告默认拒绝覆盖（--force 重置并留 .bak）。
     """
+    _validate_path_id(chapter_id, "chapter_id")
     _, vol_id = _find_volume_outline(workspace, chapter_id)
     prose_candidates = [
         workspace / "manuscript" / vol_id / "raw" / f"{chapter_id}_v3.md",
@@ -736,6 +818,7 @@ Stage 5 proposal auto 将自动提取并反向回填至细纲与台账：
 
 def finalize_chapter(workspace: Path, chapter_id: str) -> Dict[str, Any]:
     """吸纳 Auditor 预制修补配方，完成正文替换定稿生成 final/ch_XXX.md。"""
+    _validate_path_id(chapter_id, "chapter_id")
     _, vol_id = _find_volume_outline(workspace, chapter_id)
 
     # v4.3.2 缺陷#30：槽位闸门必须前移到 finalize。
@@ -796,7 +879,8 @@ def finalize_chapter(workspace: Path, chapter_id: str) -> Dict[str, Any]:
     audit_file = workspace / "log" / "audit" / f"{chapter_id}.md"
     replacements_count = 0
     recipes_total = 0
-    missed_targets: List[str] = []
+    missed_targets: List[Any] = []
+    _replaced_targets: List[str] = []
     if audit_file.exists():
         audit_text = audit_file.read_text(encoding="utf-8-sig", errors="replace")
         # v4.2 修复：占位模板（Auditor 未填写时的示例值）不得被当作真配方
@@ -812,31 +896,65 @@ def finalize_chapter(workspace: Path, chapter_id: str) -> Dict[str, Any]:
             seen_recipes.add(key)
             if tc in _placeholder_targets or rc in _placeholder_replacements:
                 return
+            # FIND-CT29（ops D-04 计数失真）：空 TargetContent（fence 内空行）旧版
+            # 计入 recipes_total 但既不计命中也不计 missed，回执 X/Y 虚高。空值直接
+            # 跳过不计数。
+            if not tc:
+                return
             recipes_total += 1
-            if tc and tc in prose:
+            if tc in prose:
                 prose = prose.replace(tc, rc)
                 replacements_count += 1
             elif tc:
-                missed_targets.append(tc[:40])
+                # 同 tc 已替换过 ⇒ 第二条不同 rc 属于配方冲突（而非原文真缺失），
+                # 明确标注便于排错。
+                _conflict = any(x == tc for x in _replaced_targets)
+                missed_targets.append((tc[:40], "配方冲突：同一 TargetContent 配了多条不同 Replacement" if _conflict else None))
+                _replaced_targets.append(tc)
 
-        # 1. 提取多行三反引号格式配方（支持 0~多空格缩进、支持加粗、中文冒号、中英文别名）
-        pattern_block = (
-            r"(?:\*\*)?(?:TargetContent|原句|原文|待修改原句)(?:\*\*)?[:：]\s*"
-            r"```(?:text|markdown|txt)?[ \t]*\r?\n(.*?)[ \t]*\r?\n\s*```[ \t]*\r?\n\s*-?\s*"
-            r"(?:\*\*)?(?:ReplacementContent|修改后|通俗修改后原句|修改后原句|替换为)(?:\*\*)?[:：]\s*"
-            r"```(?:text|markdown|txt)?[ \t]*\r?\n(.*?)[ \t]*\r?\n\s*```"
+        # FIND-CT29（ops D-04 漏抽）：旧版 pattern_block 要求 Target fence 与
+        # Replacement fence 紧邻（中间只容空白与 "- "）——Auditor 把「理由:」行插
+        # 在两者之间、或使用别名表外写法（改为/替换成/修订为）时整条配方静默
+        # 丢弃，回执却报"无配方"且 exit 0。改为两阶段独立扫描 + FIFO 配对，
+        # 天然容忍中间穿插任意行，别名表同步扩容。
+        _re_t_block = re.compile(
+            r"(?:\*\*)?(?:TargetContent|原句|原文|待修改原句|待修改)(?:\*\*)?[:：]\s*"
+            r"```(?:text|markdown|txt)?[ \t]*\r?\n(.*?)[ \t]*\r?\n\s*```",
+            re.DOTALL | re.IGNORECASE,
         )
-        for m in re.finditer(pattern_block, audit_text, re.DOTALL | re.IGNORECASE):
-            _apply_recipe(m.group(1).strip(), m.group(2).strip())
+        _re_r_block = re.compile(
+            r"(?:\*\*)?(?:ReplacementContent|修改后|通俗修改后原句|修改后原句|替换为|改为|替换成|修订为|修改为)(?:\*\*)?[:：]\s*"
+            r"```(?:text|markdown|txt)?[ \t]*\r?\n(.*?)[ \t]*\r?\n\s*```",
+            re.DOTALL | re.IGNORECASE,
+        )
+        _t_list = [m.group(1).strip() for m in _re_t_block.finditer(audit_text)]
+        _r_list = [m.group(1).strip() for m in _re_r_block.finditer(audit_text)]
+        for _tc, _rc in zip(_t_list, _r_list):
+            _apply_recipe(_tc, _rc)
 
-        # 2. 提取行内反引号与引号格式配方（支持行内、双行、加粗与中英文别名）
-        pattern_inline = (
-            r"(?:\*\*)?(?:TargetContent|原句|原文|待修改原句)(?:\*\*)?[:：]\s*[`“\"]([^`”\"\r\n]+)[`”\"]\s*"
-            r"[|｜\n\s]+-?\s*"
-            r"(?:\*\*)?(?:ReplacementContent|修改后|通俗修改后原句|修改后原句|替换为)(?:\*\*)?[:：]\s*[`“\"]([^`”\"\r\n]+)[`”\"]"
+        _re_t_inline = re.compile(
+            r"(?:\*\*)?(?:TargetContent|原句|原文|待修改原句|待修改)(?:\*\*)?[:：]\s*[`“\"]([^`”\"\r\n]+)[`”\"]",
+            re.IGNORECASE,
         )
-        for m in re.finditer(pattern_inline, audit_text, re.IGNORECASE):
-            _apply_recipe(m.group(1).strip(), m.group(2).strip())
+        _re_r_inline = re.compile(
+            r"(?:\*\*)?(?:ReplacementContent|修改后|通俗修改后原句|修改后原句|替换为|改为|替换成|修订为|修改为)(?:\*\*)?[:：]\s*[`“\"]([^`”\"\r\n]+)[`”\"]",
+            re.IGNORECASE,
+        )
+        _ti_list = [m.group(1).strip() for m in _re_t_inline.finditer(audit_text)]
+        _ri_list = [m.group(1).strip() for m in _re_r_inline.finditer(audit_text)]
+        for _tc, _rc in zip(_ti_list, _ri_list):
+            _apply_recipe(_tc, _rc)
+
+        # FIND-CT29 续（假阴性告警）：报告含配方字样却一条都没提取到——旧版回执
+        # 仅"无配方，按原文定稿"且 exit 0，Auditor 写的修补被静默丢弃（修了个寂寞）。
+        # 显式告警让作者看见版式问题。
+        _recipe_zero_warning = ""
+        if recipes_total == 0 and re.search(r"修补配方|TargetContent|ReplacementContent|替换|修改后", audit_text):
+            _recipe_zero_warning = (
+                f"审计报告含配方相关字样但未提取到任何合法配方（疑似书写版式不受支持）。"
+                f"\n      💡 方案：请按标准格式书写——行内式 `TargetContent: \\`原句\\` ｜ ReplacementContent: \\`改后\\``，"
+                f"或多行三反引号块（TargetContent/ReplacementContent 各一块，中间可插入理由行）。"
+            )
 
     final_file = manuscript_dir / "final" / f"{chapter_id}.md"
     _ensure_dir(final_file.parent)
@@ -850,6 +968,7 @@ def finalize_chapter(workspace: Path, chapter_id: str) -> Dict[str, Any]:
         "recipes_total": recipes_total,
         "recipes_missed": len(missed_targets),
         "missed_targets": missed_targets,
+        "recipe_zero_warning": _recipe_zero_warning if audit_file.exists() else "",
         "note": ("审计报告不存在，直接采用 v3 原文定稿" if not audit_file.exists()
                  else (f"配方 {replacements_count}/{recipes_total} 应用" if recipes_total else "审计报告中无配方，按原文定稿")),
     }
@@ -857,6 +976,7 @@ def finalize_chapter(workspace: Path, chapter_id: str) -> Dict[str, Any]:
 
 def proposal_auto(workspace: Path, chapter_id: str) -> Dict[str, Any]:
     """生成本章状态变更提案 (proposal auto)，并自动吸收 Auditor 提纯的正文涌现事实与实体变更。"""
+    _validate_path_id(chapter_id, "chapter_id")
     _, vol_id = _find_volume_outline(workspace, chapter_id)
     beats_file = workspace / "outlines" / vol_id / "beats" / f"{chapter_id}.md"
     if not beats_file.exists():
@@ -944,6 +1064,8 @@ def proposal_auto(workspace: Path, chapter_id: str) -> Dict[str, Any]:
                 istatus_or_holder = (
                     kv.get("持有人") or kv.get("持有者") or kv.get("支配人") or kv.get("归属")
                     or kv.get("获得者") or kv.get("状态") or kv.get("holder") or kv.get("status")
+                    # FIND-CT28：补齐引擎自家模板使用的「变动」键族（变更/流转/结果）
+                    or kv.get("变动") or kv.get("变更") or kv.get("流转") or kv.get("结果")
                 )
                 if not istatus_or_holder:
                     if "损毁" in tag:
@@ -952,6 +1074,14 @@ def proposal_auto(workspace: Path, chapter_id: str) -> Dict[str, Any]:
                         istatus_or_holder = protagonist
                     else:
                         istatus_or_holder = pos[1] if len(pos) > 1 else "active"
+                # FIND-CT28 续：中文状态词语义归一（「已损毁」→ destroyed）——旧版
+                # 这类描述既不匹配四大 status 枚举、又不能作为人名，被下游
+                # 当作 holder 静默写成"持有人=已损毁"。
+                _raw_change = str(istatus_or_holder).strip()
+                if _raw_change and _raw_change not in ("destroyed", "consumed", "lost", "active"):
+                    _norm_st = _normalize_item_change(_raw_change)
+                    if _norm_st:
+                        istatus_or_holder = _norm_st
                 idesc = kv.get("说明") or kv.get("描述") or (pos[2] if len(pos) > 2 else "")
                 iname = iname.strip()
                 if iname and not _is_placeholder_value(iname):
@@ -959,6 +1089,9 @@ def proposal_auto(workspace: Path, chapter_id: str) -> Dict[str, Any]:
 
     # 将涌现事实合并至提案与细纲
     updated_beats = False
+    # FIND-CT5（ID-1）：同章涌现实体的在途 ID 集合——分配即登记，保证循环内连续
+    # 分配不会拿到同一个号（旧版两个新人物都拿 p_005，sync 时第二条被静默丢弃）。
+    _alloc_ids: set = set()
     if "frontmatter" in proposal_data and isinstance(proposal_data["frontmatter"], dict):
         fm = proposal_data["frontmatter"]
         sd = fm.setdefault("state_deltas", {})
@@ -1014,7 +1147,9 @@ def proposal_auto(workspace: Path, chapter_id: str) -> Dict[str, Any]:
                     # 分配标准合法 ID（杜绝中文名 ID）
                     assigned_id = ne.get("id")
                     if not assigned_id or not re.match(r"^[a-z]+_\d+$", str(assigned_id)):
-                        assigned_id = tracker.get_next_id(cat)
+                        assigned_id = tracker.get_next_id(cat, exclude=_alloc_ids)
+                    if assigned_id:
+                        _alloc_ids.add(str(assigned_id))
                     raw_new.append({
                         "id": assigned_id,
                         "type": cat,
@@ -1067,7 +1202,10 @@ def proposal_auto(workspace: Path, chapter_id: str) -> Dict[str, Any]:
                             existing["summary"] = ei["desc"]
                             updated_beats = True
                     else:
-                        new_iid = tracker.get_next_id("item")
+                        # FIND-CT5：与 person 循环共用 _alloc_ids 在途集合
+                        new_iid = tracker.get_next_id("item", exclude=_alloc_ids)
+                        if new_iid:
+                            _alloc_ids.add(str(new_iid))
                         default_holder = protagonist if _is_status else val
                         raw_new.append({
                             "id": new_iid,
@@ -1082,6 +1220,10 @@ def proposal_auto(workspace: Path, chapter_id: str) -> Dict[str, Any]:
     # 真实物理回填 beats 细纲文件 (Physical Backfill)
     if updated_beats and beats_file.exists():
         new_beats_text = f"---\n{dump_mini_yaml(fm)}\n---\n{body_text}"
+        # FIND-CT12（ops D-03·SSOT 无损回写）：mini-yaml 往返会静默丢失 frontmatter
+        # 内注释/块标量等结构（parser 已知有损子集）。细纲是唯一事实源，任何回写
+        # 落盘前必须留 .bak 供作者 diff 找回被吞内容。
+        shutil.copy(beats_file, beats_file.with_name(beats_file.name + ".bak"))
         beats_file.write_text(new_beats_text, encoding="utf-8")
 
     inbox_file = workspace / "state" / "inbox" / f"proposal_{chapter_id}.json"
@@ -1103,6 +1245,7 @@ def sync_chapter(workspace: Path, chapter_id: str, force: bool = False, refresh:
     v4.2 幂等守卫：同一章节、同一正文（sha1 指纹一致）重复 sync 直接幂等跳过；
     正文内容已变化的重复 sync 默认 GuardError 拒绝，需 --force 显式重入账。
     """
+    _validate_path_id(chapter_id, "chapter_id")
     _, vol_id = _find_volume_outline(workspace, chapter_id)
     beats_file = workspace / "outlines" / vol_id / "beats" / f"{chapter_id}.md"
     if not beats_file.exists():
@@ -1260,15 +1403,34 @@ def sync_chapter(workspace: Path, chapter_id: str, force: bool = False, refresh:
                 if isinstance(ne, dict) and not any(x.get("id") == ne.get("id") for x in fm_new if isinstance(x, dict)):
                     fm_new.append(ne)
             # 融合角色状态
-            p_c_status = p_fm.get("state_deltas", {}).get("character_status") or {}
+            # FIND-CT3：inbox 为引擎外部可写文件，state_deltas 可能是 null/标量/列表
+            # （旧版 `.get("state_deltas", {}).get(...)` 直接 AttributeError 崩成 exit 4）。
+            # 类型防御：任何非 dict 形态一律按空块处理，融合语义不变。
+            _p_sd = p_fm.get("state_deltas")
+            if not isinstance(_p_sd, dict):
+                _p_sd = {}
+            p_c_status = _p_sd.get("character_status")
+            if not isinstance(p_c_status, dict):
+                p_c_status = {}
             fm_sd = frontmatter.setdefault("state_deltas", {})
+            if not isinstance(fm_sd, dict):
+                fm_sd = {}
+                frontmatter["state_deltas"] = fm_sd
             fm_c_status = fm_sd.setdefault("character_status", {})
+            if not isinstance(fm_c_status, dict):
+                fm_c_status = {}
+                fm_sd["character_status"] = fm_c_status
             for cid, sval in p_c_status.items():
                 if cid not in fm_c_status:
                     fm_c_status[cid] = sval
-            # 融合道具变动
-            p_items = p_fm.get("state_deltas", {}).get("items") or []
+            # 融合道具变动（同样类型防御）
+            p_items = _p_sd.get("items")
+            if not isinstance(p_items, (list, dict)):
+                p_items = []
             fm_items = fm_sd.setdefault("items", [])
+            if not isinstance(fm_items, list):
+                fm_items = [fm_items] if isinstance(fm_items, dict) else []
+                fm_sd["items"] = fm_items
             for it in p_items:
                 if isinstance(it, dict) and not any(x.get("id") == it.get("id") for x in fm_items if isinstance(x, dict)):
                     fm_items.append(it)
@@ -1454,6 +1616,7 @@ def ask_fact(workspace: Path, query: str) -> List[str]:
 
 
 def evidence_candidates(workspace: Path, chapter_id: str) -> Dict[str, Any]:
+    _validate_path_id(chapter_id, "chapter_id")
     """打捞当章细纲（SSOT）中已声明但尚未在台账建档的实体候选。
 
     v4.3 说明：本命令仅扫描细纲 frontmatter 声明（new_entities / present_characters /
@@ -1537,19 +1700,34 @@ def evidence_candidates(workspace: Path, chapter_id: str) -> Dict[str, Any]:
                     if iname and iname not in known_names and iname not in seen:
                         seen.add(iname)
                         candidates.append({"name": iname, "type": "item", "suggested_role": "item"})
-        except Exception:
-            pass
+        except Exception as _e:
+            # FIND-CT13（ops D-06·假阴性绿灯）：旧版裸 except: pass 后命令照样返回
+            # 「未发现未登记关键次要实体，台账完备」——把"我没读成"报告成"没问题"，
+            # Librarian 据此漏报 Level 2。改为显式降级声明：解析失败时 candidates
+            # 为空但 message 明说"打捞失败，不可判定为完备"。
+            candidates.append({
+                "name": f"__PARSE_FAILURE__",
+                "type": "error",
+                "suggested_role": "—",
+                "detail": f"细纲解析失败（{type(_e).__name__}: {_e}），本轮打捞不可信，请检查 {beats_file.name} 的 frontmatter 结构后重试。",
+            })
 
+    _parse_failed = any(c.get("type") == "error" for c in candidates)
     return {
         "chapter_id": chapter_id,
         "source_file": str(target_f),
         "candidates": candidates,
         "known_entities_count": len(known_names),
-        "message": f"打捞完毕：发现 {len(candidates)} 个潜在未登记实体" if candidates else "未发现未登记关键次要实体，台账完备",
+        "message": (
+            f"打捞完毕：发现 {len(candidates)} 个潜在未登记实体" if candidates and not _parse_failed
+            else ("⚠️ 打捞过程出错，无法判定台账完备性（详见 candidates 内 error 条目）" if _parse_failed
+                  else "未发现未登记关键次要实体，台账完备")
+        ),
     }
 
 
 def reconcile_volume(workspace: Path, volume_id: str, write_file: bool = False) -> Dict[str, Any]:
+    _validate_path_id(volume_id, "volume_id")
     """卷末对账：深度核对全卷字数、伏笔收束率、道具充能状态与经济平账。"""
     ledger = StateLedger(workspace)
     timeline = ledger.get_timeline()
@@ -1688,6 +1866,7 @@ def reconcile_volume(workspace: Path, volume_id: str, write_file: bool = False) 
 
 
 def rollup_volume(workspace: Path, volume_id: str) -> Dict[str, Any]:
+    _validate_path_id(volume_id, "volume_id")
     """分卷归档 (state rollup)：把时间线按卷折叠为 rollup JSON 副本，供跨卷总览与封存。
 
     注意：rollup 是**只读归档副本**，从不删减 timeline.json——时间线仍是

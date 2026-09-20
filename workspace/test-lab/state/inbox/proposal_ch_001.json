@@ -1,0 +1,82 @@
+{
+  "chapter_id": "ch_001",
+  "frontmatter": {
+    "chapter_id": "ch_001",
+    "volume_id": "vol_01",
+    "title": "第ch_001章",
+    "chapter_type": "{{slot:chapter_type|破局}}",
+    "timeline": "{{slot:timeline|小说历纪年·时空时间}}",
+    "location": "{{slot:location|核心场景名}}",
+    "narrative_spine": {
+      "thread": "{{slot:thread|主线·核心冲突推进}}",
+      "volume_phase": "{{slot:volume_phase|阶段一：开局破局}}",
+      "macro_goal": "{{slot:macro_goal|本阶段跨章核心战役目标}}"
+    },
+    "present_characters": [
+      {
+        "id": "{{slot:char_1_id|p_001}}",
+        "name": "林渊",
+        "role": "protagonist",
+        "want": "{{slot:char_1_want|本章核心利益诉求}}",
+        "fear": "{{slot:char_1_fear|本章最忌惮暴露的底牌或软肋}}",
+        "status_in": "{{slot:char_1_status_in|入场状态：如 完好/微伤/隐忍戒备}}"
+      },
+      {
+        "id": "{{slot:char_2_id|p_002}}",
+        "name": "{{slot:char_2_name|核心对手/反派名}}",
+        "role": "{{slot:char_2_role|antagonist}}",
+        "want": "{{slot:char_2_want|本章核心算计/施压目的}}",
+        "fear": "{{slot:char_2_fear|忌惮之处/死穴}}",
+        "status_in": "{{slot:char_2_status_in|入场状态：如 盛气凌人/暗中试探}}"
+      }
+    ],
+    "epistemology": {
+      "known": {
+        "{{slot:char_1_id|p_001}}": [
+          "{{slot:char_1_knows|明确知晓的事实}}"
+        ],
+        "{{slot:char_2_id|p_002}}": [
+          "{{slot:char_2_knows|对方知晓的有限事实}}"
+        ]
+      },
+      "blind_spots": {
+        "{{slot:char_2_id|p_002}}": [
+          "{{slot:char_2_blind|对方绝对不知道的秘密（严禁正文脱口而出）}}"
+        ]
+      }
+    },
+    "foreshadowing_deltas": [
+      {
+        "id": "{{slot:line_1_id|GUN-001}}",
+        "name": "{{slot:line_1_name|伏笔名}}",
+        "action": "{{slot:line_1_action|reveal}}",
+        "desc": "{{slot:line_1_desc|线索特征与因果描述}}"
+      }
+    ],
+    "state_deltas": {
+      "character_status": {
+        "{{slot:char_1_id|p_001}}": "{{slot:char_1_status_out|出场状态：如 位阶突破 / 身体受创 / 心境升华}}"
+      },
+      "debts": [
+        {
+          "source": "{{slot:debt_source|p_001}}",
+          "target": "{{slot:debt_target|恩怨对象名}}",
+          "type": "{{slot:debt_type|grudge}}",
+          "desc": "{{slot:debt_desc|具体过节或恩义内容}}",
+          "action": "{{slot:debt_action|record}}"
+        }
+      ]
+    },
+    "relation_deltas": [
+      {
+        "source": "{{slot:char_1_id|p_001}}",
+        "target": "{{slot:char_2_id|p_002}}",
+        "tension": "{{slot:rel_tension|75}}",
+        "dynamic": "{{slot:rel_dynamic|表面客套·暗中博弈}}",
+        "subtext": "{{slot:rel_subtext|利益争端/未挑明的死结}}"
+      }
+    ],
+    "new_entities": [],
+    "locked_facts": []
+  }
+}

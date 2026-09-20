@@ -1,0 +1,71 @@
+{
+  "chapter_id": "ch_001",
+  "frontmatter": {
+    "chapter_id": "ch_001",
+    "volume_id": "vol_01",
+    "title": "深渊初启",
+    "chapter_type": "破局",
+    "timeline": "新历47年·霜月三日",
+    "location": "黑石矿区·三号矿道",
+    "narrative_spine": {
+      "thread": "主线·初始冲突",
+      "volume_phase": "阶段一：开局破局",
+      "macro_goal": "查明矿难真相并活下去"
+    },
+    "present_characters": [
+      {
+        "id": "p_001",
+        "name": "陈默",
+        "role": "protagonist",
+        "want": "查明矿难真相",
+        "fear": "被宗门当成替罪羊",
+        "status_in": "微伤"
+      },
+      {
+        "id": "p_002",
+        "name": "赵无咎",
+        "role": "antagonist",
+        "want": "掩盖事故",
+        "fear": "事迹败露",
+        "status_in": "盛气凌人"
+      }
+    ],
+    "epistemology": {
+      "known": {
+        "p_001": [
+          "矿道深处有异常嘶吼"
+        ]
+      },
+      "blind_spots": {
+        "p_002": [
+          "陈默已拾到矿工铭牌"
+        ]
+      }
+    },
+    "foreshadowing_deltas": [
+      {
+        "id": "GUN-001",
+        "name": "矿工铭牌",
+        "action": "plant",
+        "desc": "铭牌编号被人为磨去"
+      }
+    ],
+    "state_deltas": null,
+    "relation_deltas": [
+      {
+        "source": "p_001",
+        "target": "p_002",
+        "tension": 75,
+        "dynamic": "表面客套·暗中博弈",
+        "subtext": "都想置对方于死地"
+      }
+    ],
+    "new_entities": [],
+    "locked_facts": [
+      {
+        "id": "LOCK-001",
+        "fact": "p_002 赵无咎 在 ch_001 当众销毁了事故记录"
+      }
+    ]
+  }
+}

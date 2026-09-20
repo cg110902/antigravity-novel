@@ -1,0 +1,75 @@
+{
+  "chapter_id": "ch_002",
+  "frontmatter": {
+    "chapter_id": "ch_002",
+    "volume_id": "vol_01",
+    "title": "铭牌与刀",
+    "chapter_type": "过渡",
+    "timeline": "新历47年·霜月三日·午后",
+    "location": "黑石矿区·矿务堂",
+    "narrative_spine": {
+      "thread": "主线·真相追索",
+      "volume_phase": "阶段一：开局破局",
+      "macro_goal": "把铭牌交给可靠之人"
+    },
+    "present_characters": [
+      {
+        "id": "p_001",
+        "name": "陈默",
+        "role": "protagonist",
+        "want": "把铭牌送出矿区",
+        "fear": "赵无咎杀人灭口",
+        "status_in": "微伤"
+      }
+    ],
+    "new_entities": [
+      {
+        "id": "it_002",
+        "type": "item",
+        "name": "崩坏测试刃",
+        "charges": null,
+        "holder": "p_001",
+        "summary": "一把用于测试 null 边界的短刃"
+      },
+      {
+        "id": "p_004",
+        "type": "person",
+        "name": "李四\"引号\"",
+        "summary": "带英文双引号与中文冒号：还有井号#与反斜杠\\以及管道符"
+      }
+    ],
+    "state_deltas": {
+      "character_status": {
+        "不存在者": {
+          "life_status": "deceased",
+          "condition": "正文阵亡·测试死亡登记，含\"引号\"与:冒号"
+        }
+      },
+      "items": [
+        {
+          "id": "it_001",
+          "name": "测试之刃",
+          "status": "destroyed"
+        }
+      ]
+    },
+    "foreshadowing_deltas": [
+      {
+        "id": "GUN-001",
+        "name": "矿工铭牌",
+        "action": "reveal",
+        "desc": "陈默向老矿工出示铭牌"
+      }
+    ],
+    "relation_deltas": [
+      {
+        "source": "p_001",
+        "target": "p_002",
+        "tension": 90,
+        "dynamic": "公开决裂",
+        "subtext": "不死不休"
+      }
+    ],
+    "locked_facts": []
+  }
+}

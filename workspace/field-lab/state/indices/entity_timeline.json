@@ -1,0 +1,198 @@
+{
+  "p_001": {
+    "id": "p_001",
+    "name": "陈默",
+    "type": "person",
+    "events": [
+      {
+        "chapter": "ch_001",
+        "event": "出场",
+        "status_in": "微伤",
+        "want": "查明矿难真相",
+        "fear": "被宗门当成替罪羊"
+      },
+      {
+        "chapter": "ch_002",
+        "event": "出场",
+        "status_in": "微伤",
+        "want": "把铭牌送出矿区",
+        "fear": "赵无咎杀人灭口"
+      },
+      {
+        "chapter": "ch_007",
+        "event": "出场",
+        "status_in": "疲惫",
+        "want": "突围",
+        "fear": "周老实被杀"
+      },
+      {
+        "chapter": "ch_010",
+        "event": "出场",
+        "status_in": "完好",
+        "want": "验证字段",
+        "fear": "数据丢失"
+      },
+      {
+        "chapter": "ch_011",
+        "event": "出场",
+        "status_in": "完好",
+        "want": "类型测试",
+        "fear": "类型崩栈"
+      },
+      {
+        "chapter": "ch_012",
+        "event": "出场",
+        "status_in": "完好",
+        "want": "注入测试",
+        "fear": "注入生效"
+      },
+      {
+        "chapter": "ch_013",
+        "event": "出场",
+        "status_in": "完好",
+        "want": "超长测试",
+        "fear": "截断"
+      },
+      {
+        "chapter": "ch_015",
+        "event": "出场",
+        "status_in": "",
+        "want": "",
+        "fear": ""
+      },
+      {
+        "chapter": "ch_016",
+        "event": "出场",
+        "status_in": "完好",
+        "want": "枚举测试",
+        "fear": "枚举误报"
+      },
+      {
+        "chapter": "ch_017",
+        "event": "出场",
+        "status_in": "完好",
+        "want": "组合测试",
+        "fear": "崩栈"
+      }
+    ]
+  },
+  "p_002": {
+    "id": "p_002",
+    "name": "赵无咎",
+    "type": "person",
+    "events": [
+      {
+        "chapter": "ch_001",
+        "event": "出场",
+        "status_in": "盛气凌人",
+        "want": "掩盖事故",
+        "fear": "事迹败露"
+      }
+    ]
+  },
+  "it_001": {
+    "id": "it_001",
+    "name": "测试之刃",
+    "type": "item",
+    "events": [
+      {
+        "chapter": "ch_001",
+        "event": "流转/使用",
+        "holder": "p_001 -> p_002",
+        "charges_delta": -1,
+        "remaining_charges": -1
+      },
+      {
+        "chapter": "ch_002",
+        "event": "流转/使用",
+        "holder": "p_002",
+        "charges_delta": 0,
+        "remaining_charges": -1
+      }
+    ]
+  },
+  "p_003": {
+    "id": "p_003",
+    "name": "周老实",
+    "type": "person",
+    "events": [
+      {
+        "chapter": "ch_003",
+        "event": "出场",
+        "status_in": "惊惶",
+        "want": "把铭牌送出矿区",
+        "fear": "被赵无咎灭口"
+      }
+    ]
+  },
+  "it_002": {
+    "id": "it_002",
+    "name": "崩坏测试刃",
+    "type": "item",
+    "events": [
+      {
+        "chapter": "ch_003",
+        "event": "流转/使用",
+        "holder": "p_001 -> p_003",
+        "charges_delta": -1,
+        "remaining_charges": 2
+      }
+    ]
+  },
+  "it_007": {
+    "id": "it_007",
+    "name": "一次性爆符",
+    "type": "item",
+    "events": [
+      {
+        "chapter": "ch_007",
+        "event": "流转/使用",
+        "holder": "p_001",
+        "charges_delta": -3,
+        "remaining_charges": 2
+      }
+    ]
+  },
+  "it_010": {
+    "id": "it_010",
+    "name": "零充能刃",
+    "type": "item",
+    "events": [
+      {
+        "chapter": "ch_010",
+        "event": "流转/使用",
+        "holder": "主角",
+        "charges_delta": 0,
+        "remaining_charges": 0
+      }
+    ]
+  },
+  "it_050": {
+    "id": "it_050",
+    "name": "单dict刃",
+    "type": "item",
+    "events": [
+      {
+        "chapter": "ch_015",
+        "event": "流转/使用",
+        "holder": "",
+        "charges_delta": -1,
+        "remaining_charges": -1
+      }
+    ]
+  },
+  "it_060": {
+    "id": "it_060",
+    "name": "活跃刃",
+    "type": "item",
+    "events": [
+      {
+        "chapter": "ch_016",
+        "event": "流转/使用",
+        "holder": "主角",
+        "charges_delta": -2,
+        "remaining_charges": 0
+      }
+    ]
+  }
+}

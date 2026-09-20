@@ -1,0 +1,17 @@
+{
+  "ch_001": {
+    "final_sha1": "1d7e1065aaf83f16bd914344c10b62e6b7e89380",
+    "synced_at": "2026-09-20T13:06:23",
+    "forced": false,
+    "title": "矿道深处的剑鸣",
+    "word_count": 1653
+  },
+  "ch_002": {
+    "final_sha1": "738d19d2ba3ea39f09505a5cc2033b740f2352e5",
+    "synced_at": "2026-09-20T14:27:55",
+    "forced": true,
+    "title": "执事堂的对质",
+    "word_count": 1557,
+    "refreshed_at": "2026-09-20T14:27:56"
+  }
+}

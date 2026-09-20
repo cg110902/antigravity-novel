@@ -1,0 +1,269 @@
+{
+  "chapter_id": "ch_001",
+  "timestamp": "2026-09-20T12:59:21.591513",
+  "current": {
+    "current_vol": "vol_01",
+    "current_ch": "ch_001",
+    "last_timeline": "新历47年·霜月三日",
+    "last_location": "黑石矿区·三号矿道",
+    "last_chapter_type": "破局",
+    "present_characters": [
+      "陈默",
+      "赵无咎"
+    ],
+    "active_foreshadowings": [
+      "GUN-001"
+    ],
+    "latest_word_count": 534,
+    "last_dramatic_goal": "陈默在矿难现场发现铭牌，与赵无咎正面交锋。",
+    "last_cliffhanger": "赵无咎的佩刀出鞘半寸，又生生停住。"
+  },
+  "persons": {
+    "p_001": {
+      "id": "p_001",
+      "name": "陈默",
+      "role": "protagonist",
+      "type": "person",
+      "tier_rank": 1,
+      "tier_name": "初始实力阶层",
+      "life_status": "alive",
+      "condition": "位阶未变·心境凝重",
+      "status": "active",
+      "attitude": "friendly",
+      "established_ch": "ch_001",
+      "last_seen_ch": "ch_002",
+      "card": "characters/protagonist.md",
+      "arc_history": [
+        {
+          "chapter": "ch_002",
+          "want": "把铭牌送出矿区",
+          "fear": "赵无咎杀人灭口",
+          "latent_mood": "",
+          "physiological_leak": "",
+          "status_in": "微伤",
+          "status_out": ""
+        },
+        {
+          "chapter": "ch_001",
+          "want": "查明矿难真相",
+          "fear": "被宗门当成替罪羊",
+          "latent_mood": "",
+          "physiological_leak": "",
+          "status_in": "微伤",
+          "status_out": "位阶未变·心境凝重"
+        }
+      ],
+      "want": "查明矿难真相",
+      "fear": "被宗门当成替罪羊"
+    },
+    "p_002": {
+      "id": "p_002",
+      "name": "赵无咎",
+      "role": "antagonist",
+      "type": "person",
+      "tier_rank": 2,
+      "tier_name": "反派阶层",
+      "life_status": "alive",
+      "condition": "盛气凌人",
+      "status": "active",
+      "attitude": "hostile",
+      "established_ch": "ch_001",
+      "last_seen_ch": "ch_001",
+      "card": "characters/antagonist.md",
+      "arc_history": [
+        {
+          "chapter": "ch_001",
+          "want": "掩盖事故",
+          "fear": "事迹败露",
+          "latent_mood": "",
+          "physiological_leak": "",
+          "status_in": "盛气凌人",
+          "status_out": ""
+        }
+      ],
+      "want": "掩盖事故",
+      "fear": "事迹败露"
+    },
+    "p_003": {
+      "id": "p_003",
+      "name": "周老实",
+      "type": "person",
+      "role": "supporting",
+      "aliases": [],
+      "card": "",
+      "summary": "",
+      "tier_rank": 1,
+      "tier_name": "",
+      "realm": "",
+      "power_benchmark": "",
+      "status": "active",
+      "life_status": "alive",
+      "condition": "惊惶",
+      "injury_level": 0,
+      "injury_desc": "无伤",
+      "renown": 0,
+      "location": "",
+      "faction": "",
+      "attitude": "neutral",
+      "sensory_anchor": "",
+      "micro_actions": [],
+      "address_matrix": {},
+      "relations": [],
+      "dossier": "",
+      "want": "把铭牌送出矿区",
+      "fear": "被赵无咎灭口",
+      "need": "",
+      "lie": "",
+      "quirk": "",
+      "taboo": "",
+      "latent_mood": "",
+      "physiological_leak": "",
+      "emotional_temp": 50,
+      "vulnerability": "",
+      "last_seen_ch": "ch_003",
+      "arc_history": [
+        {
+          "chapter": "ch_003",
+          "want": "把铭牌送出矿区",
+          "fear": "被赵无咎灭口",
+          "latent_mood": "",
+          "physiological_leak": "",
+          "status_in": "惊惶",
+          "status_out": ""
+        }
+      ]
+    }
+  },
+  "items": {
+    "it_001": {
+      "id": "it_001",
+      "name": "测试之刃",
+      "type": "item",
+      "card": "",
+      "summary": "",
+      "tier_rank": 1,
+      "tier_name": "",
+      "status": "active",
+      "condition": "完好",
+      "holder": "p_002",
+      "charges": -1,
+      "max_charges": -1,
+      "cost_per_use": "",
+      "durability": "完好",
+      "location": "",
+      "faction": "",
+      "last_seen_ch": "ch_001",
+      "transfer_history": [
+        {
+          "chapter": "ch_001",
+          "holder_change": "p_001 -> p_002",
+          "charges_delta": -1,
+          "remaining_charges": -1,
+          "status": "active"
+        }
+      ]
+    },
+    "it_002": {
+      "id": "it_002",
+      "name": "崩坏测试刃",
+      "holder": "p_003",
+      "charges": 3,
+      "status": "active",
+      "durability": "完好",
+      "sensory_anchor": "",
+      "location": "随身",
+      "summary": "短刃",
+      "established_ch": "ch_002",
+      "last_seen_ch": "ch_003",
+      "transfer_history": [
+        {
+          "chapter": "ch_003",
+          "holder_change": "p_001 -> p_003",
+          "charges_delta": -1,
+          "remaining_charges": 3,
+          "status": "active"
+        }
+      ]
+    }
+  },
+  "lines": {
+    "GUN-001": {
+      "id": "GUN-001",
+      "name": "矿工铭牌",
+      "type": "GUN",
+      "tier": "A",
+      "status": "active",
+      "planted_ch": "ch_001",
+      "target_ch": "",
+      "revealed_chs": [
+        "ch_002"
+      ],
+      "resolved_ch": "",
+      "desc": "铭牌编号被人为磨去",
+      "evidence": ""
+    }
+  },
+  "relations": {
+    "p_001->p_002": {
+      "pair": "p_001->p_002",
+      "source_id": "p_001",
+      "target_id": "p_002",
+      "affinity": 0,
+      "trust": 50,
+      "tension": 75,
+      "dynamic_label": "表面客套·暗中博弈",
+      "unspoken_subtext": "都想置对方于死地",
+      "history": [
+        {
+          "chapter": "ch_002",
+          "dynamic": "公开决裂",
+          "subtext": "不死不休",
+          "affinity": 0,
+          "tension": 90
+        },
+        {
+          "chapter": "ch_001",
+          "dynamic": "表面客套·暗中博弈",
+          "subtext": "都想置对方于死地",
+          "affinity": 0,
+          "tension": 75
+        }
+      ],
+      "last_updated_ch": "ch_001"
+    }
+  },
+  "debts": [
+    {
+      "id": "DEBT-AUTO-dcfb5792",
+      "source_char": "p_001",
+      "target_char": "赵无咎",
+      "type": "grudge",
+      "desc": "赵无咎栽赃陈默窃矿",
+      "status": "unpaid",
+      "created_ch": "ch_001"
+    }
+  ],
+  "locked_facts": [
+    {
+      "id": "LOCK-001",
+      "fact": "p_002 赵无咎 在 ch_001 当众销毁了事故记录",
+      "domain": "plot",
+      "established_ch": "ch_001"
+    }
+  ],
+  "synopsis": {
+    "chapter_id": "ch_001",
+    "volume_id": "vol_01",
+    "title": "深渊初启",
+    "timeline": "新历47年·霜月三日",
+    "location": "黑石矿区·三号矿道",
+    "chapter_type": "破局",
+    "dramatic_goal": "陈默在矿难现场发现铭牌，与赵无咎正面交锋。",
+    "cliffhanger": "赵无咎的佩刀出鞘半寸，又生生停住。",
+    "word_count": 534,
+    "present_characters": [
+      "陈默",
+      "赵无咎"
+    ]
+  }
+}

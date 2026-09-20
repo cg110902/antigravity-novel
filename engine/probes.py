@@ -194,8 +194,12 @@ def probe_epistemology_leaks(text: str, blind_spots: Dict[str, List[str]],
                                               "matched_keyword": kw,
                                               "mode": ("说话人无法归属" if speaker is None else "盲区角色在场，他人公开提及")})
                             secret_suspected = True
-                    # 说话人可归属且盲区角色不在场 → 知情人合法陈述，静默通过
-                    break
+                    # 说话人可归属且盲区角色不在场 → 知情人合法陈述，继续扫描其余对白
+                    # FIND-CT21（FN-4·确认级泄露漏检）：旧版此处无条件 break——本章
+                    # 第一句合法陈述会永久挡住同一关键词下后续的「本人对白泄密」
+                    # 确认级命中，双阻断级探针之一被首句静默废掉。仅 confirmed
+                    # 命中才终止本关键词扫描（上方 189 行已 break）。
+                    continue
 
     return {
         "name": "认知盲区防透视探针",
@@ -416,6 +420,19 @@ _NON_DEATH_GUARDS = [
     r"如果.{0,6}死", r"万一.{0,6}死", r"若是.{0,6}死", r"以为.{0,6}死",
 ]
 
+# FIND-CT8：观察/回忆/旁述语境守卫——「裴砚望着脚边的尸体，冰冷僵硬」是观尸句，
+# 死亡词描述的是尸体而非裴砚本人；「那年兄长战死」是回忆；「墓前」「遗像」
+# 同理。这些语境里 NAME 与死亡词共现绝不等于 NAME 阵亡。
+_OBSERVE_MEMORY_GUARDS = [
+    r"望[着见]", r"看[着见]", r"瞧[见得]", r"注视", r"凝视", r"扫[了眼]",
+    r"脚边", r"身边", r"面前", r"眼前", r"怀里", r"怀里抱着",
+    r"尸体", r"尸身", r"遗骸", r"残骸", r"墓碑", r"坟前", r"墓前",
+    r"遗像", r"遗物", r"遗稿", r"灵位", r"牌位", r"棺",
+    r"想起", r"回想起", r"记得", r"回忆", r"梦里", r"梦中", r"那年",
+    r"生前", r"死后", r"逝世", r"祭", r"悼", r"哀", r"奠",
+    r"险些.{0,4}死", r"差点.{0,4}死", r"几乎.{0,4}死", r"捡回一条命",
+]
+
 
 def probe_dialogue_ratio(text: str, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """对白行占比遥测（v4.3.3 新增 · BUG#43）。
@@ -574,12 +591,18 @@ def probe_unregistered_fatalities(
                 continue
 
             for pat in all_semantic_patterns:
-                # 匹配同一分句（35字内，不跨标点句尾）中角色名与死亡语义共现
-                pattern = rf"(?:{re.escape(target_name)}[^\n。！？]{{0,35}}(?:{pat})|(?:{pat})[^\n。！？]{{0,35}}{re.escape(target_name)})"
+                # FIND-CT8（probes L1·假阳性+契约违反）：
+                # (1) 共现窗口 35 → 15 字并优先取 NAME 后最近动词——「裴砚望着脚边的
+                #     尸体，冰冷僵硬」这类观尸合规句（NAME 与死亡词同在 35 字内但分属
+                #     主宾/旁观语境）不再被打成疑似阵亡；
+                # (2) 增补观察/回忆/旁述语境守卫（望着尸体≠本人死亡）。
+                pattern = rf"(?:{re.escape(target_name)}[^\n。！？]{{0,15}}(?:{pat})|(?:{pat})[^\n。！？]{{0,15}}{re.escape(target_name)})"
                 for m in re.finditer(pattern, text):
                     matched_snippet = m.group(0)
-                    # 守卫检查：若包含比喻/非死亡语境，跳过
+                    # 守卫检查：若包含比喻/非死亡/观察回忆语境，跳过
                     if any(re.search(guard, matched_snippet) for guard in _NON_DEATH_GUARDS):
+                        continue
+                    if any(re.search(guard, matched_snippet) for guard in _OBSERVE_MEMORY_GUARDS):
                         continue
                     misses.append(f"正文描写中【{cname}】疑似阵亡（触发片段: 「{matched_snippet[:30]}」），但细纲与审计报告均未声明登记")
                     acknowledged_deaths.add(cname)
@@ -663,7 +686,54 @@ def run_all_probes(text: str, frontmatter: Dict[str, Any],
             present_ids.append(str(c["id"]).strip())
         elif isinstance(c, str) and c.strip():
             present_ids.append(c.strip())
-    blind_spots = (frontmatter.get("epistemology") or {}).get("blind_spots", {})
+    # FIND-CT38（漏网补丁）：旧版在此的裸 `.get("blind_spots")` 先于下方形态防御
+    # 执行——epistemology 为 list 时 `[].get` 直接 AttributeError（实测
+    # check ch_017 崩 exit 4）。旧行删除，统一由下方 FIND-CT22 块防御。
+    # FIND-CT22（RB-3+FP-3 组合）：
+    # (1) 形态防御——epistemology/blind_spots 被写成 list/标量时旧版裸奔，
+    #     check/audit/cruise 三入口连环 exit 4「未预期异常」。非预期形态归一为
+    #     {} 并记 form_warning，探针跳过而非崩栈；
+    # (2) 姓名键反查——模板未强制 ID 键，首章新角色作者倾向写姓名
+    #    （如 {"沈拂云": [...]}）。旧版 name_by_id 只认 ID ⇒ owner_name 永空，
+    #    确认级「本人对白泄密」分支不可达，只剩疑似级 warning。用姓名→ID 反向
+    #    映射把键归一到 ID（台账/细纲均查）。
+    _form_warnings: List[str] = []
+    _epi = frontmatter.get("epistemology")
+    if _epi is None:
+        _epi = {}
+    elif not isinstance(_epi, dict):
+        _form_warnings.append(
+            f"细纲 epistemology 形态非法（{type(_epi).__name__}，应为字典），认知盲区探针已跳过。\n"
+            f"      💡 方案：请改为 `epistemology: {{known: ..., blind_spots: ...}}` 字典结构。"
+        )
+        _epi = {}
+    blind_spots = _epi.get("blind_spots") or {}
+    if not isinstance(blind_spots, dict):
+        _form_warnings.append(
+            f"细纲 epistemology.blind_spots 形态非法（{type(blind_spots).__name__}，应为字典），认知盲区探针已跳过。\n"
+            f"      💡 方案：请改为 `blind_spots: {{\"p_002\": [\"秘密内容\"]}}` 字典结构。"
+        )
+        blind_spots = {}
+    _name_to_id = {str(_v).strip(): _k for _k, _v in name_by_id.items()}
+    _norm_blind: Dict[str, Any] = {}
+    for _bk, _bv in blind_spots.items():
+        _key = str(_bk).strip()
+        _nid = _name_to_id.get(_key)
+        if _nid:
+            _norm_blind[_nid] = _bv
+        elif _key in name_by_id:
+            _norm_blind[_key] = _bv
+        else:
+            # 既非已建档 ID 也非已知姓名：保持原键（owner_name 为空，走疑似级并提示）
+            _norm_blind[_key] = _bv
+            _form_warnings.append(
+                f"认知盲区键 [{_key}] 既不是已建档角色 ID 也不是已知角色姓名，"
+                f"该条盲区只能做疑似级提醒。\n      💡 方案：请改用 p_XXX 形式的人物 ID。"
+            )
+    blind_spots = {
+        _k: ([_v] if isinstance(_v, str) else (_v if isinstance(_v, list) else [_v]))
+        for _k, _v in _norm_blind.items()
+    }
 
     total_words = _count_total(text)
     # v4.3.3 BUG#42：config 此前收而不用——字数遥测只判 >0，体量偏离要等 sync
@@ -694,11 +764,18 @@ def run_all_probes(text: str, frontmatter: Dict[str, Any],
     p_fatalities = probe_unregistered_fatalities(text, frontmatter, persons_db=persons_db, audit_text=audit_text)
     p_dialogue = probe_dialogue_ratio(text, config=config)
 
-    # 阻断级错误：空正文 (0字)、确认级角色认知泄露、未登记角色死亡
-    all_passed = (total_words > 0) and p_epistemology["passed"] and p_fatalities["passed"]
+    # 阻断级错误：仅空正文 (0字) 与确认级角色认知泄露（probes.py 模块 docstring
+    # 与 check.py 头注释共同承诺的「阻断级仅 2」契约）。
+    # FIND-CT8（probes L1）：未登记死亡回归 L2 提醒层——BUG#47 分层治理注释明言
+    # 这批语义正则「只用于提醒、不做硬裁决」，旧版却把 p_fatalities 纳入
+    # all_passed 并经 check 升级为 error：既违背契约，又会因 35 字共现窗口无
+    # 观察守卫把「望着尸体冰冷僵硬」这类每章必现合规句打成 exit 1 硬阻断。
+    # 现降为 warning（misses 仍随 summary 输出交 Auditor 审阅）。
+    all_passed = (total_words > 0) and p_epistemology["passed"]
     return {
         "all_passed": all_passed,
         "word_count": total_words,
+        "form_warnings": _form_warnings,
         "summary": {
             "words": {
                 "name": "正文字数遥测",

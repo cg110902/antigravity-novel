@@ -1,0 +1,69 @@
+{
+  "p_001->p_002": {
+    "pair": "p_001->p_002",
+    "source_id": "p_001",
+    "target_id": "p_002",
+    "affinity": 0,
+    "trust": 50,
+    "tension": 90,
+    "dynamic_label": "水火不容·杀机已动",
+    "unspoken_subtext": "堂审失手令沈天阙杀心升级，林渊已看清对方绝不会留活口",
+    "history": [
+      {
+        "chapter": "ch_001",
+        "dynamic": "生死对头·不死不休",
+        "subtext": "沈天阙断定林渊身怀异宝，誓要夺宝灭口；林渊低头隐忍，暗记第一笔血账",
+        "affinity": 0,
+        "tension": 85
+      },
+      {
+        "chapter": "ch_002",
+        "dynamic": "水火不容·杀机已动",
+        "subtext": "堂审失手令沈天阙杀心升级，林渊已看清对方绝不会留活口",
+        "affinity": 0,
+        "tension": 90
+      }
+    ],
+    "last_updated_ch": "ch_002"
+  },
+  "p_001->p_003": {
+    "pair": "p_001->p_003",
+    "source_id": "p_001",
+    "target_id": "p_003",
+    "affinity": 0,
+    "trust": 50,
+    "tension": 65,
+    "dynamic_label": "生死之交·背靠背",
+    "unspoken_subtext": "塌方共患难建立的信任，尚未挑明的暧昧与默契",
+    "history": [
+      {
+        "chapter": "ch_001",
+        "dynamic": "生死之交·背靠背",
+        "subtext": "塌方共患难建立的信任，尚未挑明的暧昧与默契",
+        "affinity": 0,
+        "tension": 65
+      }
+    ],
+    "last_updated_ch": "ch_001"
+  },
+  "p_001->p_004": {
+    "pair": "p_001->p_004",
+    "source_id": "p_001",
+    "target_id": "p_004",
+    "affinity": 0,
+    "trust": 50,
+    "tension": 55,
+    "dynamic_label": "恩义相托·惺惺相惜",
+    "unspoken_subtext": "一刀之恩与名册线索，两人结成暗线同盟",
+    "history": [
+      {
+        "chapter": "ch_002",
+        "dynamic": "恩义相托·惺惺相惜",
+        "subtext": "一刀之恩与名册线索，两人结成暗线同盟",
+        "affinity": 0,
+        "tension": 55
+      }
+    ],
+    "last_updated_ch": "ch_002"
+  }
+}

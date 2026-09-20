@@ -187,8 +187,19 @@ def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dic
     # v4.2.2 缺陷#20：紧凑列表形态（present_characters: [p_001, p_002]）此前被
     # isinstance(dict) 检查整段跳过——人物档案、恩怨、关系、历史交集全部丢失。
     # 此处统一归一化：字符串条目回查 persons_db 补全记录，下游全部受益。
+    # FIND-CT7（cli L1· Drafter 唯一事实源污染）：整值标量包裹。作者按自然 YAML
+    # 写 `present_characters: p_001`（不带方括号，独戏章极常见）时，旧版
+    # `for _c in <str>` 按单字符迭代，产出 5 条幻影档案 [p]/[_]/[0]/[0]/[1]，
+    # 主角 Want/Fear/卡/称谓矩阵全丢且 exit 0 无任何旗标。与 ops.py evidence
+    # candidates 的归一化口径对齐：str/dict 整值先包成列表再迭代。
+    pack_warnings: List[str] = []
+    _raw_pc = frontmatter.get("present_characters")
+    _pc_iter: List[Any] = (
+        [_raw_pc] if isinstance(_raw_pc, (str, dict))
+        else (_raw_pc if isinstance(_raw_pc, list) else [])
+    )
     present_chars: List[Dict[str, Any]] = []
-    for _c in (frontmatter.get("present_characters") or []):
+    for _c in _pc_iter:
         if isinstance(_c, str):
             _cid = _c.strip()
             _rec = persons_db.get(_cid, {})
@@ -199,6 +210,13 @@ def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dic
             })
         elif isinstance(_c, dict):
             present_chars.append(_c)
+        elif _c is not None:
+            # FIND-CT7b：数字/嵌套/non-str-non-dict 条目静默丢弃会让作者误以为
+            # 角色在场；显式告警（flow-list 里未加引号的数字会走到这里）。
+            pack_warnings.append(
+                f"present_characters 存在无法解析的条目（类型 {type(_c).__name__}: {_c!r} 已跳过）——"
+                f"每个条目应为角色 ID 字符串（\"p_001\"）或含 id/name 的字典；未加引号的数字 ID 请补引号。"
+            )
     char_dossiers: List[str] = []
     address_rules: List[str] = []
 
@@ -301,11 +319,24 @@ def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dic
             for pk in pair_keys:
                 if pk in rel_db:
                     r = rel_db[pk]
-                    aff = r.get("affinity", 0)
-                    aff_str = f"+{aff}" if aff > 0 else str(aff)
+                    # FIND-CT15：与 cockpit 同口径的数值归一化——字符串型 affinity
+                    # （"20"）会让 `aff > 0` TypeError 崩掉装配（Drafter 唯一输入）。
+                    try:
+                        aff = float(r.get("affinity", 0) or 0)
+                    except (TypeError, ValueError):
+                        aff = 0.0
+                    aff_str = f"+{int(aff)}" if aff > 0 else str(int(aff))
+                    try:
+                        _trust = int(float(r.get("trust", 50) or 50))
+                    except (TypeError, ValueError):
+                        _trust = 50
+                    try:
+                        _tension = int(float(r.get("tension", 20) or 20))
+                    except (TypeError, ValueError):
+                        _tension = 20
                     relation_blocks.append(
                         f"- 💘 **[{r.get('dynamic_label', '情感暗流')}]** `{c1_name}` ➔ `{c2_name}`：\n"
-                        f"  - 好恶温标: `{aff_str}` ｜ 信任度: `{r.get('trust', 50)}/100` ｜ 心理拉扯指数: `🔥 {r.get('tension', 20)}/100`\n"
+                        f"  - 好恶温标: `{aff_str}` ｜ 信任度: `{_trust}/100` ｜ 心理拉扯指数: `🔥 {_tension}/100`\n"
                         f"  - 🤫 潜台词与未挑明心结: “{r.get('unspoken_subtext') or '表面客套，暗中较劲'}”"
                     )
 
@@ -349,7 +380,11 @@ def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dic
 
     # 查在场道具的历史登场流转
     # v4.3：单 dict 形态统一包裹为列表（与 state.py 归一化口径一致，防 dict 键名被当条目遍历）
-    _raw_it = frontmatter.get("state_deltas", {}).get("items") or []
+    # FIND-CT14（cli L2）：state_deltas 为 null/标量时旧版 `.get("items")` 直接
+    # AttributeError 逃逸 exit 4（用户数据问题被升级为系统故障）。先判 dict 形态。
+    _sd_raw = frontmatter.get("state_deltas")
+    _sd_dict = _sd_raw if isinstance(_sd_raw, dict) else {}
+    _raw_it = _sd_dict.get("items") or []
     _it_list = [_raw_it] if isinstance(_raw_it, dict) else (_raw_it if isinstance(_raw_it, list) else [])
     for it in _it_list:
         if isinstance(it, dict):
@@ -405,11 +440,19 @@ def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dic
     in_scene_names = {c.get("name") for c in present_chars if isinstance(c, dict)}
     in_scene_ids = {c.get("id") for c in present_chars if isinstance(c, dict)}
     for iid, irec in sorted(items_db.items()):
+        if not isinstance(irec, dict):
+            continue
         if irec.get("status", "active") == "active":
             h = str(irec.get("holder", ""))
             if h in in_scene_names or h in in_scene_ids or any(k in h for k in (protagonist, "主角", "p_001")):
+                # FIND-CT40（CT15 漏网）：charges 经手工编辑可能带字符串（"abc"/"3"），
+                # `c_val >= 0` 直接 TypeError 崩掉装配。与 relations 同口径数值归一。
                 c_val = irec.get("charges", -1)
-                c_str = f"充能/储量: `{c_val}`" if c_val >= 0 else "无上限/装备"
+                try:
+                    c_num = float(c_val)
+                except (TypeError, ValueError):
+                    c_num = -1.0
+                c_str = f"充能/储量: `{c_val}`" if c_num >= 0 else "无上限/装备"
                 dur = irec.get("durability", "完好")
                 sens = irec.get("sensory_anchor", "")
                 sens_str = f" ｜ 物象: {sens[:40]}…" if sens else ""
@@ -421,7 +464,8 @@ def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dic
 
     # 4.2 当章明确增量与充能变动 (Deltas)
     delta_blocks: List[str] = []
-    _raw_deltas = frontmatter.get("state_deltas", {}).get("items") or []
+    # FIND-CT14：state_deltas 非 dict 时按空块处理（同上，防 AttributeError）
+    _raw_deltas = (_sd_raw if isinstance(_sd_raw, dict) else {}).get("items") or []
     item_deltas = [_raw_deltas] if isinstance(_raw_deltas, dict) else (_raw_deltas if isinstance(_raw_deltas, list) else [])
     for it in item_deltas:
         if isinstance(it, dict):
@@ -439,8 +483,15 @@ def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dic
 
 
     # 5. 提取认知盲区警示 (Epistemology Guardrail · P0 铁律)
-    epistemology = frontmatter.get("epistemology") or {}
+    # FIND-CT39（同 CT38 漏网）：epistemology 非 dict（list/标量）时旧版
+    # `frontmatter.get("epistemology") or {}` 后 .get 直接 AttributeError 崩掉
+    # 装配——pack 是 Drafter 唯一输入，不能因前端形态问题崩栈。形态防御。
+    epistemology = frontmatter.get("epistemology")
+    if not isinstance(epistemology, dict):
+        epistemology = {}
     blind_spots = epistemology.get("blind_spots") or {}
+    if not isinstance(blind_spots, dict):
+        blind_spots = {}
     epistemology_warnings: List[str] = []
     for cid, secrets in blind_spots.items():
         if isinstance(secrets, list):
@@ -592,4 +643,5 @@ def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dic
         "is_pruned": is_pruned,
         "over_budget": over_budget,
         "status": status_label,
+        "warnings": pack_warnings,
     }

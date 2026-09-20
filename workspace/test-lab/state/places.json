@@ -1,0 +1,38 @@
+{
+  "loc_001": {
+    "id": "loc_001",
+    "name": "黑石矿区",
+    "aliases": [
+      "石头洼",
+      "三号矿道群"
+    ],
+    "type": "place",
+    "summary": "青云宗外门辖下灵石矿，矿脉灵压紊乱，三号矿道尽头藏有上古剑碑碎片",
+    "status": "active",
+    "faction": "青云宗",
+    "location": "青云山地界西麓",
+    "danger_tier": 4,
+    "danger_level": "争端前线·灵压紊乱",
+    "environment_rules": [
+      "矿脉灵压紊乱，淬体境弟子连续作业不得超过两个时辰",
+      "入夜后废弃矿道常有低阶妖兽出没，须三人以上结伴"
+    ],
+    "sensory_anchor": "矿道岩壁上剑纹状天然纹路泛着暗金微光，深处传来地脉低鸣",
+    "established_ch": "ch_001",
+    "card": "entities/locations/黑石矿区.md",
+    "visited_chapters": [
+      "ch_001"
+    ]
+  },
+  "loc_002": {
+    "id": "loc_002",
+    "name": "外门执事院·堂审 / 杂役区·东七通铺",
+    "danger_level": "普通",
+    "sensory_anchor": "",
+    "environment_rules": [],
+    "summary": "",
+    "visited_chapters": [
+      "ch_002"
+    ]
+  }
+}

@@ -80,6 +80,7 @@ def scan_ledger_integrity(workspace: Path) -> List[str]:
         _items = _sm.get_items()
         _lines = _sm.get_lines()
         _places = _sm.get_places()
+        _factions = _sm.get_factions()
         _debts = _sm.get_debts()
         _relations = _sm.get_relations()
         # 复用 state.py 的唯一死亡语义判断——切勿在此内联复制一份，
@@ -131,7 +132,22 @@ def scan_ledger_integrity(workspace: Path) -> List[str]:
             if not isinstance(_ir, dict):
                 continue
             _h = str(_ir.get("holder", "")).strip()
-            if _h and not _known_person(_h) and not re.match(r"^(loc_|fac_)", _h):
+            # FIND-CT36（FN-13·零存在性校验）：旧版对 loc_/fac_ 前缀 holder 全量豁免
+            # （`not re.match(r"^(loc_|fac_)", _h)` 直接跳过）——势力/地点 ID 写错
+            # （如 fac_099 拼错）永远查不出。按前缀分流到对应表做存在性校验。
+            if _h and _h.startswith("loc_"):
+                if _h not in _places:
+                    _out.append(
+                        f"台账引用断裂: 道具 [{_iid}] {_ir.get('name')} 的持有地点 [{_h}] 不在 state/places.json 中。"
+                        f"\n      💡 方案：请修正为该地点的已建档 ID，或在 state/places.json 补建该地点。"
+                    )
+            elif _h and _h.startswith("fac_"):
+                if _h not in _factions:
+                    _out.append(
+                        f"台账引用断裂: 道具 [{_iid}] {_ir.get('name')} 的持有势力 [{_h}] 不在 state/factions.json 中。"
+                        f"\n      💡 方案：请修正为该势力的已建档 ID，或在 state/factions.json 补建该势力。"
+                    )
+            elif _h and not _known_person(_h):
                 _out.append(
                     f"台账引用断裂: 道具 [{_iid}] {_ir.get('name')} 的持有者 [{_h}] "
                     f"在 state/persons.json 中不存在。"
@@ -184,7 +200,19 @@ def scan_ledger_integrity(workspace: Path) -> List[str]:
                 )
 
         # f) 锁定事实指向的章节应当真实存在于时间线
-        _tl_chs = {str(t.get("chapter_id", "")) for t in (_sm.get_timeline() or [])}
+        # FIND-CT20（FN-1）：旧版 `if _tl_chs:` 整体短路——timeline 为空时校验
+        # 悄无声息地"通过"（假阴性）；而 timeline 条目若缺 chapter_id 键，_tl_chs
+        # 为空串集合又会让所有锁定事实被批量误报（假阳性）。两种病先后治。
+        _tl_all = _sm.get_timeline() or []
+        _tl_chs = {str(t.get("chapter_id", "")) for t in _tl_all if isinstance(t, dict)}
+        _tl_missing_id = sum(1 for t in _tl_all if isinstance(t, dict) and not str(t.get("chapter_id", "")).strip())
+        if _tl_all and not _tl_chs:
+            _out.append(
+                f"台账时间线数据残缺: state/timeline.json 全部 {len(_tl_all)} 条条目均缺失 chapter_id 字段，"
+                f"锁定事实指向校验与节奏统计不可信。"
+                f"\n      💡 方案：请检查 timeline 条目结构（每条应含 chapter_id/volume_id/title 等键），"
+                f"或从快照恢复该表。"
+            )
         if _tl_chs:
             for _lf in (_sm.get_locked_facts() or []):
                 if not isinstance(_lf, dict):
@@ -196,12 +224,91 @@ def scan_ledger_integrity(workspace: Path) -> List[str]:
                         f"但该章不在 state/timeline.json 中。"
                         f"\n      💡 方案：若该章已被回滚或删除，请一并清理此条锁定事实。"
                     )
+
+        # g) 资金池负余额（FN-3·零实现位）：余额本身不设下限，透支消费会一路
+        # 绿灯直到对账崩盘。基线+流水的恒等式保证了负值必为异常。
+        _led = _sm.get_ledger() or {}
+        for _pname, _bal in (_led.get("pools") or {}).items():
+            try:
+                _bal_n = float(_bal)
+            except (TypeError, ValueError):
+                _out.append(
+                    f"台账资金池数据非法: 池 [{_pname}] 余额为 {_bal!r}（非数值）。"
+                    f"\n      💡 方案：请在 state/ledger.json 中将该池余额改为整数。"
+                )
+                continue
+            if _bal_n < 0:
+                _out.append(
+                    f"台账资金池透支: 池 [{_pname}] 当前余额 {_bal_n}（负值）。"
+                    f"\n      💡 方案：收支流水已超出基线承载力，请调整后续章节的 ledger delta 安排收入，"
+                    f"或修正 state/ledger.json 中该池的流水记录。"
+                )
+
+        # h) 恩怨双方同一实体（FN-7·零实现位）：自怨条目会让 cockpit/对账出现
+        # 「p_001 欠 p_001」的幽灵关系。
+        for _d in (_debts or []):
+            if not isinstance(_d, dict):
+                continue
+            _src = str(_d.get("source_char", "")).strip()
+            _tgt = str(_d.get("target_char", "")).strip()
+            if _src and _tgt and _src == _tgt:
+                _out.append(
+                    f"台账恩怨自指: 恩怨 [{_d.get('id', 'DEBT')}] 的发起方与承受方同为 [{_src}]。"
+                    f"\n      💡 方案：请修正 source_char/target_char 之一，或删除该自怨条目。"
+                )
+
+        # i) 关系轨迹重复章（FN-6·零实现位）：sync 侧按 chapter 去重，但手工编辑/
+        # 历史导入无校验，重复章让关系轨迹出现分叉。
+        for _pair, _r in (_relations or {}).items():
+            if not isinstance(_r, dict):
+                continue
+            _hist = _r.get("history") or []
+            _seen_ch: Dict[str, int] = {}
+            for _h in _hist:
+                if isinstance(_h, dict):
+                    _hc = str(_h.get("chapter", "")).strip()
+                    if _hc:
+                        _seen_ch[_hc] = _seen_ch.get(_hc, 0) + 1
+            for _hc, _cnt in _seen_ch.items():
+                if _cnt > 1:
+                    _out.append(
+                        f"台账关系轨迹重复: 关系对 [{_pair}] 的 history 中第 {_hc} 章出现 {_cnt} 条记录。"
+                        f"\n      💡 方案：请删除重复条目（sync 按章幂等，正常入账不会产生重复）。"
+                    )
+
+        # j) 时间线章节顺序倒置（FN-2·确定性子集位）：timeline 的自由文本时间
+        # （如「新历47年·霜月三日」）无法确定性解析比对，但 chapter_id 数字序是
+        # 结构化的——顺序倒置说明存在手工错插/跨卷漂移。
+        _prev_num = None
+        _prev_ch = ""
+        for _t in (_sm.get_timeline() or []):
+            if not isinstance(_t, dict):
+                continue
+            _tc = str(_t.get("chapter_id", "")).strip()
+            _m = re.search(r"(\d+)$", _tc)
+            if not _m:
+                continue
+            _n = int(_m.group(1))
+            if _prev_num is not None and _n < _prev_num:
+                _out.append(
+                    f"台账时间线顺序倒置: 第 {_prev_ch} 章之后出现更早的第 {_tc} 章。"
+                    f"\n      💡 方案：请检查 state/timeline.json 的条目顺序（一般为手工插入或跨卷拷贝导致）；"
+                    f"该顺序影响 cockpit 节奏遥测与卷末统计。"
+                )
+            _prev_num, _prev_ch = _n, _tc
     except RuntimeError:
         # 坏表/蒸发态交由调用方降级处置（check 已在 2.5 节以 error 报告过，
         # 此处若自行上抛 exit 4 会截断完整报告；reconcile 则记为一行说明）。
         raise
-    except Exception:
-        pass
+    except Exception as _e:
+        # FIND-CT19（probes RB-2·假阴性绿灯）：旧版裸 except: pass——一行畸形数据
+        # 即可让 b~j 全部七项交叉校验被静默卸载，reconcile 第五节却显示「自洽」。
+        # 现在校验器自身故障也作为一条显式问题输出，绝不做假绿。
+        _out.append(
+            f"台账交叉校验器自身异常（以下校验项结论不可信）: {type(_e).__name__}: {_e}。"
+            f"\n      💡 方案：请检查 state/ 各表条目形态（非 dict 条目/类型错误字段），"
+            f"修复后重跑 check。"
+        )
 
     return _out
 
@@ -277,6 +384,29 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
         except Exception as e:
             errors.append(f"状态表损坏: state/{rel}（{e}）。\n      💡 方案：请用 `python studio.py snapshot rollback <快照名>` 恢复最近快照。")
 
+    # 2.6 核心表缺失巡检（FN-10·零实现位）：旧版只查「存在但损坏」，缺表直接
+    # continue——从未初始化的表与损坏表一样致命，却连 warning 都没有。
+    # 按表的关键度分级：核心事实表缺失=error（台账不完整），扩展表缺失=warning。
+    _CORE_TABLES = {
+        "persons.json": "error", "items.json": "error", "lines.json": "error",
+        "locked.json": "error", "current.json": "error", "timeline.json": "error",
+        "ledger.json": "error", "debts.json": "error", "relations.json": "error",
+        "factions.json": "warning", "places.json": "warning", "synopsis.json": "warning",
+        "milestones.json": "warning", "sync_log.json": "warning",
+        "indices/co_occurrence.json": "warning", "indices/entity_timeline.json": "warning",
+    }
+    for rel, _sev in _CORE_TABLES.items():
+        if not (workspace / "state" / rel).exists():
+            _msg = (
+                f"核心状态表缺失: state/{rel} 不存在。"
+                f"\n      💡 方案：若从未初始化，请运行 `python studio.py init` 重建工作区；"
+                f"若曾损坏被隔离，请检查同目录 .corrupt-* 残骸并从快照恢复。"
+            )
+            if _sev == "error":
+                errors.append(_msg)
+            else:
+                warnings.append(_msg)
+
     # v4.3：损坏隔离残留显形——.corrupt-* 文件是硬失败机制的历史遗迹，
     # 长期堆积说明曾发生过状态表损坏且未处置，须以 warning 提醒审计。
     state_dir = workspace / "state"
@@ -343,8 +473,17 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
                 m_t = re.search(r"(\d+)$", lrec["target_ch"])
                 if m_t and curr_num > int(m_t.group(1)):
                     warnings.append(f"伏笔超期未决: 伏笔 [{lid}] {lrec.get('name')} 预排目标为第 {lrec['target_ch']} 章，当前已推进至 {curr_ch} 仍未闭环。\n      💡 方案：请在后续细纲中规划伏笔推进 (reveal) 或回收 (resolve)。")
-    except Exception:
-        pass
+            elif lrec.get("status") == "active" and not lrec.get("target_ch"):
+                # FIND-CT30（FN-5）：无 target_ch 的 active 伏笔旧版永久静默——
+                # 从不排程的伏笔事实上无人推进，全书零提醒直到烂尾。埋设章距今
+                # 满 10 章仍无排期即提醒（与 Probes 契约一致：提醒级，不阻断）。
+                _pl = str(lrec.get("planted_ch", "") or "")
+                _mm = re.search(r"(\d+)$", _pl)
+                if _mm and curr_num - int(_mm.group(1)) >= 10:
+                    warnings.append(f"伏笔长期未排程: 伏笔 [{lid}] {lrec.get('name')} 自第 {_pl} 章埋设后一直是 active，且无 target_ch 回收排期。\n      💡 方案：请在细纲 foreshadowing_deltas 中为其声明 target_ch 排期，或规划 reveal/resolve 推进。")
+    except Exception as _e:
+        # FIND-CT19 同款：巡检器自身异常不得静默卸载（假阴性绿灯）
+        warnings.append(f"伏笔时钟巡检器自身异常（伏笔超期结论不可信）: {type(_e).__name__}: {_e}。\n      💡 方案：请检查 state/lines.json 条目形态后重跑 check。")
 
     # 3.3 地点残缺巡检
     try:
@@ -387,6 +526,11 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
         "life_status": {"alive", "deceased", "missing"},
         "attitude": {"hostile", "neutral", "friendly", "allied"},
     }
+    # FIND-CT9（假阳性）：items 的 status 枚举曾与 persons 共用 {active, retired}，
+    # 而 state.py 同步侧合法写入 active/consumed/destroyed/lost（state.py:1031-1039）
+    # ——凡有道具损毁/消耗的书，check 必打「status='consumed' 不在法定白名单」假
+    # warning。按表拆分：道具 status 白名单 = sync 写入域全集。
+    _ITEM_STATUS_ENUM = {"active", "consumed", "destroyed", "lost"}
     try:
         # v4.4.0 FIND-L3：显式生死契约经 L1 归一化，`_LIFE_STATUS_NORM` 是「中文显式
         # 声明 → 法定枚举」的唯一映射。用它识别「显式契约拼写非法」——与把自由文本
@@ -406,7 +550,8 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
                     if _v in (None, ""):
                         continue
                     _v_key = str(_v).strip().lower()
-                    if _v_key not in _ENUMS[_k]:
+                    _enum = _ITEM_STATUS_ENUM if (_k == "status" and _tname == "items") else _ENUMS[_k]
+                    if _v_key not in _enum:
                         _extra = ""
                         _tip = f"请在 state/{_tname}.json 中改为法定枚举值。"
                         if _k == "life_status":
@@ -425,11 +570,64 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
                             _extra = "（templates/README 明令严禁使用 `disposition`）"
                         warnings.append(
                             f"强类型枚举越界: {_tname}/{_eid} 的 {_k} = {_v!r} 不在法定白名单 "
-                            f"{sorted(_ENUMS[_k])} 内{_extra}。"
+                            f"{sorted(_enum)} 内{_extra}。"
                             f"\n      💡 方案：{_tip}"
                         )
     except Exception:
         pass
+
+    # 3.4b 数值契约字段类型/区间巡检（S-3·动态实证假阴性）
+    # 实测 batch-B：细纲写 tier_rank: "三" / charges: "abc" / danger_tier: "高"
+    # 全部静默落账，sync exit 0、check 0 errors 零告警——schema dataclass 无
+    # __post_init__ 强制、枚举巡检只管字符串枚举不管数值。数值字段带错类型
+    # （或越界）会让排序/比较/统计在下游悄悄退化（str 与 int 不可比即崩栈）。
+    # 定级 warning（存量书不锁死），逐字段指出并给修正方案。
+    _NUM_FIELDS = {
+        "persons": {
+            "tier_rank": (1, 12), "injury_level": (0, 5), "renown": (None, None),
+        },
+        "items": {
+            # FIND-CT37：max_charges 下限按 -1 计（schema ItemRecord 默认值就是 -1，
+            # 与 charges 同口径表示"非计数型/无限耐久"）。若按文档字面 >=1 判，
+            # 引擎自家默认值会被误报越界（实测 it_001 假阳性）。
+            "charges": (-1, None), "max_charges": (-1, None), "tier_rank": (1, 12),
+        },
+        "factions": {
+            "scale_tier": (1, 10),
+        },
+        "places": {
+            "danger_tier": (1, 10),
+        },
+    }
+    for _tname, _flds in _NUM_FIELDS.items():
+        _tbl = {"persons": state_mgr.get_persons, "items": state_mgr.get_items,
+                "factions": state_mgr.get_factions, "places": state_mgr.get_places}[_tname]()
+        for _eid, _rec in (_tbl or {}).items():
+            if not isinstance(_rec, dict):
+                continue
+            for _f, _bounds in _flds.items():
+                _lo, _hi = (_bounds if isinstance(_bounds, tuple) else (None, None))
+                _v = _rec.get(_f)
+                if _v is None or _v == "":
+                    continue
+                if isinstance(_v, bool) or not isinstance(_v, int):
+                    warnings.append(
+                        f"数值契约字段类型非法: {_tname}/{_eid} 的 {_f} = {_v!r}（应为整数"
+                        f"{f'，区间 {_lo}~{_hi}' if _lo is not None and _hi is not None else ''}）。"
+                        f"字符串/浮点数值会让排序与统计悄悄退化。\n"
+                        f"      💡 方案：请在 state/{_tname}.json 中将该字段改为整数"
+                        f"{f'（或从细纲 new_entities 修正声明后重跑 sync --force）' if True else ''}。"
+                    )
+                elif _lo is not None and _v < _lo:
+                    warnings.append(
+                        f"数值契约字段越界: {_tname}/{_eid} 的 {_f} = {_v} 低于下限 {_lo}。"
+                        f"\n      💡 方案：请修正为区间内整数{'' if _hi is None else f'（{_lo}~{_hi}）'}。"
+                    )
+                elif _hi is not None and _v > _hi:
+                    warnings.append(
+                        f"数值契约字段越界: {_tname}/{_eid} 的 {_f} = {_v} 超出上限 {_hi}。"
+                        f"\n      💡 方案：请修正为区间内整数（{_lo}~{_hi}）。"
+                    )
 
     # 3.5 定稿 ⇄ 合账对账巡检（v4.3.2 缺陷#28）
     #
@@ -569,7 +767,11 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
                         if not s["epistemology"]["passed"]:
                             errors.append(f"正文发生确认级角色认知泄露: {s['epistemology']['leaks']}。\n      💡 方案：角色知晓了不该知道的信息，请修改泄露段落，或在 log/audit/{chapter_id}.md 中写入替换配方。")
                         if not s.get("fatalities_and_entities", {}).get("passed", True):
-                            errors.append(f"正文发生未登记角色阵亡: {s['fatalities_and_entities']['detail']}。\n      💡 方案：请在细纲 locked_facts、state_deltas 或 log/audit/{chapter_id}.md 第 3 节中显式登记该死亡事实，杜绝死者幽灵复活！")
+                            # FIND-CT8（probes L1·契约归位）：未登记死亡从 error 降回
+                            # warning——probes 契约「阻断级仅 2（空正文/确认级认知泄露）」，
+                            # 死亡登记的第一责任链是 Auditor 第三节 + proposal auto 回写
+                            # （下方 BUG#44 提醒与其互补），此处一句话提醒足够。
+                            warnings.append(f"正文疑似未登记角色阵亡: {s['fatalities_and_entities']['detail']}。\n      💡 方案：请在 log/audit/{chapter_id}.md 第 3 节登记该死亡事实并跑 `proposal auto` 回写细纲，或在细纲 locked_facts / state_deltas 显式声明。")
                     # 提醒级汇总
                     # BUG#42：体量偏离在体检阶段即提示，不必等 sync 入账后才告知。
                     _wlv = s["words"].get("level", "ok")
@@ -636,6 +838,10 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
                         warnings.append(f"称谓落地提醒: {s['address']['detail']}")
                     if s.get("fatalities_and_entities", {}).get("unregistered_speakers"):
                         warnings.append(f"未建档新出场角色提醒: {', '.join(s['fatalities_and_entities']['unregistered_speakers'])}（请 Auditor 确认是否需在审计报告第 3 节建档）")
+                    # FIND-CT22：探针自身记录的前端形态 warning（epistemology/blind_spots
+                    # 非法形态、姓名键未归一等）在此显式呈现，避免静默跳过。
+                    for _fw in probe_results.get("form_warnings", []):
+                        warnings.append(f"细纲形态提醒: {_fw}")
 
 
     passed = len(errors) == 0

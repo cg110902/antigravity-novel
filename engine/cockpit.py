@@ -181,17 +181,27 @@ def render_cockpit(workspace: Path) -> str:
 
     # 查双向情感与修罗场张力雷达（None 安全）
     relations = state_mgr.get_relations()
-    high_tension = [r for r in relations.values() if isinstance(r, dict) and (r.get("tension") or 0) >= 30]
+
+    # FIND-CT15（cli L2·大盘崩栈）：relations 表经手工编辑/跨版本导入可能带
+    # 字符串型数值（tension: "75"），裸 `>= 30` / `> 0` 直接 TypeError → exit 4。
+    # 大盘是只读展示位，绝不因脏展示数据崩栈：统一走数值归一化。
+    def _num(v, default: float = 0.0) -> float:
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return default
+
+    high_tension = [r for r in relations.values() if isinstance(r, dict) and _num(r.get("tension")) >= 30]
     output += f"\n\n💔 【人物情感温标与修罗场雷达 (Emotional Dynamics: {len(relations)} 组 ｜ 高张力 {len(high_tension)} 组)】"
     if relations:
         for r in list(relations.values())[:4]:
             if not isinstance(r, dict):
                 continue
-            aff = r.get("affinity", 0) or 0
-            aff_str = f"+{aff}" if aff > 0 else str(aff)
+            aff = _num(r.get("affinity"))
+            aff_str = f"+{int(aff)}" if aff > 0 else str(int(aff))
             subtext = _s(r.get("unspoken_subtext"), "（未记录）")[:30]
             output += (f"\n   - 💘 [{r.get('dynamic_label', '情感对撞')}] `{r.get('pair')}` ｜ "
-                       f"温标: {aff_str} ｜ 张力: 🔥 {r.get('tension', 20)}/100 ｜ 机锋: “{subtext}…”")
+                       f"温标: {aff_str} ｜ 张力: 🔥 {int(_num(r.get('tension'), 20))}/100 ｜ 机锋: “{subtext}…”")
     else:
         output += "\n   (在场各方情感基调平稳，暂无白热化)"
 

@@ -1,0 +1,132 @@
+{
+  "chapter_id": "ch_002",
+  "frontmatter": {
+    "chapter_id": "ch_002",
+    "volume_id": "vol_01",
+    "title": "执事堂的对质",
+    "chapter_type": "铺垫",
+    "timeline": "大夏历·玄一九八七年·秋·次日辰时至三更",
+    "location": "外门执事院·堂审 / 杂役区·东七通铺",
+    "narrative_spine": {
+      "thread": "主线·虚报矿课冤局的对决与暗桩杀机",
+      "volume_phase": "阶段一：黑石求生（开局破局）",
+      "macro_goal": "洗脱虚报罪名保住矿工身份，并在赵三夜袭中活下来、摸清对方动手的规律"
+    },
+    "present_characters": [
+      {
+        "id": "p_001",
+        "name": "林渊",
+        "role": "protagonist",
+        "want": "当堂洗脱虚报罪名，带罪留观也要留在矿区等一个翻盘机会",
+        "fear": "对方狗急跳墙连夜下手，自己眠中毫无还手之力",
+        "status_in": "隐忍戒备·掌心剑纹已蔓延至腕骨"
+      },
+      {
+        "id": "p_002",
+        "name": "沈天阙",
+        "role": "antagonist",
+        "want": "借堂审立威震慑外门，暗令赵三当夜灭口永绝后患",
+        "fear": "林渊当堂抖出\"超额一成有一\"的赏格账目，反证自己往日克扣矿课",
+        "status_in": "掌控全场·皮里阳秋"
+      },
+      {
+        "id": "p_003",
+        "name": "苏黎",
+        "role": "deuteragonist",
+        "want": "闯堂作证替林渊正名，护住这个唯一信她的耳朵",
+        "fear": "作证不成反被扣上同谋罪名",
+        "status_in": "激愤·带伤"
+      },
+      {
+        "id": "p_004",
+        "name": "陈铁",
+        "role": "supporting",
+        "want": "报林渊塌方示警之恩，替他挡下赵三的刀并指点明路",
+        "fear": "沾染执事院的是非，连累矿上讨生活的老兄弟们",
+        "status_in": "旁观者清·暗藏戒备"
+      }
+    ],
+    "epistemology": {
+      "known": {
+        "p_001": [
+          "塌方前兆是自己用地声辨出的，超额矿课有凭据可查",
+          "沈天阙腰间玄铁令有异，对方绝不会善罢甘休"
+        ],
+        "p_002": [
+          "林渊是个嗅觉听力异于常人的杂役，无门无派",
+          "埋位册的朱砂改动天衣无缝，人证已买通"
+        ]
+      },
+      "blind_spots": {
+        "p_002": [
+          "林渊眉心已孕得剑丸雏形，掌心剑纹可越级感知杀机",
+          "老矿工陈铁手里握着三年前林大石殉职名册的抄件"
+        ]
+      }
+    },
+    "foreshadowing_deltas": [
+      {
+        "id": "GUN-001",
+        "name": "矿脉深处的上古剑碑",
+        "action": "reveal",
+        "desc": "夜袭前林渊掌心剑纹灼热预警，三号矿道深处剑碑共鸣再起——剑碑对宿主的护佑之力开始显现，亦让暗处的跟踪者嗅到非同寻常的气息"
+      }
+    ],
+    "state_deltas": {
+      "character_status": {
+        "p_001": "剑丸二醒·眉心剑纹蔓延至腕骨（夜袭中以聚灵珠护心化险）"
+      },
+      "items": [
+        {
+          "id": "it_001",
+          "name": "九转聚灵珠",
+          "charges_delta": -1,
+          "status": "active",
+          "durability": "温润无瑕"
+        }
+      ],
+      "ledger": {
+        "pool": "通用资金池",
+        "delta": "-50",
+        "reason": "自万宝阁山脚分号购置两粒回气丹，温养被剑气反冲的经脉"
+      },
+      "debts": [
+        {
+          "source": "p_001",
+          "target": "陈铁",
+          "type": "favor",
+          "desc": "赵三夜袭时陈铁替林渊挡下一刀并指点殉职名册线索，林渊欠其一份生死人情",
+          "action": "record"
+        }
+      ]
+    },
+    "relation_deltas": [
+      {
+        "source": "p_001",
+        "target": "p_002",
+        "tension": "90",
+        "dynamic": "水火不容·杀机已动",
+        "subtext": "堂审失手令沈天阙杀心升级，林渊已看清对方绝不会留活口"
+      },
+      {
+        "source": "p_001",
+        "target": "p_004",
+        "tension": "55",
+        "dynamic": "恩义相托·惺惺相惜",
+        "subtext": "一刀之恩与名册线索，两人结成暗线同盟"
+      }
+    ],
+    "new_entities": [
+      {
+        "id": "p_004",
+        "type": "character",
+        "name": "陈铁",
+        "role": "supporting",
+        "tier_name": "淬体境七重",
+        "summary": "黑石矿区老矿工，三年前殉职名册抄件的持有者，林大石的旧友",
+        "sensory_anchor": "佝偻寡言，左手少了半截小指，常年揣着一杆磨亮的旱烟锅"
+      }
+    ],
+    "locked_facts": []
+  }
+}

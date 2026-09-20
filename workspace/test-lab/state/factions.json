@@ -1,0 +1,29 @@
+{
+  "fac_001": {
+    "id": "fac_001",
+    "name": "青云宗",
+    "aliases": [
+      "青云"
+    ],
+    "type": "faction",
+    "summary": "南域三流宗门，驭剑与灵石开采并重，外门以矿课定去留",
+    "scale_tier": 3,
+    "tier_name": "南域三流宗门",
+    "status": "active",
+    "attitude": "friendly",
+    "leader": "玄阳真人",
+    "headquarters": "青云山主峰",
+    "location": "青云山地界",
+    "core_assets": [
+      "黑石矿脉灵石产出",
+      "护山聚灵大阵"
+    ],
+    "diplomacy": {
+      "幽影门": "hostile",
+      "万宝阁": "neutral"
+    },
+    "sensory_anchor": "七峰连绵云雾缭绕，外门矿镐声昼夜不绝，主峰剑光隐现",
+    "established_ch": "ch_001",
+    "card": "entities/factions/青云宗.md"
+  }
+}

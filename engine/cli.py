@@ -154,6 +154,37 @@ def _chapter_num_arg(value: str) -> int:
     return int(m.group(1))
 
 
+def _preparse_global_flags(argv: List[str]) -> Tuple[Optional[str], Optional[bool]]:
+    """FIND-CT33（cli L2·跨书误写）：全局 -w/--json 置于子命令名之前时，argparse
+    子解析器对同名 dest 的默认值注入会把父级已解析的值静默重置为 None——
+    实测 `python studio.py -w workspace/probe status` 报「多书无法唯一定位」，
+    而写命令（proposal auto 会回写细纲！）会误作用到默认解析出的书籍。
+    本函数在 argv 层预提取，供 parse_args 之后兜底复原。
+
+    取值规则：收集全部出现位置；多处取值一致则采用；冲突则返回 None 交由既有
+    多书阻断路径拒绝（不擅自猜默认书）。
+    """
+    w_vals: List[str] = []
+    json_seen = False
+    i = 0
+    while i < len(argv):
+        tok = argv[i]
+        if tok in ("-w", "--workspace"):
+            if i + 1 < len(argv):
+                w_vals.append(argv[i + 1])
+                i += 2
+                continue
+        elif tok.startswith("--workspace="):
+            w_vals.append(tok.split("=", 1)[1])
+        elif tok.startswith("-w") and len(tok) > 2 and not tok.startswith("--"):
+            w_vals.append(tok[2:])
+        elif tok == "--json":
+            json_seen = True
+        i += 1
+    w_final: Optional[str] = w_vals[0] if w_vals and len(set(w_vals)) == 1 else None
+    return w_final, (True if json_seen else None)
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = _StudioArgumentParser(
         prog="studio.py",
@@ -170,7 +201,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_init.add_argument("-t", "--title", default="未命名小说")
     p_init.add_argument("-g", "--genre", default="都市玄幻")
     p_init.add_argument("-p", "--protagonist", default="主角")
-    p_init.add_argument("--force", action="store_true", help="工作区已有工程档案时强制重置（覆盖 project.json）")
+    p_init.add_argument("--force", action="store_true", help="工作区已有工程档案时强制重置（重置前整树备份到 .init-backup-<时间戳>/；已合账书籍将重置全部台账，请谨慎）")
 
     # check
     p_check = subparsers.add_parser("check", help="全书静态合规与双轨体检")
@@ -368,6 +399,13 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     args = parser.parse_args(argv)
 
+    # FIND-CT33 兜底：子解析器默认值注入吞掉的前置全局参数在此复原
+    _pre_w, _pre_json = _preparse_global_flags(list(argv) if argv is not None else sys.argv[1:])
+    if _pre_w and not getattr(args, "workspace", None):
+        args.workspace = _pre_w
+    if _pre_json and not getattr(args, "json", False):
+        args.json = True
+
     if not args.command:
         parser.print_help()
         return 0
@@ -514,7 +552,12 @@ def main(argv: Optional[List[str]] = None) -> int:
             if f_res.get("recipes_missed"):
                 print(f"   ⚠️ {f_res['recipes_missed']} 条配方未命中正文（目标片段不在文中），请人工核对：")
                 for t in f_res["missed_targets"][:5]:
-                    print(f"      - {t}…")
+                    # FIND-CT29：missed_targets 现为 (片段, 冲突标注|None) 二元组
+                    _frag = t[0] if isinstance(t, (tuple, list)) else t
+                    _conf = t[1] if isinstance(t, (tuple, list)) and len(t) > 1 else None
+                    print(f"      - {_frag}…{('（' + _conf + '）') if _conf else ''}")
+            if f_res.get("recipe_zero_warning"):
+                print(f"   ⚠️ {f_res['recipe_zero_warning']}")
             return 0
 
         elif args.command == "proposal":
@@ -732,8 +775,11 @@ def main(argv: Optional[List[str]] = None) -> int:
                         for it in items:
                             status_str = f" ｜ 状态: {it.get('status') or it.get('condition') or it.get('life_status')}" if (it.get('status') or it.get('condition') or it.get('life_status')) else ""
                             fact = it.get('fact')
-                            name_val = it.get('name') or it.get('target_char') or ((fact[:25] + '...') if fact else '')
-                            print(f"   - {str(it.get('id') or '?'):10s} : {name_val}{status_str}")
+                            # FIND-CT27 续：milestone 条目用 title 而非 name 作主标识
+                            name_val = it.get('name') or it.get('title') or it.get('target_char') or ((fact[:25] + '...') if fact else '')
+                            tgt = it.get('target_ch')
+                            tgt_str = f" ｜ 目标章: {tgt}" if tgt else ""
+                            print(f"   - {str(it.get('id') or '?'):10s} : {name_val}{status_str}{tgt_str}")
             return 0
 
     except (BusinessError, ValueError, FileExistsError, FileNotFoundError, KeyError) as e:

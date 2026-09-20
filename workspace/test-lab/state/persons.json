@@ -1,0 +1,260 @@
+{
+  "p_001": {
+    "id": "p_001",
+    "name": "林渊",
+    "role": "protagonist",
+    "type": "person",
+    "aliases": [
+      "林哥",
+      "林杂役"
+    ],
+    "summary": "黑石矿区杂役矿工，眉心暗藏上古剑丸雏形",
+    "tier_rank": 1,
+    "tier_name": "淬体境六重",
+    "realm": "淬体境",
+    "power_benchmark": "拳力三百斤，可连续劳作两个时辰；剑丸初醒后越级感知十丈内杀机",
+    "life_status": "alive",
+    "condition": "剑丸二醒·眉心剑纹蔓延至腕骨（夜袭中以聚灵珠护心化险）",
+    "injury_level": 0,
+    "status": "active",
+    "attitude": "friendly",
+    "location": "黑石矿区",
+    "faction": "青云宗",
+    "renown": 0,
+    "sensory_anchor": "粗布短打矿工装束，眉心一道淡金色剑纹随情绪明灭",
+    "micro_actions": [
+      "摩挲眉心剑纹",
+      "握镐指节发白"
+    ],
+    "address_matrix": {
+      "苏黎": "阿黎",
+      "沈天阙": "沈执事"
+    },
+    "relations": [
+      {
+        "target": "沈天阙",
+        "type": "rival",
+        "desc": "宿敌，夺碑灭口之仇"
+      }
+    ],
+    "dossier": "林大石遗孤；父亲三年前死于矿难，抚恤石被克扣",
+    "established_ch": "ch_001",
+    "last_seen_ch": "ch_002",
+    "card": "characters/protagonist.md",
+    "arc_history": [
+      {
+        "chapter": "ch_001",
+        "want": "完成当夜矿课并全身而退，凑齐温养剑丸的下品灵石",
+        "fear": "眉心剑丸的秘密暴露，被沈天阙这等强者觊觎夺舍",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "完好·隐忍戒备",
+        "status_out": "眉心孕得剑丸雏形·先天灵气初醒（剑丸传承觉醒）"
+      },
+      {
+        "chapter": "ch_002",
+        "want": "当堂洗脱虚报罪名，带罪留观也要留在矿区等一个翻盘机会",
+        "fear": "对方狗急跳墙连夜下手，自己眠中毫无还手之力",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "隐忍戒备·掌心剑纹已蔓延至腕骨",
+        "status_out": "剑丸二醒·眉心剑纹蔓延至腕骨（夜袭中以聚灵珠护心化险）"
+      }
+    ],
+    "want": "当堂洗脱虚报罪名，带罪留观也要留在矿区等一个翻盘机会",
+    "fear": "对方狗急跳墙连夜下手，自己眠中毫无还手之力"
+  },
+  "p_002": {
+    "id": "p_002",
+    "name": "沈天阙",
+    "role": "antagonist",
+    "type": "person",
+    "aliases": [
+      "沈青天",
+      "沈执事"
+    ],
+    "summary": "青云宗外门第三执事，实为幽影门安插十八年的暗桩",
+    "tier_rank": 2,
+    "tier_name": "聚气境九重",
+    "realm": "聚气境",
+    "power_benchmark": "剑气外放三丈，掌裂青岩；凭定山术可在矿道灵压中持续作战两个时辰",
+    "life_status": "alive",
+    "condition": "掌控全场·皮里阳秋",
+    "injury_level": 0,
+    "status": "active",
+    "attitude": "hostile",
+    "location": "外门执事院",
+    "faction": "青云宗（暗通幽影门）",
+    "renown": 120,
+    "sensory_anchor": "青灰色执事袍常年一尘不染，指节苍白修长，腰间悬一枚幽影门玄铁令",
+    "micro_actions": [
+      "慢条斯理翻动账册",
+      "指尖在名字上画圈"
+    ],
+    "address_matrix": {
+      "林渊": "小杂种"
+    },
+    "relations": [
+      {
+        "target": "林渊",
+        "type": "rival",
+        "desc": "夺碑灭口的猎手与猎物"
+      }
+    ],
+    "dossier": "掌管黑石矿区矿课人事与例钱发放，手上有三十六条矿工人命",
+    "established_ch": "ch_001",
+    "last_seen_ch": "ch_002",
+    "card": "characters/antagonist.md",
+    "arc_history": [
+      {
+        "chapter": "ch_001",
+        "want": "借塌方事故做局，坐实林渊虚报矿课并吞没其发现的剑碑线索",
+        "fear": "林渊当真从三号矿道带出什么了不得的东西",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "盛气凌人·暗中试探",
+        "status_out": ""
+      },
+      {
+        "chapter": "ch_002",
+        "want": "借堂审立威震慑外门，暗令赵三当夜灭口永绝后患",
+        "fear": "林渊当堂抖出\"超额一成有一\"的赏格账目，反证自己往日克扣矿课",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "掌控全场·皮里阳秋",
+        "status_out": ""
+      }
+    ],
+    "want": "借堂审立威震慑外门，暗令赵三当夜灭口永绝后患",
+    "fear": "林渊当堂抖出\"超额一成有一\"的赏格账目，反证自己往日克扣矿课"
+  },
+  "p_003": {
+    "id": "p_003",
+    "name": "苏黎",
+    "role": "deuteragonist",
+    "type": "person",
+    "aliases": [
+      "黎丫头",
+      "检石妹子"
+    ],
+    "summary": "青云宗外门杂役弟子，检石出身，林渊的生死之交",
+    "tier_rank": 1,
+    "tier_name": "淬体境八重",
+    "realm": "淬体境",
+    "power_benchmark": "持久耐力出众，可连续劳作四个时辰不衰；凭默画矿道全图提前规避塌方与妖兽",
+    "life_status": "alive",
+    "condition": "激愤·带伤",
+    "injury_level": 0,
+    "status": "active",
+    "attitude": "friendly",
+    "location": "黑石矿区",
+    "faction": "青云宗",
+    "renown": 5,
+    "sensory_anchor": "荆钗布裙，腕上缠一串父亲留下的检石铜钱，笑起来左边有个浅梨涡",
+    "micro_actions": [
+      "攥紧检石铜钱",
+      "默画矿道图"
+    ],
+    "address_matrix": {
+      "林渊": "林渊哥"
+    },
+    "relations": [
+      {
+        "target": "林渊",
+        "type": "ally",
+        "desc": "生死之交，背靠背"
+      }
+    ],
+    "dossier": "父亲苏检石三年前殁于矿难，遗留九枚检石铜钱；她认定父亲之死有冤",
+    "established_ch": "ch_001",
+    "last_seen_ch": "ch_002",
+    "card": "characters/苏黎.md",
+    "arc_history": [
+      {
+        "chapter": "ch_001",
+        "want": "以检石铜钱示警救下矿道同伴，查清塌方是否又是人为",
+        "fear": "林渊重蹈其父三年前矿难覆辙",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "微伤·警觉",
+        "status_out": ""
+      },
+      {
+        "chapter": "ch_002",
+        "want": "闯堂作证替林渊正名，护住这个唯一信她的耳朵",
+        "fear": "作证不成反被扣上同谋罪名",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "激愤·带伤",
+        "status_out": ""
+      }
+    ],
+    "want": "闯堂作证替林渊正名，护住这个唯一信她的耳朵",
+    "fear": "作证不成反被扣上同谋罪名"
+  },
+  "{{slot:char_1_id|p_001}}": {
+    "id": "{{slot:char_1_id|p_001}}",
+    "name": "{{slot:char_1_id|p_001}}",
+    "type": "person",
+    "role": "supporting",
+    "aliases": [],
+    "card": "",
+    "summary": "",
+    "tier_rank": 1,
+    "tier_name": "",
+    "realm": "",
+    "power_benchmark": "",
+    "status": "active",
+    "life_status": "alive",
+    "condition": "{{slot:char_1_status_out|出场状态：如 位阶突破 / 身体受创 / 心境升华}}",
+    "injury_level": 0,
+    "injury_desc": "无伤",
+    "renown": 0,
+    "location": "",
+    "faction": "",
+    "attitude": "neutral",
+    "sensory_anchor": "",
+    "micro_actions": [],
+    "address_matrix": {},
+    "relations": [],
+    "dossier": "",
+    "want": "",
+    "fear": "",
+    "need": "",
+    "lie": "",
+    "quirk": "",
+    "taboo": "",
+    "latent_mood": "",
+    "physiological_leak": "",
+    "emotional_temp": 50,
+    "vulnerability": "",
+    "last_seen_ch": ""
+  },
+  "p_004": {
+    "id": "p_004",
+    "name": "陈铁",
+    "role": "supporting",
+    "tier_name": "淬体境七重",
+    "condition": "旁观者清·暗藏戒备",
+    "sensory_anchor": "佝偻寡言，左手少了半截小指，常年揣着一杆磨亮的旱烟锅",
+    "address_matrix": {},
+    "want": "报林渊塌方示警之恩，替他挡下赵三的刀并指点明路",
+    "fear": "沾染执事院的是非，连累矿上讨生活的老兄弟们",
+    "summary": "黑石矿区老矿工，三年前殉职名册抄件的持有者，林大石的旧友",
+    "established_ch": "ch_002",
+    "last_seen_ch": "ch_002",
+    "life_status": "alive",
+    "arc_history": [
+      {
+        "chapter": "ch_002",
+        "want": "报林渊塌方示警之恩，替他挡下赵三的刀并指点明路",
+        "fear": "沾染执事院的是非，连累矿上讨生活的老兄弟们",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "旁观者清·暗藏戒备",
+        "status_out": ""
+      }
+    ],
+    "updated_ch": "ch_002"
+  }
+}

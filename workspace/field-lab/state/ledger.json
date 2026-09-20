@@ -1,0 +1,16 @@
+{
+  "pools": {
+    "通用资金池": 500
+  },
+  "pools_baseline": {
+    "通用资金池": 0
+  },
+  "transactions": [
+    {
+      "chapter": "ch_001",
+      "pool": "通用资金池",
+      "delta": 500,
+      "reason": "抚恤金入账"
+    }
+  ]
+}

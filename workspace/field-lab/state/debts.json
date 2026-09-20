@@ -1,0 +1,47 @@
+[
+  {
+    "id": "DEBT-AUTO-dcfb5792",
+    "source_char": "p_001",
+    "target_char": "赵无咎",
+    "type": "grudge",
+    "desc": "赵无咎栽赃陈默窃矿",
+    "status": "unpaid",
+    "created_ch": "ch_001"
+  },
+  {
+    "id": "DEBT-AUTO-6cbe1bf0",
+    "source_char": "p_001",
+    "target_char": "赵无咎",
+    "type": "grudge",
+    "desc": "杀父之仇",
+    "status": "unpaid",
+    "created_ch": "ch_003"
+  },
+  {
+    "id": "DEBT-AUTO-0b2a8bb6",
+    "source_char": "p_001",
+    "target_char": "赵无咎",
+    "type": "grudge",
+    "desc": "夺财之恨",
+    "status": "unpaid",
+    "created_ch": "ch_003"
+  },
+  {
+    "id": "DEBT-AUTO-a76b5c08",
+    "source_char": "p_001",
+    "target_char": "王五",
+    "type": "favor",
+    "desc": "零额人情",
+    "status": "unpaid",
+    "created_ch": "ch_010"
+  },
+  {
+    "id": "DEBT-AUTO-1f6e4ce6",
+    "source_char": "p_001",
+    "target_char": "注入\"人\"",
+    "type": "grudge",
+    "desc": "事由: 含冒号与#井号与\"引号\"与|分隔符",
+    "status": "unpaid",
+    "created_ch": "ch_012"
+  }
+]

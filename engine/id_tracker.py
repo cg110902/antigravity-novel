@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 
 def _load_json(file_path: Path, default: Any = None) -> Any:
@@ -32,9 +32,31 @@ def _strip_html_comments(txt: str) -> str:
     2. 抹除 {{slot:KEY|DEFAULT}} 的 KEY 段——模板槽位键名含伪 ID（如 fac_4_name 中的
        fac_4），会被编号正则误计为已占号（实测新书势力直接跳到 fac_005）。
        DEFAULT 段保留：它是作者可能采纳的建议 ID（如 GUN-001），保守计入防撞号。
+
+    FIND-CT44（ID-7 两处漏网）：
+    (a) 无管道形态 `{{slot:p_004}}` 旧版不被清洗（正则要求带 `|`），其中伪 ID
+        被编号正则计入——正是本注释想防的场景的漏网形态；
+    (b) 未闭合的 `<!--` 旧版用非贪婪 DOTALL 一路吃到文件尾，其后所有真实 ID
+        被静默忽略 → 发号撞号。修正为手工扫描：找不到闭合 `-->` 时保守保留
+        其后内容（吞内容与漏数同样导致撞号，保留至少让真实 ID 进入扫描）。
     """
-    txt = re.sub(r"<!--.*?-->", "", txt, flags=re.DOTALL)
+    if "<!--" in txt:
+        _out: List[str] = []
+        _i = 0
+        while _i < len(txt):
+            _j = txt.find("<!--", _i)
+            if _j == -1:
+                _out.append(txt[_i:])
+                break
+            _out.append(txt[_i:_j])
+            _k = txt.find("-->", _j)
+            if _k == -1:
+                _out.append(txt[_j:])
+                break
+            _i = _k + 3
+        txt = "".join(_out)
     txt = re.sub(r"\{\{slot:[^|}]*\|", "{{slot:|", txt)
+    txt = re.sub(r"\{\{slot:[^{}|]*\}\}", "", txt)
     return txt
 
 
@@ -86,8 +108,15 @@ def detect_id_category(entity_id: str) -> str:
     return "unknown"
 
 
-def id_next(workspace: Path, category: str, sub_type: str = "") -> Dict[str, Any]:
-    """计算并发放下一个安全、不冲突的物理 ID。"""
+def id_next(workspace: Path, category: str, sub_type: str = "", exclude: Optional[Iterable[str]] = None) -> Dict[str, Any]:
+    """计算并发放下一个安全、不冲突的物理 ID。
+
+    FIND-CT5（ID-1）：``exclude`` 接受本批次已分配、但因事务未提交而尚未落盘/回写的
+    「在途号」。纯 max+1 的分配器在 proposal auto 涌现循环里对同章多个新实体连续调用时
+    会读到完全相同的工作区状态，发出同一个 ID（实测两个新人物都得 p_005）——sync 时
+    `if eid not in xxx_db` 把第二条静默丢弃，实体永久不入账且 check 假绿。
+    传入在途集合后，分配结果逐次自增，与落盘后的视角一致。
+    """
     cat = category.strip().lower()
     if cat == "line" and sub_type:
         cat = sub_type.strip().lower()
@@ -154,10 +183,21 @@ def id_next(workspace: Path, category: str, sub_type: str = "") -> Dict[str, Any
                 max_num = max(max_num, int(m.group(1)))
 
     # 2. 扫描所有待同步或已编细纲中的 ID，防止跨章未同步期间撞号
-    outlines_dir = workspace / "outlines"
-    if outlines_dir.exists():
-        for bf in outlines_dir.glob("**/beats/*.md"):
-            txt = _strip_html_comments(bf.read_text(encoding="utf-8-sig", errors="replace"))
+    # FIND-CT31（ID-2·扫描盲区）：旧版只扫 outlines/**/beats/*.md——编剧按卷纲
+    # 预排的 ID（卷纲先行、beats 未落）与 final/raw 正文中引用的 ID 都不在扫描
+    # 范围，`id next` 会重发已占用号造成跨文档撞号（agents 报告实测场景）。
+    # 扩为全 outlines + 全 manuscript；单文件 >2MB 跳过防历史巨稿拖慢发号。
+    for _scan_dir, _glob_pat in (("outlines", "**/*.md"), ("manuscript", "**/*.md")):
+        _sd = workspace / _scan_dir
+        if not _sd.exists():
+            continue
+        for _f in _sd.glob(_glob_pat):
+            try:
+                if _f.stat().st_size > 2 * 1024 * 1024:
+                    continue
+                txt = _strip_html_comments(_f.read_text(encoding="utf-8-sig", errors="replace"))
+            except OSError:
+                continue
             matches = re.findall(pattern, txt)
             for m in matches:
                 try:
@@ -179,6 +219,10 @@ def id_next(workspace: Path, category: str, sub_type: str = "") -> Dict[str, Any
                         pass
 
     next_num = max_num + 1
+    # FIND-CT5：跳过本批次在途号（已分配未落盘），逐次自增直到真正空闲
+    _ex = {str(x) for x in (exclude or [])}
+    while _ex and f"{prefix}{next_num:03d}" in _ex:
+        next_num += 1
     generated_id = f"{prefix}{next_num:03d}"
 
     return {
@@ -203,6 +247,10 @@ def id_list(workspace: Path, filter_type: Optional[str] = None) -> Dict[str, Lis
         "factions": [],
         "debts": [],
         "locked_facts": [],
+        # FIND-CT27（ID-3）：ms_ 是法定 ID 类目（id next milestone / trace 均正常），
+        # 旧版总账清册没有它 ⇒ `id list milestone` 静默空输出，作者误判无里程碑
+        # 而重发 ms_001。补齐类目。
+        "milestones": [],
     }
 
     # 1. 人物
@@ -291,6 +339,19 @@ def id_list(workspace: Path, filter_type: Optional[str] = None) -> Dict[str, Lis
                 "fact": lk.get("fact", ""),
                 "domain": lk.get("domain", "plot"),
                 "established_ch": lk.get("established_ch", ""),
+            })
+
+    # 8. 里程碑（FIND-CT27 / ID-3）
+    if not target_filter or target_filter in ("ms", "milestone", "milestones"):
+        ms_db = _load_json(state_dir / "milestones.json", [])
+        for ms in ms_db:
+            result["milestones"].append({
+                "id": ms.get("id", ""),
+                "title": ms.get("title", ""),
+                "status": ms.get("status", "pending"),
+                "target_ch": ms.get("target_ch", ""),
+                "achieved_ch": ms.get("achieved_ch", ""),
+                "desc": ms.get("desc", ""),
             })
 
     return result
@@ -726,39 +787,45 @@ def trace_id(workspace: Path, target_id: str) -> Dict[str, Any]:
 
     # 10. 全库逆查兜底 (精确匹配优先)
     # 10.1 第一遍：全库精确匹配实体名称 (name == tid)
+    # FIND-CT46（ID-6a·无限递归）：台账条目 id==name 的畸形数据（手工编辑产生）
+    # 会让下列递归以同一参数无限进行 → RecursionError → exit 4。加自指守卫。
     for p_id, p in _load_json(state_dir / "persons.json", {}).items():
-        if p.get("name") == tid:
+        if p.get("name") == tid and p_id != tid:
             return trace_id(workspace, p_id)
     for i_id, it in _load_json(state_dir / "items.json", {}).items():
-        if it.get("name") == tid:
+        if it.get("name") == tid and i_id != tid:
             return trace_id(workspace, i_id)
     for l_id, l in _load_json(state_dir / "lines.json", {}).items():
-        if l.get("name") == tid:
+        if l.get("name") == tid and l_id != tid:
             return trace_id(workspace, l_id)
     for pl_id, pl in _load_json(state_dir / "places.json", {}).items():
-        if pl.get("name") == tid:
+        if pl.get("name") == tid and pl_id != tid:
             return trace_id(workspace, pl_id)
     for fc_id, fc in _load_json(state_dir / "factions.json", {}).items():
-        if fc.get("name") == tid:
+        if fc.get("name") == tid and fc_id != tid:
             return trace_id(workspace, fc_id)
     # v4.3 缺陷#B11：里程碑按标题逆查纳入兜底（旧版会让 trace "首杀立威" 找不到）
     for ms in _load_json(state_dir / "milestones.json", []):
-        if tid in (ms.get("title"), ms.get("name")):
+        if tid in (ms.get("title"), ms.get("name")) and ms.get("id", tid) != tid:
             return trace_id(workspace, ms.get("id", tid))
 
     # 10.2 第二遍：模糊包含匹配 (要求搜索词长度 >= 2，防单字泛化误伤)
+    # FIND-CT47（ID-6b·模糊命中误导致命）：旧版命中即返回子报告且不标注，
+    # `trace p_0` 会返回某人物完整档案，误导使用者以为精确命中。显式标注。
     if len(tid) >= 2:
-        for p_id, p in _load_json(state_dir / "persons.json", {}).items():
-            if tid in p_id or tid in p.get("name", ""):
-                return trace_id(workspace, p_id)
-
-        for i_id, it in _load_json(state_dir / "items.json", {}).items():
-            if tid in i_id or tid in it.get("name", ""):
-                return trace_id(workspace, i_id)
-
-        for l_id, l in _load_json(state_dir / "lines.json", {}).items():
-            if tid in l_id or tid in l.get("name", ""):
-                return trace_id(workspace, l_id)
+        for _tbl_file, _is_person in (("persons.json", True), ("items.json", False), ("lines.json", False)):
+            for _rid, _r in _load_json(state_dir / _tbl_file, {}).items():
+                if _rid == tid:
+                    continue  # 自指守卫（防递归）
+                if tid in _rid or tid in str(_r.get("name", "")):
+                    _sub = trace_id(workspace, _rid)
+                    if _sub.get("found"):
+                        _sub["fuzzy_match"] = True
+                        _sub["human_readable"] = (
+                            f"⚠️ 模糊匹配结果（'{target_id}' 非精确 ID，以下为最相似实体，请核对）：\n"
+                            + str(_sub.get("human_readable", ""))
+                        )
+                        return _sub
 
     report["human_readable"] = f"⚠️ 未检索到物理 ID: '{target_id}'。请检查 ID 前缀（如 p_001, it_001, GUN-001, loc_001, DEBT-001, LOCK-001）。"
     return report
@@ -802,6 +869,15 @@ def check_id_integrity(workspace: Path, chapter_id: Optional[str] = None) -> Dic
                 break
         if b_file.exists():
             beats_files.append(b_file)
+        else:
+            # FIND-CT45（ID-9·单章校验假绿）：旧版找不到 beats 文件时静默返回
+            # 0 errors——调用方若只用本函数（如第三方工具链）会把"文件不存在"
+            # 读成"校验通过"。显式报错（check.py 侧另有独立兜底，双保险）。
+            errors.append(
+                f"未找到第 {chapter_id} 章细纲文件（outlines/**/beats/{chapter_id}.md），无法校验。"
+                f"\n      💡 方案：请先运行 `python studio.py beats new {chapter_id} --write` 生成细纲；"
+                f"若章节号笔误请核对后重试。"
+            )
     else:
         # 全书扫描
         beats_files = list(workspace.glob("**/beats/*.md"))
@@ -813,6 +889,17 @@ def check_id_integrity(workspace: Path, chapter_id: Optional[str] = None) -> Dic
             continue
         ch = fm.get("chapter_id", bf.stem)
 
+        # FIND-CT32（ID-5 + FN-13）：章节号零校验——`chapter_id: CH_001`/`ch_1`
+        # 可入账；Windows 大小写不敏感 FS 下 CH_001 命中真实 ch_001.md，但
+        # audit/proposal 产物按 log/audit/CH_001.md 错位落盘，与 finalize/sync
+        # 期望路径脱节，修补配方静默丢失（大小写变体与跨文档撞号同源）。
+        if not re.match(r"^ch_\d{3,}$", str(ch)):
+            warnings.append(
+                f"第 {ch} 章章节号格式不规范: [{ch}]（标准形态: ch_001，三位以上数字）。\n"
+                f"      💡 方案：请统一为 ch_XXX 形态；大小写/位数变体在 Windows 文件系统下"
+                f"会造成审计产物错位与跨文档撞号。"
+            )
+
         # 收集当章 new_entities 声明的 ID
         declared_new_ids = set()
         raw_new = fm.get("new_entities") or []
@@ -820,6 +907,24 @@ def check_id_integrity(workspace: Path, chapter_id: Optional[str] = None) -> Dic
         for ne in new_ents:
             if isinstance(ne, dict) and ne.get("id"):
                 declared_new_ids.add(str(ne["id"]).strip())
+
+        # FIND-CT32(2)：new_entities 的 loc_/fac_ 前缀格式校验（此前仅 p_/it_ 有正则把关）
+        _PREFIX_FMT = {
+            "p_": r"^p_\d+$", "it_": r"^it_\d+$",
+            "loc_": r"^loc_\d+$", "fac_": r"^fac_\d+$",
+        }
+        for _ne in new_ents:
+            if not isinstance(_ne, dict):
+                continue
+            _nid2 = str(_ne.get("id", "")).strip()
+            if not _nid2 or "{{" in _nid2:
+                continue
+            for _pref, _rx in _PREFIX_FMT.items():
+                if _nid2.startswith(_pref) and not re.match(_rx, _nid2):
+                    errors.append(
+                        f"第 {ch} 章 new_entities 实体 ID 格式非法: [{_nid2}]（标准格式: {_pref}001）。\n"
+                        f"      💡 方案：请将 ID 修正为标准编号格式（可运行 `python studio.py id next` 取号）。"
+                    )
 
         # v4.3.3 BUG#40：new_entities 声明的 ID 若已被占用，state.py 的
         # `if eid not in xxx_db` 会静默跳过——实体既不入账也无任何提示，
@@ -1018,6 +1123,6 @@ class IdTracker:
     def __init__(self, workspace: Path | str):
         self.workspace = Path(workspace)
 
-    def get_next_id(self, category: str, sub_type: str = "") -> str:
-        res = id_next(self.workspace, category, sub_type)
+    def get_next_id(self, category: str, sub_type: str = "", exclude: Optional[Iterable[str]] = None) -> str:
+        res = id_next(self.workspace, category, sub_type, exclude=exclude)
         return res.get("next_id", "")
