@@ -388,6 +388,21 @@ _CORPSE_PATTERNS = [
     r"(?:尸体|尸身|残躯|断肢|遗体).{0,10}(?:倒|躺|跌落|僵硬|冰冷|横陈|跌入)",
 ]
 
+# v4.3.3 BUG#47 分层说明：
+#   以下正则属 **L2 语义线索层**——只用于「提醒作者补契约」，不做任何硬裁决。
+#   角色是否死亡的权威判定在 state.is_deceased()，只读 life_status 结构化枚举。
+#   因此这里漏掉某种汉语写法，后果仅是少一句提醒（作者仍可显式声明 life_status），
+#   不会导致死者复活等数据事故；多匹配一条也只是多一句可忽略的 warning。
+#   这就是把汉语的不可穷举性隔离在"提醒层"的意义：**词表不完备不再是致命缺陷**。
+
+# L2 泛称停用词：仅用于抑制"未建档说话人"提醒的噪声，非硬裁决依据。
+_GENERIC_SPEAKER_STOPWORDS = (
+    "那人", "对方", "众人", "他们", "我们", "声音", "女子", "男子", "老者", "少年", "修士",
+    # 常见题材泛称补充（同样不追求完备，漏掉只是多一句可忽略的提醒）
+    "道友", "前辈", "晚辈", "差役", "小吏", "仆人", "侍女", "掌柜", "伙计", "路人",
+    "士兵", "守卫", "同学", "老师", "护士", "医生", "旁人", "有人", "某人",
+)
+
 # 排除非死亡修辞与虚假语境（守卫：杜绝误报）
 _NON_DEATH_GUARDS = [
     r"死死", r"找死", r"该死", r"不死", r"生死", r"要死", r"怕死",
@@ -498,8 +513,19 @@ def probe_unregistered_fatalities(
 
     c_status = (frontmatter.get("state_deltas") or {}).get("character_status") or {}
     for k, v in c_status.items():
-        v_str = str(v).lower()
-        if any(w in v_str for w in ("deceased", "dead", "阵亡", "死亡", "身亡", "气绝")):
+        # v4.3.3 BUG#47：此处与 state._infer_life_status 是同一语义判断，
+        # 旧版各自维护一套词表必然漂移（实测「病故」在 state 侧判死、在此侧不判，
+        # 于是细纲已声明死亡却仍被探针报"未登记死亡"）。统一复用单一真值函数。
+        if isinstance(v, dict):
+            _vt = str(v.get("life_status") or v.get("condition") or v.get("status") or v.get("desc") or "")
+        else:
+            _vt = str(v or "")
+        try:
+            from engine.state import _infer_life_status as _inf_ls
+            _hit = _inf_ls(_vt) == "deceased"
+        except Exception:
+            _hit = any(w in _vt.lower() for w in ("deceased", "dead", "阵亡", "死亡", "身亡", "气绝"))
+        if _hit:
             acknowledged_deaths.add(k)
             if k in known_chars:
                 acknowledged_deaths.add(known_chars[k].get("name", k))
@@ -563,7 +589,11 @@ def probe_unregistered_fatalities(
     speaker_counts: Dict[str, int] = {}
     for spk, _ in dialogues:
         if spk and spk not in known_name_set and len(spk) in (2, 3, 4):
-            if not any(stop in spk for stop in ("那人", "对方", "众人", "他们", "我们", "声音", "女子", "男子", "老者", "少年", "修士")):
+            # v4.3.3 BUG#47 分层说明：泛称停用词同属 L2 提醒层，天然无法穷举
+            # （不同题材的泛称差异极大：修真"道友"、军事"士兵"、校园"同学"…）。
+            # 因其只影响"是否多一句建档提醒"，不做硬裁决，故不追求完备；
+            # 真正的守护在 check 的「未定义 ID 引用」阻断（那里走结构化 ID 校验）。
+            if not any(stop in spk for stop in _GENERIC_SPEAKER_STOPWORDS):
                 speaker_counts[spk] = speaker_counts.get(spk, 0) + 1
 
     for spk, cnt in speaker_counts.items():

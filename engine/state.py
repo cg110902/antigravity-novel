@@ -103,9 +103,50 @@ def is_deceased(char_data: Any) -> bool:
         return True
     if life in ("dead", "deceased") or status in ("dead", "deceased"):
         return True
+    # L1 兼容层：历史工作区的 condition 可能承载死亡语义而无 life_status。
+    # 新数据由 sync 落账时自动升格（见 _infer_life_status），此处仅兜底旧档。
+    # 关键：**已有显式生死契约时绝不让 condition 文本翻案**——否则
+    # life_status="alive" + condition="气绝身亡"（如假死、诈尸、复活桥段）
+    # 会被词表反判为死亡，作者的显式声明形同虚设。
+    if life in _LIFE_STATUS_NORM or status in _LIFE_STATUS_NORM:
+        return False
     if any(k in cond for k in ("阵亡", "永久湮灭", "身死", "气绝身亡", "被斩杀")):
         return True
     return False
+
+
+def _infer_life_status(text: str) -> str:
+    """从自由文本推断生死枚举（L2 语义线索 → L1 契约的升格通道）。
+
+    返回 "deceased" / "missing" / "" （空串表示无法判定，交由调用方决定）。
+    仅在 sync 落账时调用一次，把模糊文本**固化**成结构化契约；此后所有硬裁决
+    只读 life_status，不再重复猜测。这样同一段文字的解释在全生命周期内唯一，
+    不会出现"这次判死、下次判活"的漂移。
+    """
+    s = str(text or "").strip()
+    if not s:
+        return ""
+    low = s.lower()
+    if low in _LIFE_STATUS_NORM:
+        return _LIFE_STATUS_NORM[low]
+    # 反事实/假设语境守卫：先排除再匹配，避免「几乎死了」「以为他死了」误判
+    for g in _NON_DEATH_GUARD_PATTERNS:
+        if re.search(g, s):
+            return ""
+    if any(k in s for k in _DEATH_KEYWORDS):
+        return "deceased"
+    if any(k in s for k in ("失踪", "下落不明", "失联", "生死不明")):
+        return "missing"
+    return ""
+
+
+# L2 反事实语境守卫：命中任一即放弃推断（宁可不判，不可错判）
+_NON_DEATH_GUARD_PATTERNS = (
+    r"几乎[^。；]{0,4}死", r"差点[^。；]{0,4}死", r"险些[^。；]{0,4}死",
+    r"以为[^。；]{0,6}死", r"若是[^。；]{0,6}死", r"如果[^。；]{0,6}死",
+    r"仿佛[^。；]{0,4}死", r"好像[^。；]{0,4}死", r"装死", r"假死",
+    r"死[^。；]{0,4}(?:里逃生|而复生)", r"被救回", r"救了回来", r"没有死", r"未死", r"不曾死",
+)
 
 
 def _chapter_num(chapter_id: str) -> int:
@@ -114,6 +155,28 @@ def _chapter_num(chapter_id: str) -> int:
     return int(m.group(1)) if m else 0
 
 
+# ============================================================================
+# v4.3.3 BUG#47 · 生死判定的分层治理
+# ----------------------------------------------------------------------------
+# 【问题】汉语死亡表述无法穷举。旧实现把「是否死亡」这一**必须准确**的判定
+#   建立在关键词枚举上，两类错误必然同时存在：
+#     · 漏判：「倒在雪地里再没起来」「那盏灯，灭了」——真死判活 ⇒ 死者复活失控；
+#     · 误判：「重伤，几乎死了，被救回」——没死判死 ⇒ 活人被封进黑名单。
+#   每补一个词都在扩大误判面，每加一条守卫都在扩大漏判面，本质是拿模糊手段
+#   去做确定性裁决。
+#
+# 【方案】按「判定后果」分层，而不是继续堆词表：
+#   L1 结构化契约（唯一权威 · 确定性）：life_status / status 的法定枚举值。
+#      只有它能把角色置为 deceased，供死者复活阻断等**硬裁决**使用。
+#   L2 语义线索（仅用于提醒 · 不做裁决）：自由文本里的死亡措辞。命中后
+#      **不改台账**，只提示作者「疑似死亡描写，请补 life_status 显式声明」。
+#      词表在这一层永远是"够用就好"，漏了不造成事故，多了只是一句提醒。
+#   L3 兜底：契约缺失且语义存疑时，宁可报"需要澄清"，也不替作者做决定。
+#
+# 这样汉语的模糊性被隔离在 L2，不再污染 L1 的确定性裁决。
+# ============================================================================
+
+# L2 语义线索词表：**仅用于生成提醒**，严禁用于 is_deceased 等硬裁决。
 _DEATH_KEYWORDS = (
     "阵亡", "永久湮灭", "身死", "气绝身亡", "被斩杀", "deceased", "dead",
     # v4.3.2 缺陷#15：旧词表过窄，漏掉中文最常见的死亡表述。实测「为掩护沈决死于
@@ -698,14 +761,22 @@ class StateManager:
                     if cond_text:
                         persons_db[target_pid]["condition"] = cond_text
                     if explicit_life in _LIFE_STATUS_NORM:
+                        # 显式契约最高优先级，直接采信
                         persons_db[target_pid]["life_status"] = _LIFE_STATUS_NORM[explicit_life]
-                    elif cond_text.lower() in _LIFE_STATUS_NORM:
-                        persons_db[target_pid]["life_status"] = _LIFE_STATUS_NORM[cond_text.lower()]
+                    else:
+                        _inf2 = _infer_life_status(cond_text)
+                        if _inf2:
+                            persons_db[target_pid]["life_status"] = _inf2
                 else:
                     s_desc = str(s_val).strip()
                     persons_db[target_pid]["condition"] = s_desc
-                    if s_desc.lower() in _LIFE_STATUS_NORM:
-                        persons_db[target_pid]["life_status"] = _LIFE_STATUS_NORM[s_desc.lower()]
+                    # v4.3.3 BUG#47：旧版只认精确枚举，作者写「重伤·气绝身亡」这类
+                    # 自由文本时 life_status 永远不被写入，死亡只能靠下游词表反复猜测，
+                    # 同一段文字在不同调用点可能得出不同结论。此处一次性升格为契约：
+                    # 推断成功即固化进 life_status，此后所有硬裁决只读契约不再猜。
+                    _inferred = _infer_life_status(s_desc)
+                    if _inferred:
+                        persons_db[target_pid]["life_status"] = _inferred
 
         _save_json(self.persons_file, persons_db)
 

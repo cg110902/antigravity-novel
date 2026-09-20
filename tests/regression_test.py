@@ -692,6 +692,28 @@ locked_facts: []
 
         # BUG#38 (P2)：地点按细纲 location 字面建号，无同名归并。
         # 「顺天府正堂」与「顺天府·正堂」仅差间隔号即被登记为两个 loc_ID。
+        # BUG#47：生死判定分层治理——L1 硬裁决只认结构化契约，
+        # 汉语词表降级为 L2 提醒层，不可穷举不再是致命缺陷。
+        from engine.state import is_deceased as _isd47, _infer_life_status as _inf47
+        check("BUG#47 L1 显式契约判死", _isd47({"life_status": "deceased"}))
+        check("BUG#47 L1 灰区文本无契约不判死",
+              not _isd47({"condition": "重伤，几乎死了，被救回"}))
+        check("BUG#47 L1 不可穷举写法无契约不误判",
+              not _isd47({"condition": "倒在雪地里再没起来"}))
+        check("BUG#47 L1 alive 契约压过死亡词（假死/复活桥段）",
+              not _isd47({"life_status": "alive", "condition": "气绝身亡"}))
+        check("BUG#47 L1 deceased 契约压过求生词",
+              _isd47({"life_status": "deceased", "condition": "死里逃生"}))
+        check("BUG#47 L1 旧档 condition 兼容兜底",
+              _isd47({"condition": "气绝身亡"}))
+        check("BUG#47 L2 升格：自由文本→契约", _inf47("重伤·气绝身亡") == "deceased")
+        check("BUG#47 L2 升格：非战斗死亡", _inf47("病故于旧货店") == "deceased")
+        check("BUG#47 L2 反事实守卫：几乎死了", _inf47("重伤，几乎死了，被救回") == "")
+        check("BUG#47 L2 反事实守卫：死里逃生", _inf47("死里逃生") == "")
+        check("BUG#47 L2 反事实守卫：装死", _inf47("装死骗过守卫") == "")
+        check("BUG#47 L2 失踪枚举", _inf47("下落不明") == "missing")
+        check("BUG#47 L2 无死亡语义返回空", _inf47("完好·奔赴") == "")
+
         # BUG#46：细纲 new_entities 中残留的模板占位条目被当真实实体入账，
         # 并占住 ID 让同号真实实体被丢弃（实测 testbook 的 it_002）。
         from engine.state import StateManager as _SM46

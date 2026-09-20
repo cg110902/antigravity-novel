@@ -849,6 +849,37 @@ def check_id_integrity(workspace: Path, chapter_id: Optional[str] = None) -> Dic
                                 errors.append(f"第 {ch} 章细纲因果严重冲突：角色 [{probe_name}] ({_d_id}) 已于第 {d_ch} 章阵亡，禁止在后续章节登场！\n      💡 方案：请从 present_characters 中移除该角色，或委派 Stage 4C (novel-evolution) 处理剧情反转。")
                                 break
 
+        # v4.3.3 BUG#47 · L3 兜底：细纲 character_status 的自由文本若疑似描述死亡，
+        # 但既未写成法定枚举、推断也不确定，则主动索要显式契约——
+        # 宁可让作者补一个字段，也不让引擎替作者猜生死。
+        try:
+            from engine.state import _infer_life_status, _LIFE_STATUS_NORM, _DEATH_KEYWORDS
+            _sd_cs = (fm.get("state_deltas") or {}).get("character_status") or {}
+            if isinstance(_sd_cs, dict):
+                for _cid, _cv in _sd_cs.items():
+                    _txt = ""
+                    _explicit = ""
+                    if isinstance(_cv, dict):
+                        _explicit = str(_cv.get("life_status", "")).strip().lower()
+                        _txt = str(_cv.get("condition") or _cv.get("status") or _cv.get("desc") or "")
+                    else:
+                        _txt = str(_cv or "")
+                    if _explicit in _LIFE_STATUS_NORM:
+                        continue  # 已有显式契约，无需干预
+                    if _infer_life_status(_txt):
+                        continue  # 推断明确，sync 会自动升格为契约
+                    # 推断为空但文本含死亡字样 ⇒ 处于「疑似死亡 + 语境不明」的灰区
+                    if any(_k in _txt for _k in _DEATH_KEYWORDS):
+                        warnings.append(
+                            f"第 {ch} 章角色 [{_cid}] 的状态「{_txt}」含死亡语义，但语境不明确"
+                            f"（可能是假设、反事实或未遂），引擎不擅自判定生死。\n"
+                            f"      💡 方案：若该角色确已死亡，请改写为字典形态显式声明："
+                            f'{_cid}: {{life_status: "deceased", condition: "{_txt}"}}；'
+                            f"若未死亡则可忽略本提醒。"
+                        )
+        except Exception:
+            pass
+
         # 2. 人物状态增量校验 (state_deltas.character_status)
         raw_sd = fm.get("state_deltas") or {}
         if isinstance(raw_sd, dict):
