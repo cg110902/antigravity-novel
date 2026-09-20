@@ -692,6 +692,35 @@ locked_facts: []
 
         # BUG#38 (P2)：地点按细纲 location 字面建号，无同名归并。
         # 「顺天府正堂」与「顺天府·正堂」仅差间隔号即被登记为两个 loc_ID。
+        # BUG#46：细纲 new_entities 中残留的模板占位条目被当真实实体入账，
+        # 并占住 ID 让同号真实实体被丢弃（实测 testbook 的 it_002）。
+        from engine.state import StateManager as _SM46
+        _b46 = ws / "outlines/vol_01/beats/ch_002.md"
+        if _b46.exists():
+            _o46 = _b46.read_text(encoding="utf-8")
+            _idb46 = json.loads((ws / "state/items.json").read_text(encoding="utf-8"))
+            _free = f"it_{max([int(k.split('_')[1]) for k in _idb46] + [0]) + 7:03d}"
+            import re as _re46
+            _ph_blk = (f'new_entities:\n  - id: "{_free}"\n    type: "item"\n'
+                       f'    name: "待填写道具名"\n    summary: ""\n')
+            if _re46.search(r"^new_entities:", _o46, flags=_re46.M):
+                _t46 = _re46.sub(r"^new_entities:.*?(?=^[a-z_]+:)", _ph_blk, _o46,
+                                 count=1, flags=_re46.M | _re46.S)
+            else:
+                _t46 = _o46.replace("\nepistemology:", "\n" + _ph_blk + "\nepistemology:", 1)
+            if _t46 != _o46:
+                _b46.write_text(_t46, encoding="utf-8")
+                run(ws, "sync", "ch_002", "--force")
+                _after46 = json.loads((ws / "state/items.json").read_text(encoding="utf-8"))
+                check("BUG#46 模板占位实体不入账",
+                      _free not in _after46,
+                      f"{_free} 被误入账: {_after46.get(_free, {}).get('name')}")
+                check("BUG#46 台账无占位名记录",
+                      not any(str(v.get("name", "")).startswith("待填写")
+                              for v in _after46.values()))
+                _b46.write_text(_o46, encoding="utf-8")
+                run(ws, "sync", "ch_002", "--force")
+
         # BUG#44：审计报告第 3 节涌现事实由 proposal auto 吸收；跳过该步直接 sync
         # 会让登记的角色死亡静默丢失，check 此前零提示。
         _ad = ws / "log" / "audit"

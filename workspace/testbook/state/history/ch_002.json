@@ -1,6 +1,6 @@
 {
   "chapter_id": "ch_002",
-  "timestamp": "2026-09-19T15:54:58.875730",
+  "timestamp": "2026-09-20T00:16:10.911884",
   "current": {
     "current_vol": "vol_01",
     "current_ch": "ch_002",
@@ -239,7 +239,7 @@
     },
     "it_002": {
       "id": "it_002",
-      "name": "待填写道具名",
+      "name": "旧手表",
       "holder": "主角",
       "charges": -1,
       "status": "active",

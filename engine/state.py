@@ -400,6 +400,15 @@ class StateManager:
                 ename = str(ne.get("name", "")).strip()
                 if not eid:
                     continue
+                # v4.3.3 BUG#46：细纲 new_entities 中残留的模板占位条目
+                # （name 为「待填写道具名」「待填写新角色名」等）此前被当作真实实体入账，
+                # 在 items/persons 表里留下幽灵记录，并占住 ID 让同号真实实体被丢弃
+                # （实测 workspace/testbook 的 it_002 占位条挤掉了真正的「旧手表」）。
+                # ops._is_placeholder_value 只守 proposal auto 路径，细纲直投无人拦截。
+                _en = ename
+                if (not _en) or _en in ("无", "示例", "略", "-", "N/A", "n/a") or any(
+                        _en.startswith(_k) for _k in ("待填写", "待补充", "示例", "如：", "例如")):
+                    continue
                 if etype in ("person", "character"):
                     if eid not in persons_db:
                         persons_db[eid] = {
