@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from engine.config import load_config
 from engine.id_tracker import check_id_integrity
@@ -54,17 +54,81 @@ def _scan_unfilled_slots(workspace: Path, warnings: List[str]) -> int:
     return total
 
 
-def scan_ledger_integrity(workspace: Path) -> List[str]:
-    """台账内部交叉引用自洽体检（v4.3.2 缺陷#20 / #24）。
+def collapse_similar_warnings(warnings: List[str], threshold: int = 3) -> List[str]:
+    """同类提醒折叠（FIND-CT74 · 作者裁定：无人值守不要刷屏）。
+
+    体检的提醒项常常是「同一类问题 × N 条」（七个地点都缺 sensory_anchor、
+    五条伏笔都没排 target_ch）。逐条铺开会让报告长到没人看，无人值守日志更是
+    每章刷几十行——**提醒一旦被淹没，就等于没有提醒**。
+
+    处置：按「首个冒号前的类别名」分组，同组 ≥ threshold 条时只保留第一条的完整
+    文案（含 💡 方案），并在其中插入「同类共 N 条 + 涉及对象清单」，其余折叠掉。
+    单条/双条的提醒原样保留（信息量足够，不需要折叠）。
+    本函数**不改判、不降级、不丢弃信息**——只是把重复文案压成一行可扫读的清单。
+    """
+    if not warnings:
+        return warnings
+
+    def _group_key(msg: str) -> str:
+        head = re.split(r"[:：]", str(msg), 1)[0]
+        return head.strip()[:40]
+
+    groups: Dict[str, List[int]] = {}
+    for i, w in enumerate(warnings):
+        groups.setdefault(_group_key(w), []).append(i)
+
+    keep: Dict[int, str] = {}
+    for _key, idxs in groups.items():
+        if len(idxs) < threshold:
+            for i in idxs:
+                keep[i] = warnings[i]
+            continue
+        first = warnings[idxs[0]]
+        # 抽出每条里的对象标识（[p_001] / loc_006 / KNO-001 之类），压成清单
+        objs: List[str] = []
+        for i in idxs:
+            m = re.findall(r"\[([^\]]{1,40})\]", warnings[i])
+            objs.append(m[0] if m else re.split(r"[:：]", warnings[i], 1)[-1].strip()[:24])
+        _uniq = list(dict.fromkeys(objs))
+        _shown = "、".join(_uniq[:12]) + (f" …等 {len(_uniq)} 项" if len(_uniq) > 12 else "")
+        summary = f"（📦 同类共 {len(idxs)} 条，涉及：{_shown}。提醒级，不阻断后续创作）"
+        # 插到 💡 方案之前，保证「问题 + 规模 + 处置」在同一条里读完
+        if "\n      💡" in first:
+            head, tail = first.split("\n      💡", 1)
+            keep[idxs[0]] = f"{head} {summary}\n      💡{tail}"
+        else:
+            keep[idxs[0]] = f"{first} {summary}"
+    return [keep[i] for i in sorted(keep)]
+
+
+def scan_ledger_integrity(workspace: Path) -> Tuple[List[str], List[str]]:
+    """台账内部交叉引用自洽体检（v4.3.2 缺陷#20 / #24 · FIND-CT71 分级重构）。
 
     独立成函数供两处复用：
-    - `run_full_check`（Stage 0C 主控体检，命中即阻断错误）；
+    - `run_full_check`（Stage 0C 主控体检）；
     - `reconcile_volume`（Stage 4D Librarian 的准跑命令——手册禁止它运行 check，
       若不在对账报告里给出结论，它就无从发现自己被要求上报的 Level 2 冲突）。
 
-    返回人读结论列表；空列表表示台账自洽。本函数只读不写。
+    返回 `(errors, warnings)` 两级人读结论；两者皆空表示台账自洽。本函数只读不写。
+
+    FIND-CT71（作者裁定 · 判据不要太死板）：旧版把 a~j 十项交叉校验的**全部**结论
+    一律当 error 抛出，直接后果是「伏笔缺 planted_ch」「道具持有者写了个没建档的名字」
+    这类**选填/可自愈**的账面瑕疵，与「死人复活」这类**叙事硬矛盾**同罪——体检动辄
+    十几条阻断，无人值守巡航里更是每章刷屏。现按「是否会让剧情讲不通」重新定级：
+      · error（阻断）：只保留会直接产生叙事穿帮的**真矛盾**——生死状态自相矛盾
+        （弧光记死却标在世）。
+      · warning（提醒）：其余全部降级。它们要么可自愈（sync 会补/会改，标 🩹），
+        要么是选填字段缺漏，要么只是统计口径受扰（时间线顺序、重复轨迹），
+        都不该拦住作者写下一章。
     """
-    _out: List[str] = []
+    _errs: List[str] = []
+    _warns: List[str] = []
+
+    def _err(msg: str) -> None:
+        _errs.append(msg)
+
+    def _warn(msg: str) -> None:
+        _warns.append(msg)
     _sm = StateManager(workspace)
     cfg = load_config(workspace)
     #
@@ -119,7 +183,7 @@ def scan_ledger_integrity(workspace: Path) -> List[str]:
             # 再用裸词表预筛——预筛自身就是 FIND-N 假阳性的来源（「几乎死了」误判）。
             _death_ch = get_death_chapter(_pr)
             if _death_ch and not is_deceased(_pr):
-                _out.append(
+                _err(
                     f"台账生死状态自相矛盾: 角色 [{_pr.get('name') or _pid}] ({_pid}) 的 "
                     f"life_status 为 '{_pr.get('life_status', '未标注')}'（在世），"
                     f"但弧光轨迹 arc_history 中第 {_death_ch} 章记录了死亡事实。"
@@ -137,18 +201,18 @@ def scan_ledger_integrity(workspace: Path) -> List[str]:
             # （如 fac_099 拼错）永远查不出。按前缀分流到对应表做存在性校验。
             if _h and _h.startswith("loc_"):
                 if _h not in _places:
-                    _out.append(
+                    _warn(
                         f"台账引用断裂: 道具 [{_iid}] {_ir.get('name')} 的持有地点 [{_h}] 不在 state/places.json 中。"
                         f"\n      💡 方案：请修正为该地点的已建档 ID，或在 state/places.json 补建该地点。"
                     )
             elif _h and _h.startswith("fac_"):
                 if _h not in _factions:
-                    _out.append(
+                    _warn(
                         f"台账引用断裂: 道具 [{_iid}] {_ir.get('name')} 的持有势力 [{_h}] 不在 state/factions.json 中。"
                         f"\n      💡 方案：请修正为该势力的已建档 ID，或在 state/factions.json 补建该势力。"
                     )
             elif _h and not _known_person(_h):
-                _out.append(
+                _warn(
                     f"台账引用断裂: 道具 [{_iid}] {_ir.get('name')} 的持有者 [{_h}] "
                     f"在 state/persons.json 中不存在。"
                     f"\n      💡 方案：请修正 holder 为已建档的角色 ID/姓名，或为该角色补建人物档案。"
@@ -161,7 +225,7 @@ def scan_ledger_integrity(workspace: Path) -> List[str]:
             for _role, _key in (("发起方", "source_char"), ("承受方", "target_char")):
                 _ref = str(_d.get(_key, "")).strip()
                 if _ref and not _known_person(_ref):
-                    _out.append(
+                    _warn(
                         f"台账引用断裂: 恩怨 [{_d.get('id', 'DEBT')}] 的{_role} [{_ref}] "
                         f"在 state/persons.json 中不存在（事由: {_d.get('desc', '')}）。"
                         f"\n      💡 方案：请修正该恩怨条目的 {_key}，或为其补建人物档案；"
@@ -175,7 +239,7 @@ def scan_ledger_integrity(workspace: Path) -> List[str]:
             for _key in ("source_id", "target_id"):
                 _ref = str(_r.get(_key, "")).strip()
                 if _ref and not _known_person(_ref):
-                    _out.append(
+                    _warn(
                         f"台账引用断裂: 关系对 [{_pair}] 的 {_key} [{_ref}] "
                         f"在 state/persons.json 中不存在。"
                         f"\n      💡 方案：请修正该关系条目，或为该角色补建档案；"
@@ -187,14 +251,14 @@ def scan_ledger_integrity(workspace: Path) -> List[str]:
             if not isinstance(_lr, dict):
                 continue
             if _lr.get("status") == "resolved" and not str(_lr.get("resolved_ch", "")).strip():
-                _out.append(
+                _warn(
                     f"台账伏笔字段残缺: 伏笔 [{_lid}] {_lr.get('name')} 状态已标记 resolved，"
                     f"但缺少回收章 resolved_ch。"
                     f"\n      💡 方案：请补填 resolved_ch（回收所在章号），"
                     f"或将 status 改回 active 交由后续章节正常回收。"
                 )
             if not str(_lr.get("planted_ch", "")).strip():
-                _out.append(
+                _warn(
                     f"台账伏笔字段残缺: 伏笔 [{_lid}] {_lr.get('name')} 缺少埋设章 planted_ch。"
                     f"\n      💡 方案：请补填 planted_ch 以支持卷末对账按卷归属统计。"
                 )
@@ -207,7 +271,7 @@ def scan_ledger_integrity(workspace: Path) -> List[str]:
         _tl_chs = {str(t.get("chapter_id", "")) for t in _tl_all if isinstance(t, dict)}
         _tl_missing_id = sum(1 for t in _tl_all if isinstance(t, dict) and not str(t.get("chapter_id", "")).strip())
         if _tl_all and not _tl_chs:
-            _out.append(
+            _warn(
                 f"台账时间线数据残缺: state/timeline.json 全部 {len(_tl_all)} 条条目均缺失 chapter_id 字段，"
                 f"锁定事实指向校验与节奏统计不可信。"
                 f"\n      💡 方案：请检查 timeline 条目结构（每条应含 chapter_id/volume_id/title 等键），"
@@ -219,7 +283,7 @@ def scan_ledger_integrity(workspace: Path) -> List[str]:
                     continue
                 _ech = str(_lf.get("established_ch", "")).strip()
                 if _ech and _ech not in _tl_chs:
-                    _out.append(
+                    _warn(
                         f"台账锁定事实指向未入账章节: [{_lf.get('id')}] 确立于 {_ech}，"
                         f"但该章不在 state/timeline.json 中。"
                         f"\n      💡 方案：若该章已被回滚或删除，请一并清理此条锁定事实。"
@@ -232,13 +296,13 @@ def scan_ledger_integrity(workspace: Path) -> List[str]:
             try:
                 _bal_n = float(_bal)
             except (TypeError, ValueError):
-                _out.append(
+                _warn(
                     f"台账资金池数据非法: 池 [{_pname}] 余额为 {_bal!r}（非数值）。"
                     f"\n      💡 方案：请在 state/ledger.json 中将该池余额改为整数。"
                 )
                 continue
             if _bal_n < 0:
-                _out.append(
+                _warn(
                     f"台账资金池透支: 池 [{_pname}] 当前余额 {_bal_n}（负值）。"
                     f"\n      💡 方案：收支流水已超出基线承载力，请调整后续章节的 ledger delta 安排收入，"
                     f"或修正 state/ledger.json 中该池的流水记录。"
@@ -252,7 +316,7 @@ def scan_ledger_integrity(workspace: Path) -> List[str]:
             _src = str(_d.get("source_char", "")).strip()
             _tgt = str(_d.get("target_char", "")).strip()
             if _src and _tgt and _src == _tgt:
-                _out.append(
+                _warn(
                     f"台账恩怨自指: 恩怨 [{_d.get('id', 'DEBT')}] 的发起方与承受方同为 [{_src}]。"
                     f"\n      💡 方案：请修正 source_char/target_char 之一，或删除该自怨条目。"
                 )
@@ -271,7 +335,7 @@ def scan_ledger_integrity(workspace: Path) -> List[str]:
                         _seen_ch[_hc] = _seen_ch.get(_hc, 0) + 1
             for _hc, _cnt in _seen_ch.items():
                 if _cnt > 1:
-                    _out.append(
+                    _warn(
                         f"台账关系轨迹重复: 关系对 [{_pair}] 的 history 中第 {_hc} 章出现 {_cnt} 条记录。"
                         f"\n      💡 方案：请删除重复条目（sync 按章幂等，正常入账不会产生重复）。"
                     )
@@ -290,7 +354,7 @@ def scan_ledger_integrity(workspace: Path) -> List[str]:
                 continue
             _n = int(_m.group(1))
             if _prev_num is not None and _n < _prev_num:
-                _out.append(
+                _warn(
                     f"台账时间线顺序倒置: 第 {_prev_ch} 章之后出现更早的第 {_tc} 章。"
                     f"\n      💡 方案：请检查 state/timeline.json 的条目顺序（一般为手工插入或跨卷拷贝导致）；"
                     f"该顺序影响 cockpit 节奏遥测与卷末统计。"
@@ -304,13 +368,37 @@ def scan_ledger_integrity(workspace: Path) -> List[str]:
         # FIND-CT19（probes RB-2·假阴性绿灯）：旧版裸 except: pass——一行畸形数据
         # 即可让 b~j 全部七项交叉校验被静默卸载，reconcile 第五节却显示「自洽」。
         # 现在校验器自身故障也作为一条显式问题输出，绝不做假绿。
-        _out.append(
+        _warn(
             f"台账交叉校验器自身异常（以下校验项结论不可信）: {type(_e).__name__}: {_e}。"
             f"\n      💡 方案：请检查 state/ 各表条目形态（非 dict 条目/类型错误字段），"
             f"修复后重跑 check。"
         )
 
-    return _out
+    # FIND-CT73：凡是 sync 能自己修好的提醒项，统一挂一条 🩹 指引——
+    # 让作者/Librarian 一眼看出「这条不用手工改表」，也避免无人值守时把
+    # 可自愈的账面瑕疵误读成需要停工处置的重大冲突。
+    _HEAL_HINTS = (
+        ("台账伏笔字段残缺", "sync 会自动补 planted_ch / resolved_ch 并标注 `_source: inferred`"),
+        ("台账引用断裂", "sync 会按姓名/别名自动规范 ID 或取号补建档案"),
+        ("台账恩怨自指", "sync 会自动清除该幽灵恩怨条目"),
+        ("台账关系轨迹重复", "sync 会按章去重（保留每章最后一条）"),
+        ("台账时间线顺序倒置", "sync 会按章号数字序重排 timeline（CT23 已内建）"),
+        ("台账资金池数据非法", "sync 会把非数值余额/流水消毒为整数并留痕"),
+        ("台账资金池透支", "透支是剧情事实不是数据错误，引擎不阻断；如需回正请安排收入流水"),
+        ("强类型枚举越界", "sync 会按同义词表归一 life_status 等枚举；归一不了的自造值引擎不擅自改判"),
+        ("数值契约字段", "sync 会解析/夹取/摘除该字段"),
+        ("地点数据残缺", "感官物象/环境规则是**选填**创作字段，缺失不阻断；引擎不会替你编造环境描写"),
+    )
+    _tagged: List[str] = []
+    for _w in _warns:
+        _h = next((h for k, h in _HEAL_HINTS if k in _w), "")
+        if _h:
+            _w = (_w + "\n      🩹 自愈/定性：" + _h +
+                  "（可自愈项重跑 `python studio.py sync <章号> --force` 即自动修正，"
+                  "每一步动作都记入 sync 报告的「🩹 自愈动作」清单）。")
+        _tagged.append(_w)
+    _warns = _tagged
+    return _errs, _warns
 
 
 def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[str, Any]:
@@ -523,7 +611,7 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
         "type": {"person", "item", "location", "place", "faction", "other"},
         "role": {"protagonist", "deuteragonist", "antagonist", "ally", "supporting"},
         "status": {"active", "retired"},
-        "life_status": {"alive", "deceased", "missing"},
+        "life_status": {"alive", "deceased", "missing", "unknown"},
         "attitude": {"hostile", "neutral", "friendly", "allied"},
     }
     # FIND-CT9（假阳性）：items 的 status 枚举曾与 persons 共用 {active, retired}，
@@ -582,23 +670,12 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
     # __post_init__ 强制、枚举巡检只管字符串枚举不管数值。数值字段带错类型
     # （或越界）会让排序/比较/统计在下游悄悄退化（str 与 int 不可比即崩栈）。
     # 定级 warning（存量书不锁死），逐字段指出并给修正方案。
-    _NUM_FIELDS = {
-        "persons": {
-            "tier_rank": (1, 12), "injury_level": (0, 5), "renown": (None, None),
-        },
-        "items": {
-            # FIND-CT37：max_charges 下限按 -1 计（schema ItemRecord 默认值就是 -1，
-            # 与 charges 同口径表示"非计数型/无限耐久"）。若按文档字面 >=1 判，
-            # 引擎自家默认值会被误报越界（实测 it_001 假阳性）。
-            "charges": (-1, None), "max_charges": (-1, None), "tier_rank": (1, 12),
-        },
-        "factions": {
-            "scale_tier": (1, 10),
-        },
-        "places": {
-            "danger_tier": (1, 10),
-        },
-    }
+    # FIND-CT73：区间表不再在 check 侧复制一份——直接 import state.NUMERIC_FIELD_BOUNDS。
+    # 「体检口径」与「自愈口径」必须是同一张表，否则两边漂移就会出现
+    # 「体检报越界、自愈不认账」的自相矛盾（缺陷#15 的双份词表正是前车之鉴）。
+    # 其中 items.charges / max_charges 下限按 -1 计（FIND-CT37：schema 默认值即 -1，
+    # 表示非计数型无限耐久），若按文档字面 >=1 判会误报引擎自家默认值。
+    from engine.state import NUMERIC_FIELD_BOUNDS as _NUM_FIELDS
     for _tname, _flds in _NUM_FIELDS.items():
         _tbl = {"persons": state_mgr.get_persons, "items": state_mgr.get_items,
                 "factions": state_mgr.get_factions, "places": state_mgr.get_places}[_tname]()
@@ -612,20 +689,22 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
                     continue
                 if isinstance(_v, bool) or not isinstance(_v, int):
                     warnings.append(
-                        f"数值契约字段类型非法: {_tname}/{_eid} 的 {_f} = {_v!r}（应为整数"
+                        f"数值契约字段类型非法（🩹 可自愈）: {_tname}/{_eid} 的 {_f} = {_v!r}（应为整数"
                         f"{f'，区间 {_lo}~{_hi}' if _lo is not None and _hi is not None else ''}）。"
                         f"字符串/浮点数值会让排序与统计悄悄退化。\n"
-                        f"      💡 方案：请在 state/{_tname}.json 中将该字段改为整数"
+                        f"      🩹 自愈：重跑 `python studio.py sync <章号> --force`，引擎会解析/夹取该值"
+                        f"（解析不出的直接摘除——选填字段留空比塞假值安全），动作记入报告「🩹 自愈动作」。\n"
+                        f"      💡 方案：或直接在 state/{_tname}.json 中将该字段改为整数"
                         f"{f'（或从细纲 new_entities 修正声明后重跑 sync --force）' if True else ''}。"
                     )
                 elif _lo is not None and _v < _lo:
                     warnings.append(
-                        f"数值契约字段越界: {_tname}/{_eid} 的 {_f} = {_v} 低于下限 {_lo}。"
+                        f"数值契约字段越界（🩹 可自愈，sync 会夹取到区间内）: {_tname}/{_eid} 的 {_f} = {_v} 低于下限 {_lo}。"
                         f"\n      💡 方案：请修正为区间内整数{'' if _hi is None else f'（{_lo}~{_hi}）'}。"
                     )
                 elif _hi is not None and _v > _hi:
                     warnings.append(
-                        f"数值契约字段越界: {_tname}/{_eid} 的 {_f} = {_v} 超出上限 {_hi}。"
+                        f"数值契约字段越界（🩹 可自愈，sync 会夹取到区间内）: {_tname}/{_eid} 的 {_f} = {_v} 超出上限 {_hi}。"
                         f"\n      💡 方案：请修正为区间内整数（{_lo}~{_hi}）。"
                     )
 
@@ -700,7 +779,9 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
     # check 只校验「细纲 ➔ 台账」单向引用，对台账内部交叉引用零设防——实测 5 类
     # 典型手改破绽全部 0 error 放行，evolution 的唯一验收闸门形同虚设。
     try:
-        errors.extend(scan_ledger_integrity(workspace))
+        _led_errs, _led_warns = scan_ledger_integrity(workspace)
+        errors.extend(_led_errs)
+        warnings.extend(_led_warns)
     except RuntimeError as e:
         warnings.append(
             f"台账交叉引用巡检因状态表不可用而跳过: {e}"
@@ -773,12 +854,11 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
                             # （下方 BUG#44 提醒与其互补），此处一句话提醒足够。
                             warnings.append(f"正文疑似未登记角色阵亡: {s['fatalities_and_entities']['detail']}。\n      💡 方案：请在 log/audit/{chapter_id}.md 第 3 节登记该死亡事实并跑 `proposal auto` 回写细纲，或在细纲 locked_facts / state_deltas 显式声明。")
                     # 提醒级汇总
-                    # BUG#42：体量偏离在体检阶段即提示，不必等 sync 入账后才告知。
-                    _wlv = s["words"].get("level", "ok")
-                    if _wlv in ("severe_short", "short", "long"):
-                        _tip = ("请确认是否为有意短章；若正文被截断请补全后重新 finalize"
-                                if _wlv != "long" else "请确认是否为有意长章，或考虑拆分")
-                        warnings.append(f"正文体量遥测: {s['words']['detail']}。\n      💡 方案：{_tip}。")
+                    # FIND-CT70（作者裁定 · 引擎退出文学性判断）：原「正文体量遥测」
+                    # 提醒（severe_short / short / long 三档，源自 BUG#42）已整块撤销。
+                    # 章节长短是创作自由：短章、番外、意识流章都合法，引擎不做审美裁决。
+                    # 字数只作为**事实计量**出现在探针摘要与审计报告里（words.level 现仅
+                    # ok / empty 两档，empty 属数据完整性问题：封存空章会让流水线失去意义）。
                     # v4.3.3 BUG#44：审计报告第 3 节的涌现事实（[阵亡]/[新登场]/[道具变动]）
                     # 由 `proposal auto` 负责吸收并回写细纲 new_entities/state_deltas，
                     # sync 只读细纲。若跳过 proposal auto 直接 sync，审计登记的角色死亡
@@ -827,9 +907,6 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
                         except Exception:
                             pass
 
-                    # BUG#43：对白占比遥测（dehydrator 手册第 5 节规定 25%~55%）
-                    if not s.get("dialogue_ratio", {}).get("passed", True):
-                        warnings.append(f"对白占比遥测: {s['dialogue_ratio']['detail']}。\n      💡 方案：对白与叙述配比失衡会影响阅读节奏，请 Stage 3A 调稿时留意（非阻断，体裁性偏离可忽略）。")
                     if s["epistemology"].get("suspected_count"):
                         warnings.append(f"认知盲区疑似命中 ×{s['epistemology']['suspected_count']}（非阻断，请 Auditor 复核）: {s['epistemology']['suspected']}")
                     if not s["grounding"]["passed"]:
@@ -848,7 +925,9 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
     return {
         "passed": passed,
         "errors": errors,
-        "warnings": warnings,
+        # FIND-CT74：同类提醒折叠后再交付（不改判、不丢信息，只压重复文案）
+        "warnings": collapse_similar_warnings(warnings),
+        "warnings_raw_count": len(warnings),
         "probe_results": probe_results,
         "unfilled_slots": slot_count,
         "config": {k: cfg[k] for k in ("words_per_chapter", "token_cap") if k in cfg},

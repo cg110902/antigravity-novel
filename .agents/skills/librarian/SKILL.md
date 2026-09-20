@@ -48,13 +48,20 @@ description: Universal long-range consistency sweep librarian and retroactive le
    - 每 10 章巡检：`python studio.py evidence candidates ch_XXX -w "workspace/<书名>"`；
    - 或卷末大修：`python studio.py reconcile vol_XX --write -w "workspace/<书名>"`；
 
-   > 🩺 **【v4.3.2 必读 · 卷末对账报告第五节】**：`reconcile vol_XX --write` 产出的报告
+   > 🩺 **【必读 · 卷末对账报告第五节】**：`reconcile vol_XX --write` 产出的报告
    > **第五节「台账自洽体检（Level 2 靶点预筛）」** 是你唯一的机械冲突探测器
    > （你被禁止运行 `check`，而 `evidence candidates` 只打捞未建档实体、**不查矛盾**）。
-   > 该节若列出条目，**逐条都必须**按 Level 2 标准靶点卡片抄进巡检报告并上报主控；
-   > 显示 `✅ 台账内部交叉引用自洽` 方可按正常放行回执交卷。
-   > 覆盖范围：生死状态与弧光互斥、道具 holder / 恩怨双方 / 关系双方的幽灵 ID 引用、
-   > 伏笔 resolved 缺回收章、锁定事实指向未入账章节。
+   > 该节现按**两级**输出，分流处置完全不同（FIND-CT71 定级松绑）：
+   > - **⛔ 台账硬矛盾**（会直接造成叙事穿帮，目前只有「生死状态自相矛盾」一类）：
+   >   **逐条都必须**按 Level 2 标准靶点卡片抄进巡检报告并上报主控委派 Stage 4C；
+   > - **⚠️ 账面瑕疵 / 选填字段缺漏**（幽灵 ID 引用、伏笔缺 planted_ch/resolved_ch、
+   >   资金池透支、时间线倒置、恩怨自指、轨迹重复、枚举/数值越界…）：属 **Level 1**，
+   >   **不必上报停工**。标 🩹 的条目引擎会在下一次 `sync <章号> --force` 时自动修正
+   >   （补章会标 `planted_ch_source: inferred`），你只需在巡检小结里如实记一行
+   >   「账面瑕疵 N 项，已交由引擎自愈 / 建议作者在下次合账时复核」即可；
+   > - 两节都显示 ✅/无条目 时，按正常放行回执交卷。
+   > ⚠️ 严禁把 ⚠️ 级瑕疵包装成 Level 2 重大冲突上报——那会让主控为一个引擎自己能修的
+   > 缺字段而停摆整条流水线（本轮作者明确要求：判据不要死板、无人值守不要动辄报错）。
 
 2. **步骤 2【单次全读核验档案 · 严禁切片】**：
    调用 `view_file` **单次全量读取**实体台账主表（`state/persons.json`, `items.json`）与章节梗概表 `state/synopsis.json`（卷末大修如需可追加 `factions.json` / `places.json`）；

@@ -59,7 +59,10 @@ def _rhythm_panel(timeline: List[Dict[str, Any]], current_num: int, window: int 
         f"   - 字数曲线: {' ➔ '.join(str(w) for w in words)}",
         f"   - 章型序列: {' ➔ '.join(types)}   (章型来自细纲 chapter_type: 破局/铺垫/过渡/爆发/回收/余韵)",
     ]
-    # 同章型连续 ≥3 章 → 疲劳黄牌
+    # FIND-CT70（作者裁定 · 引擎退出文学性判断）：原「🟡 节奏黄牌 + 建议下一章安排
+    # 对比章型换气」是引擎在替作者做**节奏审美裁决**——章型连排是否"疲劳"取决于题材、
+    # 卷内位置与作者意图（连环爆发章正是爽文常态），引擎无从判断，也不该建议。
+    # 现只报**事实**：连续同章型的章数与序列，怎么换气完全交给 Stage 1/2 的创作者。
     streak = 1
     streak_type = types[-1] if types else ""
     for t in reversed(types[:-1]):
@@ -67,10 +70,10 @@ def _rhythm_panel(timeline: List[Dict[str, Any]], current_num: int, window: int 
             streak += 1
         else:
             break
-    if streak_type not in ("未标注", "") and streak >= 3:
-        lines.append(f"   - 🟡 **节奏黄牌**：已连续 {streak} 章「{streak_type}」，建议下一章安排对比章型（铺垫/余韵/过渡）换气")
+    if streak_type not in ("未标注", "") and streak >= 2:
+        lines.append(f"   - 章型连排事实：末尾连续 {streak} 章「{streak_type}」（纯计量，引擎不评价节奏好坏）")
     avg = sum(words) // len(words) if words else 0
-    lines.append(f"   - 均章字数: {avg} 字 ｜ 覆盖: {ids[0]} ~ {ids[-1]}")
+    lines.append(f"   - 均章字数: {avg} 字 ｜ 覆盖: {ids[0]} ~ {ids[-1]}（纯计量，不设达标线）")
     return lines
 
 

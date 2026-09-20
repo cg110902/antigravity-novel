@@ -1,0 +1,70 @@
+{
+  "chapter_id": "ch_014",
+  "frontmatter": {
+    "chapter_id": "ch_014",
+    "volume_id": "vol_01",
+    "title": "外门名册",
+    "chapter_type": "铺垫",
+    "timeline": "新历四十七年·冬月二日·辰时",
+    "location": "外门执事院·堂审",
+    "narrative_spine": {
+      "thread": "主线·身份跃迁",
+      "volume_phase": "阶段四：声名鹊起",
+      "macro_goal": "从杂役名册挪到外门弟子名册"
+    },
+    "present_characters": [
+      {
+        "id": "p_001",
+        "name": "陆沉",
+        "role": "protagonist",
+        "want": "凭剑碑碎片与翻案记录入外门名册",
+        "fear": "沈天阙最后一搏",
+        "status_in": "伤愈·沉着"
+      },
+      {
+        "id": "p_002",
+        "name": "沈天阙",
+        "role": "antagonist",
+        "want": "把陆沉钉死在杂役名册上",
+        "fear": "长老已经看过抄本",
+        "status_in": "阴沉"
+      }
+    ],
+    "epistemology": {
+      "known": {
+        "p_001": [
+          "外门长老在查三年前的账"
+        ]
+      },
+      "blind_spots": {
+        "p_002": [
+          "剑碑碎片已认陆沉为主"
+        ]
+      }
+    },
+    "foreshadowing_deltas": [
+      {
+        "id": "MIS-001",
+        "name": "外界对杂役的成见",
+        "action": "reveal",
+        "desc": "[reveal] 外门名册：全宗门都认定杂役命贱该认命，无人知道陆沉能听见矿脉的呼吸"
+      }
+    ],
+    "state_deltas": {
+      "character_status": {
+        "p_001": "入外门弟子名册·淬体境九重"
+      }
+    },
+    "relation_deltas": [
+      {
+        "source": "p_001",
+        "target": "p_002",
+        "tension": 95,
+        "dynamic": "势均力敌",
+        "subtext": "第一次在执事院平起平坐"
+      }
+    ],
+    "new_entities": [],
+    "locked_facts": []
+  }
+}

@@ -832,7 +832,21 @@ def trace_id(workspace: Path, target_id: str) -> Dict[str, Any]:
 
 
 def check_id_integrity(workspace: Path, chapter_id: Optional[str] = None) -> Dict[str, List[str]]:
-    """深度校验工作区中实体 ID 的唯一性、规范性与细纲引用的因果完备性（防悬空、防笔误、防偷跑）。"""
+    """深度校验工作区中实体 ID 的唯一性、规范性与细纲引用的因果完备性（防悬空、防笔误、防偷跑）。
+
+    FIND-CT72（作者裁定 · 判据不要太死板 + 增强自愈）：ID 类问题的**定级重排**。
+    旧版把「引用了没建档的人物/道具」「ID 写成 p_1 而不是 p_001」「new_entities 撞号」
+    全部按 error 阻断——可这些都是引擎自己兜得住的账面问题（自动建档 / 自动规范 /
+    自动改号），阻断只会让无人值守巡航动辄停摆、让作者为一条格式提醒停工改表。
+    新契约：
+      · **仍阻断（error）**：① 指定章节的细纲文件根本不存在（无从校验，不是"缺字段"）；
+        ② 已故角色在后续章节登场（复活闸门，CT68 豁免标记除外）——这是叙事因果硬矛盾，
+        必须由作者/Stage 4C 显式定夺，引擎不得自行揣测。
+      · **降级提醒（warning + 🩹 自愈标注）**：格式非法、引用悬空、撞号、ID 与姓名不一致、
+        伏笔未登记、槽位污染等——一律不阻断，并统一追加自愈提示：重跑
+        `sync <章号> --force` 时 state.py 会自动规范/补建/改号，动作全部留痕在
+        sync 报告的「🩹 自愈动作」清单里（公理二：系统自愈，但绝不偷偷改）。
+    """
     errors: List[str] = []
     warnings: List[str] = []
     state_dir = workspace / "state"
@@ -844,6 +858,44 @@ def check_id_integrity(workspace: Path, chapter_id: Optional[str] = None) -> Dic
     factions_db = _load_json(state_dir / "factions.json", {})
     debts_db = _load_json(state_dir / "debts.json", [])
     locked_db = _load_json(state_dir / "locked.json", [])
+
+    # FIND-CT54b（L1 存量污染 + 体检假绿）：旧版 ID 校验只查**细纲引用侧**
+    # （present_characters / new_entities 的格式与悬空），对**四表存量记录自身**的
+    # ID 形态零校验。实证：金基座 workspace/test-lab/state/persons.json 里躺着一条
+    # id = name = "{{slot:char_1_id|p_001}}" 的幽灵人物（由 character_status 自动打捞
+    # 建档产生），`id list person` 把它当第 5 位人物陈列、随快照进入 history/ch_001.json
+    # 与 ch_002.json，而 check 全程 0 errors / passed=true。存量污染必须能被体检看见。
+    # 分级：槽位串身份 = warning + 🩹（确定的模板垃圾，无任何合法语义，sync 会自动清除；
+    #       FIND-CT72 前为 error——但既然引擎自己能扫掉，就没必要拦住整条流水线）；
+    #       非规范前缀 = warning（按姓名自动打捞建档属「宽容自愈」合法路径，仅需提示规范化）。
+    _CANON_TABLES = (
+        ("persons", persons_db, r"^p_\d+$", "人物", "p_001", "person"),
+        ("items", items_db, r"^it_\d+$", "道具", "it_001", "item"),
+        ("factions", factions_db, r"^fac_\d+$", "势力", "fac_001", "faction"),
+        ("places", places_db, r"^loc_\d+$", "地点", "loc_001", "location"),
+    )
+    for _tname, _tdb, _trx, _tlabel, _teg, _tcat in _CANON_TABLES:
+        if not isinstance(_tdb, dict):
+            continue
+        for _rid, _rec in _tdb.items():
+            _rn = str(_rec.get("name", "") or "") if isinstance(_rec, dict) else ""
+            if "{{slot:" in str(_rid) or "{{slot:" in _rn:
+                warnings.append(
+                    f"台账存量槽位污染: state/{_tname}.json 存在以未填模板槽位串为身份的{_tlabel}记录 "
+                    f"[{_rid}]（姓名: {_rn or '同 ID'}）。该幽灵记录会混入 id list / ask / trace / "
+                    f"cockpit 大盘与后续发号扫描，旧版体检对此全程 0 errors。\n"
+                    f"      💡 方案：请从 state/{_tname}.json 删除该条记录（并同步清理 "
+                    f"state/history/*.json 快照切片中的同名条目），随后运行 `python studio.py check` 复验；"
+                    f"源头已由 pack/audit/finalize/proposal/sync 五处槽位闸门与 state 层消毒双重阻断。"
+                )
+            elif not re.match(_trx, str(_rid)):
+                warnings.append(
+                    f"台账 {_tlabel} ID 形态不规范: [{_rid}]（标准形态: {_teg}）。"
+                    f"多为按姓名自动打捞建档所致，会使 `id next {_tcat}` 的防撞号扫描与 "
+                    f"trace / ask 的检索口径失真。\n"
+                    f"      💡 方案：建议改用标准编号 ID（可运行 `python studio.py id next {_tcat}` 取号），"
+                    f"并在细纲中以该 ID 引用；若确为一次性路人可保留，但请勿在后续章节按 ID 追踪。"
+                )
 
     # 扫描 characters/ 与 entities/ 实体卡，打捞已显式建档的合法 ID
     declared_card_ids = set()
@@ -921,7 +973,7 @@ def check_id_integrity(workspace: Path, chapter_id: Optional[str] = None) -> Dic
                 continue
             for _pref, _rx in _PREFIX_FMT.items():
                 if _nid2.startswith(_pref) and not re.match(_rx, _nid2):
-                    errors.append(
+                    warnings.append(
                         f"第 {ch} 章 new_entities 实体 ID 格式非法: [{_nid2}]（标准格式: {_pref}001）。\n"
                         f"      💡 方案：请将 ID 修正为标准编号格式（可运行 `python studio.py id next` 取号）。"
                     )
@@ -948,7 +1000,7 @@ def check_id_integrity(workspace: Path, chapter_id: Optional[str] = None) -> Dic
             if _nid in _db:
                 _old = str(_db[_nid].get("name", "")).strip()
                 if _nnm and _nnm != _old:
-                    errors.append(
+                    warnings.append(
                         f"第 {ch} 章 new_entities 的 {_label} ID 已被占用: [{_nid}] 台账中已登记为「{_old}」，"
                         f"细纲却声明为新实体「{_nnm}」。该声明会被静默丢弃，实体不会入账。\n"
                         f"      💡 方案：新实体请改用未占用的 ID（可运行 `python studio.py id next "
@@ -973,9 +1025,9 @@ def check_id_integrity(workspace: Path, chapter_id: Optional[str] = None) -> Dic
             # 若符合人物物理 ID 规范 (p_XXX)
             if pid.startswith("p_"):
                 if not re.match(r"^p_\d+$", pid):
-                    errors.append(f"第 {ch} 章细纲人物 ID 格式非法: [{pid}]（标准格式: p_001）。\n      💡 方案：请将细纲 present_characters 中的人物 ID 改为标准编号格式。")
+                    warnings.append(f"第 {ch} 章细纲人物 ID 格式非法: [{pid}]（标准格式: p_001）。\n      💡 方案：请将细纲 present_characters 中的人物 ID 改为标准编号格式。")
                 elif pid not in persons_db and pid not in declared_new_ids and pid not in declared_card_ids:
-                    errors.append(f"第 {ch} 章细纲引用未定义的人物 ID: [{pid}]（未在 state/persons.json 登记，且未在当章 new_entities 或实体卡声明）。\n      💡 方案：可运行 `python studio.py id list person` 查看已有人物；若属新登场角色，请在细纲 new_entities 声明登记，或在 characters/ 建立人物卡。")
+                    warnings.append(f"第 {ch} 章细纲引用未定义的人物 ID: [{pid}]（未在 state/persons.json 登记，且未在当章 new_entities 或实体卡声明）。\n      💡 方案：可运行 `python studio.py id list person` 查看已有人物；若属新登场角色，请在细纲 new_entities 声明登记，或在 characters/ 建立人物卡。")
 
             # v4.3.3 BUG#37：id 与 name 必须指向同一人。
             # 旧版对 pid、pname 各自单独校验，从不比对二者是否自洽。
@@ -992,7 +1044,7 @@ def check_id_integrity(workspace: Path, chapter_id: Optional[str] = None) -> Dic
                          if re.sub(r"[（\(].*?[）\)]", "", str(_op.get("name", ""))).strip() == _pn_base),
                         "",
                     )
-                    errors.append(
+                    warnings.append(
                         f"第 {ch} 章细纲人物 ID 与姓名不一致: [{pid}] 在台账中登记为「{_reg}」，"
                         f"细纲却写作「{pname}」{_owner}。\n"
                         f"      💡 方案：请修正 present_characters 中该条目的 id 或 name，使二者指向同一人"
@@ -1010,13 +1062,20 @@ def check_id_integrity(workspace: Path, chapter_id: Optional[str] = None) -> Dic
             # 1) 按 ID 检查
             # v4.3.2 缺陷#10：ID 命中后必须短路，否则紧随其后的「按名检索」会对同一个
             # 死者再报一遍，体检输出出现两条一模一样的阻断错误（实测 ch_007 韩姨 ×2）。
+            # FIND-CT68：与 state.apply_fine_outline_delta 的 sync 闸门同口径——
+            # 显式声明回忆/闪回形态的已故角色降级为 warning，不再阻断全书体检。
+            from engine.state import flashback_appearance as _fb_app
+            _fb_mark = _fb_app(p_item if isinstance(p_item, dict) else {})
             _dead_reported = False
             if pid in persons_db and is_deceased(persons_db[pid]):
                 d_ch = get_death_chapter(persons_db[pid])
                 if _ch_num(ch) > _ch_num(d_ch):
                     dead_name = persons_db[pid].get("name") or pid
-                    errors.append(f"第 {ch} 章细纲因果严重冲突：角色 [{dead_name}] ({pid}) 已于第 {d_ch} 章阵亡，禁止在后续章节登场！\n      💡 方案：请从 present_characters 中移除该角色，或委派 Stage 4C (novel-evolution) 处理剧情反转。")
                     _dead_reported = True
+                    if _fb_mark:
+                        warnings.append(f"第 {ch} 章已故角色 [{dead_name}] ({pid}) 以「{_fb_mark}」形态登场，已豁免复活闸门（卒章 {d_ch}，台账生死不变）。")
+                    else:
+                        errors.append(f"第 {ch} 章细纲因果严重冲突：角色 [{dead_name}] ({pid}) 已于第 {d_ch} 章阵亡，禁止在后续章节登场！\n      💡 方案：① 回忆/闪回/梦境桥段请在该条目补 `appearance: \"回忆\"` 合法豁免；② 否则请从 present_characters 中移除该角色；③ 剧情反转请委派 Stage 4C (novel-evolution) 处理。")
             # 2) 按 Name 检查（防止用临时 ID 或中文名登场死者）
             probe_name = "" if _dead_reported else (pname or (pid if not pid.startswith("p_") else ""))
             if probe_name:
@@ -1026,7 +1085,10 @@ def check_id_integrity(workspace: Path, chapter_id: Optional[str] = None) -> Dic
                         if _ch_num(ch) > _ch_num(d_ch):
                             _d_base = re.sub(r"[（\(].*?[）\)]", "", _d_p.get("name", "")).strip()
                             if probe_name == _d_p.get("name") or (probe_name == _d_base and len(probe_name) >= 2):
-                                errors.append(f"第 {ch} 章细纲因果严重冲突：角色 [{probe_name}] ({_d_id}) 已于第 {d_ch} 章阵亡，禁止在后续章节登场！\n      💡 方案：请从 present_characters 中移除该角色，或委派 Stage 4C (novel-evolution) 处理剧情反转。")
+                                if _fb_mark:
+                                    warnings.append(f"第 {ch} 章已故角色 [{probe_name}] ({_d_id}) 以「{_fb_mark}」形态登场，已豁免复活闸门（卒章 {d_ch}，台账生死不变）。")
+                                else:
+                                    errors.append(f"第 {ch} 章细纲因果严重冲突：角色 [{probe_name}] ({_d_id}) 已于第 {d_ch} 章阵亡，禁止在后续章节登场！\n      💡 方案：① 回忆/闪回/梦境桥段请在该条目补 `appearance: \"回忆\"` 合法豁免；② 否则请从 present_characters 中移除该角色；③ 剧情反转请委派 Stage 4C (novel-evolution) 处理。")
                                 break
 
         # v4.3.3 BUG#47 · L3 兜底：细纲 character_status 的自由文本若疑似描述死亡，
@@ -1069,9 +1131,9 @@ def check_id_integrity(workspace: Path, chapter_id: Optional[str] = None) -> Dic
                     cid_str = str(cid).strip()
                     if cid_str.startswith("p_") and "{{" not in cid_str:
                         if not re.match(r"^p_\d+$", cid_str):
-                            errors.append(f"第 {ch} 章细纲状态变更人物 ID 格式非法: [{cid_str}]。\n      💡 方案：请修正 state_deltas.character_status 中的键名为标准格式（如 p_001）。")
+                            warnings.append(f"第 {ch} 章细纲状态变更人物 ID 格式非法: [{cid_str}]。\n      💡 方案：请修正 state_deltas.character_status 中的键名为标准格式（如 p_001）。")
                         elif cid_str not in persons_db and cid_str not in declared_new_ids and cid_str not in declared_card_ids:
-                            errors.append(f"第 {ch} 章细纲状态变更引用未定义的人物 ID: [{cid_str}]。\n      💡 方案：请确认人物已建档，或在当章 new_entities 声明。")
+                            warnings.append(f"第 {ch} 章细纲状态变更引用未定义的人物 ID: [{cid_str}]。\n      💡 方案：请确认人物已建档，或在当章 new_entities 声明。")
 
             # 3. 道具增量校验 (state_deltas.items)
             it_deltas = raw_sd.get("items") or []
@@ -1084,9 +1146,9 @@ def check_id_integrity(workspace: Path, chapter_id: Optional[str] = None) -> Dic
                         continue
                     if iid.startswith("it_"):
                         if not re.match(r"^it_\d+$", iid):
-                            errors.append(f"第 {ch} 章细纲道具 ID 格式非法: [{iid}]（标准格式: it_001）。\n      💡 方案：请将道具 ID 修正为标准格式。")
+                            warnings.append(f"第 {ch} 章细纲道具 ID 格式非法: [{iid}]（标准格式: it_001）。\n      💡 方案：请将道具 ID 修正为标准格式。")
                         elif iid not in items_db and iid not in declared_new_ids and iid not in declared_card_ids:
-                            errors.append(f"第 {ch} 章细纲引用未定义的道具 ID: [{iid}]（未在 state/items.json 登记，且未在当章 new_entities 或实体卡声明）。\n      💡 方案：运行 `python studio.py id list item` 查看已有道具；若属新道具，请在细纲 new_entities 声明登记。")
+                            warnings.append(f"第 {ch} 章细纲引用未定义的道具 ID: [{iid}]（未在 state/items.json 登记，且未在当章 new_entities 或实体卡声明）。\n      💡 方案：运行 `python studio.py id list item` 查看已有道具；若属新道具，请在细纲 new_entities 声明登记。")
 
         # 4. 伏笔闭环/推进引用校验 (foreshadowing_deltas)
         f_deltas = fm.get("foreshadowing_deltas") or []
@@ -1104,12 +1166,35 @@ def check_id_integrity(workspace: Path, chapter_id: Optional[str] = None) -> Dic
                     planted_in_chapter.add(fid)
                 elif faction in ("resolve", "progress", "reveal", "update"):
                     if fid not in lines_db and fid not in planted_in_chapter:
-                        errors.append(f"第 {ch} 章细纲试图推进/闭环未登记的伏笔 ID: [{fid}]（未在 state/lines.json 登记）。\n      💡 方案：运行 `python studio.py id list line` 查看已有伏笔；若是本章新埋设线索，请将 action 改为 'plant'。")
+                        warnings.append(f"第 {ch} 章细纲试图推进/闭环未登记的伏笔 ID: [{fid}]（未在 state/lines.json 登记）。\n      💡 方案：运行 `python studio.py id list line` 查看已有伏笔；若是本章新埋设线索，请将 action 改为 'plant'。")
                     elif faction == "resolve" and fid in lines_db:
                         curr_line = lines_db[fid]
                         if curr_line.get("status") == "resolved" and curr_line.get("resolved_ch") != ch:
                             warnings.append(f"第 {ch} 章伏笔提示：伏笔 [{fid}] 此前已于第 {curr_line.get('resolved_ch')} 章闭环。")
 
+
+    # FIND-CT72：凡是引擎自己能修的提醒项，统一挂一条 🩹 自愈指引，
+    # 让作者/Librarian 一眼看出「这条不用手工改表，重跑 sync 就好」。
+    _HEAL_SUBSTR = (
+        "存量槽位污染",
+        "new_entities 实体 ID 格式非法",
+        "ID 已被占用",
+        "细纲人物 ID 格式非法",
+        "细纲引用未定义的人物 ID",
+        "细纲人物 ID 与姓名不一致",
+        "状态变更人物 ID 格式非法",
+        "状态变更引用未定义的人物 ID",
+        "细纲道具 ID 格式非法",
+        "细纲引用未定义的道具 ID",
+        "推进/闭环未登记的伏笔 ID",
+    )
+    warnings = [
+        (w + "\n      🩹 自愈：本项无需手工改表——重跑 `python studio.py sync <章号> --force` "
+             "时引擎会自动规范 ID / 补建档案 / 改派新号，并把每一步动作记入 sync 报告的"
+             "「🩹 自愈动作」清单（改了什么、原值是什么都可追溯）。")
+        if any(s in w for s in _HEAL_SUBSTR) else w
+        for w in warnings
+    ]
 
     return {
         "errors": errors,

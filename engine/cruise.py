@@ -140,10 +140,12 @@ def _heartbeat(chapter_id: str, title: str, res: Dict[str, Any], sealed_total: i
     """单行心跳：无人值守日志可直接采集。"""
     flag = "♻️ 幂等跳过" if res.get("idempotent") else "✅ 封存"
     warn = "" if not res.get("warnings") else f" | ⚠️x{len(res['warnings'])}"
+    # FIND-CT73：自愈动作在无人值守日志里必须可见（🩹xN），否则引擎"悄悄把表改好了"
+    heal = "" if not res.get("healed") else f" | 🩹x{len(res['healed'])}"
     return (
         f"🚢 [cruise] {datetime.now().strftime('%H:%M:%S')} {chapter_id} 《{title}》 {flag}"
         f" | {res.get('word_count', 0)}字 | check {res.get('check_errors', 0)}err"
-        f"{warn} | 累计 {sealed_total} 章"
+        f"{warn}{heal} | 累计 {sealed_total} 章"
     )
 
 
@@ -284,6 +286,11 @@ def run_cruise(
                 "chapter_id": r["chapter_id"],
                 "status": r["status"],
                 **({"error": r["error"]} if r.get("error") else {"word_count": r["res"].get("word_count", 0)}),
+                # FIND-CT73：批次报告带上自愈条目，无人值守跑完能一眼看出引擎改过什么
+                **({} if r.get("error") else {
+                    "healed": (r["res"].get("healed") or [])[:8],
+                    "healed_count": len(r["res"].get("healed") or []),
+                }),
             }
             for r in results
         ],

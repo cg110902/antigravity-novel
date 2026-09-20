@@ -1,0 +1,38 @@
+[
+  {
+    "id": "LOCK-001",
+    "fact": "陆沉于执事院堂审当众揭发赏格账目一成一差额，虚报罪名洗清",
+    "domain": "plot",
+    "established_ch": "ch_005"
+  },
+  {
+    "id": "LOCK-002",
+    "fact": "p_004 陈铁 于 ch_008 三号矿道封巷塌方中阵亡，临终交出殉职名册抄件",
+    "domain": "plot",
+    "established_ch": "ch_008"
+  },
+  {
+    "id": "LOCK-003",
+    "fact": "陆沉于 ch_015 以碎片引动剑碑，取得第一行传承口诀，晋升通玄境",
+    "domain": "plot",
+    "established_ch": "ch_015"
+  },
+  {
+    "id": "LOCK-004",
+    "fact": "ch_022 贡银底册与钱庄暗账互证，坐实沈天阙为幽影门安插青云宗十八年的暗桩",
+    "domain": "plot",
+    "established_ch": "ch_022"
+  },
+  {
+    "id": "LOCK-005",
+    "fact": "p_002 沈天阙 于 ch_028 幽影城北门税关被陆沉斩杀，幽影令同坠护城河",
+    "domain": "plot",
+    "established_ch": "ch_028"
+  },
+  {
+    "id": "LOCK-006",
+    "fact": "ch_030 剑碑第二行现出陆沉父亲陆大石之名，剑碑传承与父仇同源",
+    "domain": "plot",
+    "established_ch": "ch_030"
+  }
+]

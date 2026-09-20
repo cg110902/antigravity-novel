@@ -434,44 +434,12 @@ _OBSERVE_MEMORY_GUARDS = [
 ]
 
 
-def probe_dialogue_ratio(text: str, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """对白行占比遥测（v4.3.3 新增 · BUG#43）。
-
-    `.agents/skills/dehydrator/SKILL.md` 第 5 节明文规定「对白行占比维持在
-    25%~55% 之间」，但引擎此前无任何代码检测——一条可确定性量化、却完全
-    无人守护的硬规则。实测 workspace/lantern 16 章有 11 章越界（最低 3.0%
-    的独角戏章、最高 63.0% 的纯对话章）。
-
-    判据：非空、非标题行中含成对引号（中英文直角/弯引号均计）的行视为对白行。
-    体裁差异很大（独白章、战斗章天然低对白），故只报 warning，不阻断。
-    """
-    ratio_range = (config or {}).get("dialogue_ratio") or [25, 55]
-    try:
-        lo, hi = float(ratio_range[0]), float(ratio_range[1])
-    except (TypeError, ValueError, IndexError):
-        lo, hi = 25.0, 55.0
-
-    lines = [ln.strip() for ln in text.splitlines()
-             if ln.strip() and not ln.strip().startswith("#")]
-    if not lines:
-        return {"name": "对白占比遥测", "passed": True, "ratio": 0.0,
-                "dialogue_lines": 0, "total_lines": 0, "range": [lo, hi],
-                "detail": "正文为空，跳过对白占比遥测"}
-
-    dlg = [ln for ln in lines if re.search(r"[\"“”「」『』]", ln)]
-    ratio = len(dlg) / len(lines) * 100.0
-    passed = lo <= ratio <= hi
-    if passed:
-        detail = f"对白行 {len(dlg)}/{len(lines)}（{ratio:.1f}%），处于 {lo:.0f}%~{hi:.0f}% 区间"
-    elif ratio < lo:
-        detail = (f"对白行仅 {len(dlg)}/{len(lines)}（{ratio:.1f}%），低于下限 {lo:.0f}%"
-                  f"——叙述压过人物，检查是否大段转述代替了现场交锋")
-    else:
-        detail = (f"对白行 {len(dlg)}/{len(lines)}（{ratio:.1f}%），高于上限 {hi:.0f}%"
-                  f"——接近纯台词剧本，检查是否缺少动作、物象与场景落地")
-    return {"name": "对白占比遥测", "passed": passed, "ratio": round(ratio, 1),
-            "dialogue_lines": len(dlg), "total_lines": len(lines),
-            "range": [lo, hi], "detail": detail}
+# FIND-CT70（作者裁定 · 引擎退出文学性判断）：原 `probe_dialogue_ratio`（对白行占比
+# 25%~55% 遥测）已整块移除。对白配比属**文学节奏判断**，按 AGENTS.md 公理二
+# 「文学创造 100% 属于 LLM」应由 Stage 3A (Dehydrator) / 4A (Auditor) 语义评估，
+# 引擎用「配对引号行数 ÷ 总行数」这种形式指标去卡体裁，既无法区分诗体/剧本体/
+# 意识流，也会在无人值守巡航里制造无意义噪音。创作侧的软性指引保留在
+# .agents/skills/dehydrator/SKILL.md 第 105 行（不再是机器可判定的硬指标）。
 
 
 def probe_unregistered_fatalities(
@@ -736,33 +704,21 @@ def run_all_probes(text: str, frontmatter: Dict[str, Any],
     }
 
     total_words = _count_total(text)
-    # v4.3.3 BUG#42：config 此前收而不用——字数遥测只判 >0，体量偏离要等 sync
-    # 入账之后才由 ops 警告，体检阶段（check/audit）对 24 字的残章报「✅ 通过」，
-    # 拦截时机完全失位。此处让探针按项目配置的 words_per_chapter 做体量遥测。
-    _wpc = (config or {}).get("words_per_chapter") or [1500, 2600]
-    try:
-        _wc_min, _wc_max = int(_wpc[0]), int(_wpc[1])
-    except (TypeError, ValueError, IndexError):
-        _wc_min, _wc_max = 1500, 2600
-    _words_detail = f"当前 {total_words} 字（参考区间 {_wc_min}~{_wc_max}）"
+    # FIND-CT70（作者裁定 · 引擎退出文学性判断）：字数只保留**事实计量**与「空正文」
+    # 这一条数据完整性判定（封存空章会让整条流水线失去意义）。原按 words_per_chapter
+    # 分级的 severe_short/short/long 三档「体量偏离」判定全部撤销——章节长短是创作
+    # 自由（短章、番外、意识流章都合法），引擎不做审美裁决，也不再据此告警。
+    # words_per_chapter 仍保留在 config 里，但语义收窄为**作者的体量规划值**
+    # （供大纲 target_words 与写手提示词参考），不参与任何判定。
+    _words_detail = f"当前 {total_words} 字"
     _words_level = "ok"
     if total_words <= 0:
         _words_detail = "正文内容为空（0 字）"
         _words_level = "empty"
-    elif total_words < _wc_min * 0.5:
-        _words_detail = f"当前 {total_words} 字，不足标准下限（{_wc_min} 字）的一半，疑为残章或截断"
-        _words_level = "severe_short"
-    elif total_words < _wc_min:
-        _words_detail = f"当前 {total_words} 字，低于参考下限 {_wc_min} 字"
-        _words_level = "short"
-    elif total_words > _wc_max:
-        _words_detail = f"当前 {total_words} 字，超出参考上限 {_wc_max} 字"
-        _words_level = "long"
     p_epistemology = probe_epistemology_leaks(text, blind_spots, name_by_id=name_by_id, present_ids=present_ids)
     p_address = probe_address_matrix(text, persons_db, present_ids=present_ids)
     p_grounding = probe_grounding(text, frontmatter, persons_db=persons_db)
     p_fatalities = probe_unregistered_fatalities(text, frontmatter, persons_db=persons_db, audit_text=audit_text)
-    p_dialogue = probe_dialogue_ratio(text, config=config)
 
     # 阻断级错误：仅空正文 (0字) 与确认级角色认知泄露（probes.py 模块 docstring
     # 与 check.py 头注释共同承诺的「阻断级仅 2」契约）。
@@ -778,19 +734,17 @@ def run_all_probes(text: str, frontmatter: Dict[str, Any],
         "form_warnings": _form_warnings,
         "summary": {
             "words": {
-                "name": "正文字数遥测",
+                "name": "正文字数计量",
                 "word_count": total_words,
                 "passed": total_words > 0,
-                # BUG#42：level 供消费侧分级展示；仍只有「空正文」是阻断级，
-                # 体量偏离属创作自由，报 warning 由作者定夺（短章/长章都可能是有意为之）。
+                # FIND-CT70：level 只剩 ok / empty 两档（empty 是数据完整性问题，
+                # 不是文学问题）；不再输出 words_range，避免消费侧拿它当阈值用。
                 "level": _words_level,
-                "words_range": [_wc_min, _wc_max],
                 "detail": _words_detail,
             },
             "epistemology": p_epistemology,
             "address": p_address,
             "grounding": p_grounding,
             "fatalities_and_entities": p_fatalities,
-            "dialogue_ratio": p_dialogue,
         },
     }

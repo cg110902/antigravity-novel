@@ -1,0 +1,29 @@
+[
+  {
+    "id": "ms_001",
+    "title": "矿区立足",
+    "target_ch": 5,
+    "desc": "洗脱虚报矿课罪名，在矿区站稳脚跟",
+    "status": "achieved",
+    "achieved_at": "2026-09-20 08:52:25",
+    "achieved_ch": "ch_005"
+  },
+  {
+    "id": "ms_002",
+    "title": "外门扬名",
+    "target_ch": 15,
+    "desc": "剑碑之秘揭开一角，入外门弟子名册",
+    "status": "achieved",
+    "achieved_at": "2026-09-20 08:52:31",
+    "achieved_ch": "ch_015"
+  },
+  {
+    "id": "ms_003",
+    "title": "幽影破局",
+    "target_ch": 28,
+    "desc": "揪出幽影门暗桩，为父正名",
+    "status": "achieved",
+    "achieved_at": "2026-09-20 08:52:41",
+    "achieved_ch": "ch_028"
+  }
+]

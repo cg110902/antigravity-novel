@@ -1,0 +1,96 @@
+{
+  "GUN-001": {
+    "id": "GUN-001",
+    "name": "矿脉深处的上古剑碑",
+    "type": "GUN",
+    "tier": "A",
+    "status": "resolved",
+    "planted_ch": "ch_001",
+    "target_ch": "ch_015",
+    "revealed_chs": [
+      "ch_004",
+      "ch_007",
+      "ch_010",
+      "ch_012"
+    ],
+    "resolved_ch": "ch_015",
+    "desc": "[resolve] 剑碑一角：三号矿道尽头有一面爬满剑纹的岩壁，与陆沉眉心旧疤同源",
+    "evidence": "三号矿道尽头的岩壁上，剑纹在他掌心下轻轻震了一下。"
+  },
+  "KNO-001": {
+    "id": "KNO-001",
+    "name": "沈天阙的真实身份",
+    "type": "KNO",
+    "tier": "A",
+    "status": "resolved",
+    "planted_ch": "ch_002",
+    "target_ch": "ch_026",
+    "revealed_chs": [
+      "ch_011",
+      "ch_016",
+      "ch_017",
+      "ch_019",
+      "ch_022"
+    ],
+    "resolved_ch": "ch_026",
+    "desc": "[resolve] 账本当众：沈天阙腰间玄铁令并非青云宗制式，他是幽影门安插多年的暗桩",
+    "evidence": "沈天阙腰间那面玄铁令，边款不是青云宗的云纹，是一只展翅的蝠。"
+  },
+  "GUN-002": {
+    "id": "GUN-002",
+    "name": "父亲之死的真凶",
+    "type": "GUN",
+    "tier": "S",
+    "status": "resolved",
+    "planted_ch": "ch_003",
+    "target_ch": "ch_028",
+    "revealed_chs": [
+      "ch_005",
+      "ch_008",
+      "ch_009",
+      "ch_018",
+      "ch_022",
+      "ch_024",
+      "ch_026",
+      "ch_027"
+    ],
+    "resolved_ch": "ch_028",
+    "desc": "[resolve] 执事院的最后一夜：三年前矿难并非意外，殉职名册被人改写，真凶至今在宗门内",
+    "evidence": "名册第四行的墨迹比其余三行新，纸背还留着刮刀的毛边。"
+  },
+  "MIS-001": {
+    "id": "MIS-001",
+    "name": "外界对杂役的成见",
+    "type": "MIS",
+    "tier": "B",
+    "status": "active",
+    "planted_ch": "ch_010",
+    "target_ch": "",
+    "revealed_chs": [
+      "ch_014",
+      "ch_027",
+      "ch_029"
+    ],
+    "resolved_ch": "",
+    "desc": "[reveal] 回宗的钟：全宗门都认定杂役命贱该认命，无人知道陆沉能听见矿脉的呼吸",
+    "evidence": "杂役的命也是命？执事堂上没人接这句话。"
+  },
+  "GUN-003": {
+    "id": "GUN-003",
+    "name": "幽影令的来历",
+    "type": "GUN",
+    "tier": "A",
+    "status": "active",
+    "planted_ch": "ch_020",
+    "target_ch": "ch_035",
+    "revealed_chs": [
+      "ch_021",
+      "ch_023",
+      "ch_025",
+      "ch_030"
+    ],
+    "resolved_ch": "",
+    "desc": "[reveal] 第二行剑纹：幽影令可开幽影门三处暗门，来历与青云宗十八年贡银纠缠不清",
+    "evidence": "幽影令入手冰凉，背面刻着一个「贡」字，笔画里嵌着干涸的暗红。"
+  }
+}
