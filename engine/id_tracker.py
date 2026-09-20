@@ -746,6 +746,36 @@ def check_id_integrity(workspace: Path, chapter_id: Optional[str] = None) -> Dic
             if isinstance(ne, dict) and ne.get("id"):
                 declared_new_ids.add(str(ne["id"]).strip())
 
+        # v4.3.3 BUG#40：new_entities 声明的 ID 若已被占用，state.py 的
+        # `if eid not in xxx_db` 会静默跳过——实体既不入账也无任何提示，
+        # 作者却以为已登记，后续章节引用时才发现不存在（且台账原记录不受影响，
+        # 属"无声吞掉"而非覆盖）。此处在 check 阶段前置拦截。
+        _EXIST_DB = {
+            "person": (persons_db, "人物"), "character": (persons_db, "人物"),
+            "item": (items_db, "道具"), "weapon": (items_db, "道具"), "tool": (items_db, "道具"),
+            "place": (places_db, "地点"), "location": (places_db, "地点"),
+            "faction": (factions_db, "势力"), "organization": (factions_db, "势力"),
+        }
+        for ne in new_ents:
+            if not isinstance(ne, dict):
+                continue
+            _nid = str(ne.get("id", "")).strip()
+            _nty = str(ne.get("type", "person")).strip().lower()
+            _nnm = str(ne.get("name", "")).strip()
+            if not _nid or "{{" in _nid or _nty not in _EXIST_DB:
+                continue
+            _db, _label = _EXIST_DB[_nty]
+            if _nid in _db:
+                _old = str(_db[_nid].get("name", "")).strip()
+                if _nnm and _nnm != _old:
+                    errors.append(
+                        f"第 {ch} 章 new_entities 的 {_label} ID 已被占用: [{_nid}] 台账中已登记为「{_old}」，"
+                        f"细纲却声明为新实体「{_nnm}」。该声明会被静默丢弃，实体不会入账。\n"
+                        f"      💡 方案：新实体请改用未占用的 ID（可运行 `python studio.py id next "
+                        f"{'person' if _label == '人物' else 'item' if _label == '道具' else 'location' if _label == '地点' else 'faction'}` 取号）；"
+                        f"若本就想引用既有实体，请从 new_entities 移除该条。"
+                    )
+
         # 1. 人物在场校验 (present_characters)
         from engine.state import is_deceased
         raw_pres = fm.get("present_characters") or []

@@ -106,5 +106,27 @@
     "visited_chapters": [
       "ch_012"
     ]
+  },
+  "loc_011": {
+    "id": "loc_011",
+    "name": "大理寺·礼部档房",
+    "danger_level": "普通",
+    "sensory_anchor": "无窗的廊房，门口一线光，总册厚得压手，箱中散档按年扎捆",
+    "environment_rules": "档册不得携出房外，只许就地抄录",
+    "summary": "",
+    "visited_chapters": [
+      "ch_015"
+    ]
+  },
+  "loc_012": {
+    "id": "loc_012",
+    "name": "裴知节旧居·堂屋",
+    "danger_level": "普通",
+    "sensory_anchor": "十年积灰，蒙布的桌椅，堂屋当中一只三足铜灯台",
+    "environment_rules": "旧居久无人住，入夜无灯",
+    "summary": "",
+    "visited_chapters": [
+      "ch_016"
+    ]
   }
 }

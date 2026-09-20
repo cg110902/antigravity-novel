@@ -14,7 +14,7 @@
     "tier_name": "大理寺评事（从七品）",
     "status": "active",
     "life_status": "alive",
-    "condition": "复职·面对更大的暗",
+    "condition": "复职·手握父命",
     "injury_level": 0,
     "injury_desc": "无伤",
     "location": "loc_001",
@@ -26,8 +26,8 @@
       "崔敬亭": "崔通判",
       "周伯": "周老"
     },
-    "want": "问出下令的人",
-    "fear": "问到底还是一片空白",
+    "want": "找到父亲那封信",
+    "fear": "信早已不在",
     "need": "放下幸存者的负疚",
     "lie": "查到底就能赎清十年前的罪",
     "quirk": "用指节轻叩尸床边沿数时辰",
@@ -149,9 +149,27 @@
         "physiological_leak": "",
         "status_in": "停职·锋芒重聚",
         "status_out": "复职·面对更大的暗"
+      },
+      {
+        "chapter": "ch_015",
+        "want": "查出礼部印角的来历",
+        "fear": "这道差事本身就是给他设的网",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "复职·面对更大的暗",
+        "status_out": "复职·警觉"
+      },
+      {
+        "chapter": "ch_016",
+        "want": "找到父亲那封信",
+        "fear": "信早已不在",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "复职·警觉",
+        "status_out": "复职·手握父命"
       }
     ],
-    "last_seen_ch": "ch_014"
+    "last_seen_ch": "ch_016"
   },
   "p_002": {
     "id": "p_002",
@@ -236,7 +254,7 @@
     "tier_name": "仵作",
     "status": "active",
     "life_status": "alive",
-    "condition": "完好·得手",
+    "condition": "完好·守在档房外",
     "injury_level": 0,
     "injury_desc": "无伤",
     "location": "loc_001",
@@ -248,7 +266,7 @@
       "崔敬亭": "崔大人",
       "周伯": "师父"
     },
-    "want": "确认这份东西能不能用",
+    "want": "陪他回去",
     "arc_history": [
       {
         "chapter": "ch_001",
@@ -348,10 +366,28 @@
         "physiological_leak": "",
         "status_in": "完好·得手",
         "status_out": ""
+      },
+      {
+        "chapter": "ch_015",
+        "want": "替裴砚盯住档房的出入",
+        "fear": "裴砚又被架到明处",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "完好·得手",
+        "status_out": ""
+      },
+      {
+        "chapter": "ch_016",
+        "want": "陪他回去",
+        "fear": "他一个人撑不住",
+        "latent_mood": "",
+        "physiological_leak": "",
+        "status_in": "完好·守在档房外",
+        "status_out": ""
       }
     ],
-    "fear": "白跑一夜",
-    "last_seen_ch": "ch_013"
+    "fear": "他一个人撑不住",
+    "last_seen_ch": "ch_016"
   },
   "p_004": {
     "id": "p_004",

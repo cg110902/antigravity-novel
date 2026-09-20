@@ -16,5 +16,11 @@
     "fact": "崔敬亭承认亲手闩第二道坊门，但拒不供出下令者",
     "domain": "plot",
     "established_ch": "ch_014"
+  },
+  {
+    "id": "LOCK-004",
+    "fact": "裴知节死前留有一封未送出的信，封皮题「呈礼部」",
+    "domain": "plot",
+    "established_ch": "ch_016"
   }
 ]

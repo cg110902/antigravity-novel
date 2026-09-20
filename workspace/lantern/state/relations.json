@@ -5,9 +5,9 @@
     "target_id": "p_003",
     "affinity": 0,
     "trust": 50,
-    "tension": 26,
-    "dynamic_label": "并肩",
-    "unspoken_subtext": "一个看出破绽，一个去递",
+    "tension": 30,
+    "dynamic_label": "同担",
+    "unspoken_subtext": "两个人一起掀开了灯台",
     "history": [
       {
         "chapter": "ch_001",
@@ -71,9 +71,23 @@
         "subtext": "一个看出破绽，一个去递",
         "affinity": 0,
         "tension": 26
+      },
+      {
+        "chapter": "ch_015",
+        "dynamic": "默契",
+        "subtext": "一个进去查，一个在外面看着门",
+        "affinity": 0,
+        "tension": 28
+      },
+      {
+        "chapter": "ch_016",
+        "dynamic": "同担",
+        "subtext": "两个人一起掀开了灯台",
+        "affinity": 0,
+        "tension": 30
       }
     ],
-    "last_updated_ch": "ch_013"
+    "last_updated_ch": "ch_016"
   },
   "p_001->p_002": {
     "pair": "p_001->p_002",

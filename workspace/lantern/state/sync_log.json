@@ -96,5 +96,19 @@
     "forced": false,
     "title": "灯下不照",
     "word_count": 902
+  },
+  "ch_015": {
+    "final_sha1": "47dae592a8fe616ac74adc5a75c84e12ec2a4a40",
+    "synced_at": "2026-09-20T00:02:30",
+    "forced": false,
+    "title": "复职",
+    "word_count": 846
+  },
+  "ch_016": {
+    "final_sha1": "c037a5819d0a13775f29dafa7dfcd36d36928a58",
+    "synced_at": "2026-09-20T00:03:16",
+    "forced": true,
+    "title": "没送出的信",
+    "word_count": 795
   }
 }

@@ -692,6 +692,47 @@ locked_facts: []
 
         # BUG#38 (P2)：地点按细纲 location 字面建号，无同名归并。
         # 「顺天府正堂」与「顺天府·正堂」仅差间隔号即被登记为两个 loc_ID。
+        # BUG#41 (P2)：export 的「前情提要」旧版列的是本卷章节梗概，
+        # 等于在卷首剧透本卷全部反转；语义应为回顾前序卷。
+        r = run(ws, "export")
+        if r.returncode == 0:
+            _books = list((ws / "export").glob("*.md"))
+            if _books:
+                _bt = _books[0].read_text(encoding="utf-8")
+                _head = _bt.split("### 第", 1)[0]
+                check("BUG#41 首卷卷首不列前情提要（无开卷剧透）",
+                      "前情提要" not in _head, _head[-200:])
+
+        # BUG#40 (P2)：new_entities 复用已占用 ID 时，state.py 的
+        # `if eid not in xxx_db` 静默跳过——实体不入账、无任何提示，
+        # 作者以为已登记，后续引用才发现不存在。
+        _b40 = ws / "outlines/vol_01/beats/ch_002.md"
+        if _b40.exists():
+            _o40 = _b40.read_text(encoding="utf-8")
+            _pdb40 = json.loads((ws / "state/persons.json").read_text(encoding="utf-8"))
+            _exist = sorted(_pdb40)[0]
+            _t40 = _o40 + (
+                f'\n<!-- BUG#40 probe -->\n'
+            )
+            # 直接改写 frontmatter 中的 new_entities 块
+            import re as _re40
+            _blk = (f'new_entities:\n  - id: "{_exist}"\n    type: "person"\n'
+                    f'    name: "撞号顶替者"\n    summary: "复用已占用 ID"\n')
+            if _re40.search(r"^new_entities:", _o40, flags=_re40.M):
+                _t40 = _re40.sub(r"^new_entities:.*?(?=^[a-z_]+:)", _blk, _o40,
+                                 count=1, flags=_re40.M | _re40.S)
+            else:
+                _t40 = _o40.replace("\nepistemology:", "\n" + _blk + "\nepistemology:", 1)
+            if _t40 != _o40:
+                _b40.write_text(_t40, encoding="utf-8")
+                rc = run(ws, "check", "ch_002")
+                check("BUG#40 new_entities 撞号被阻断",
+                      rc.returncode != 0 and "已被占用" in (rc.stdout + rc.stderr),
+                      (rc.stdout + rc.stderr)[:200])
+                _b40.write_text(_o40, encoding="utf-8")
+                rc = run(ws, "check", "ch_002")
+                check("BUG#40 还原后恢复通过", rc.returncode == 0)
+
         _plj = ws / "state/places.json"
         _orig_pl = _plj.read_text(encoding="utf-8")
         _pldb = json.loads(_orig_pl)

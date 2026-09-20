@@ -80,5 +80,23 @@
     "desc": "裴砚把递状的功与险都交给沈拂云",
     "status": "unpaid",
     "created_ch": "ch_013"
+  },
+  {
+    "id": "DEBT-AUTO-ff78cc7f",
+    "source_char": "p_001",
+    "target_char": "p_003",
+    "type": "favor",
+    "desc": "沈拂云替他守了一整日档房",
+    "status": "unpaid",
+    "created_ch": "ch_015"
+  },
+  {
+    "id": "DEBT-AUTO-2684afe3",
+    "source_char": "p_001",
+    "target_char": "p_002",
+    "type": "grudge",
+    "desc": "崔敬亭那句提醒指向了这封信",
+    "status": "unpaid",
+    "created_ch": "ch_016"
   }
 ]

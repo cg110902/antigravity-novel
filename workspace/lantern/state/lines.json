@@ -97,9 +97,11 @@
     "status": "active",
     "planted_ch": "ch_010",
     "target_ch": "",
-    "revealed_chs": [],
+    "revealed_chs": [
+      "ch_016"
+    ],
     "resolved_ch": "",
-    "desc": "崔敬亭六字反杀，揭示对手真正的兵器是程序而非暴力",
+    "desc": "父亲选择写信而非立案，正因他知道立案会被程序吃掉",
     "evidence": ""
   },
   "GUN-004": {
@@ -113,6 +115,19 @@
     "revealed_chs": [],
     "resolved_ch": "ch_013",
     "desc": "复核日期正月十五，早于正月十六报案、正月十七送尸",
+    "evidence": ""
+  },
+  "GUN-005": {
+    "id": "GUN-005",
+    "name": "礼部那半枚印",
+    "type": "GUN",
+    "tier": "A",
+    "status": "active",
+    "planted_ch": "ch_015",
+    "target_ch": "",
+    "revealed_chs": [],
+    "resolved_ch": "",
+    "desc": "永乐二年礼部档在总册上是一片空白，不是被抽，是从未登记",
     "evidence": ""
   }
 }

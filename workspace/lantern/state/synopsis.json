@@ -210,5 +210,35 @@
       "裴砚",
       "崔敬亭"
     ]
+  },
+  "ch_015": {
+    "chapter_id": "ch_015",
+    "volume_id": "vol_02",
+    "title": "复职",
+    "timeline": "永乐十二年·二月初二·辰时",
+    "location": "大理寺·礼部档房",
+    "chapter_type": "破局",
+    "dramatic_goal": "裴砚复职，寺丞交还停职文书，同时下了一道新差事：清查永乐二年礼部旧档。他很快发现，这道差事本身就是一张网。",
+    "cliffhanger": "礼部档房的册子上，永乐二年那一格是空的——不是被抽走，是从来没有登记过。",
+    "word_count": 846,
+    "present_characters": [
+      "裴砚",
+      "沈拂云"
+    ]
+  },
+  "ch_016": {
+    "chapter_id": "ch_016",
+    "volume_id": "vol_02",
+    "title": "没送出的信",
+    "timeline": "永乐十二年·二月初二·戌时",
+    "location": "裴知节旧居·堂屋",
+    "chapter_type": "推进",
+    "dramatic_goal": "裴砚回到父亲旧居，在灯下找那封信。",
+    "cliffhanger": "信在灯台的夹层里，封皮上写着三个字：呈礼部。",
+    "word_count": 795,
+    "present_characters": [
+      "裴砚",
+      "沈拂云"
+    ]
   }
 }

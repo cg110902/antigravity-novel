@@ -9,8 +9,8 @@
       "沈拂云"
     ],
     "first_seen_ch": "ch_001",
-    "last_seen_ch": "ch_013",
-    "total_co_occurrences": 10,
+    "last_seen_ch": "ch_016",
+    "total_co_occurrences": 12,
     "chapters": [
       "ch_001",
       "ch_002",
@@ -21,7 +21,9 @@
       "ch_008",
       "ch_009",
       "ch_011",
-      "ch_013"
+      "ch_013",
+      "ch_015",
+      "ch_016"
     ],
     "history": [
       {
@@ -73,13 +75,23 @@
         "chapter": "ch_013",
         "dynamic": "并肩",
         "subtext": "一个看出破绽，一个去递"
+      },
+      {
+        "chapter": "ch_015",
+        "dynamic": "默契",
+        "subtext": "一个进去查，一个在外面看着门"
+      },
+      {
+        "chapter": "ch_016",
+        "dynamic": "同担",
+        "subtext": "两个人一起掀开了灯台"
       }
     ],
     "last_interaction_summary": {
-      "chapter": "ch_013",
-      "dynamic": "并肩",
-      "unspoken_subtext": "一个看出破绽，一个去递",
-      "tension": 26,
+      "chapter": "ch_016",
+      "dynamic": "同担",
+      "unspoken_subtext": "两个人一起掀开了灯台",
+      "tension": 30,
       "affinity": 0
     }
   },
