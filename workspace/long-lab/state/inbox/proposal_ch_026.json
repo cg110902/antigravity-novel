@@ -1,0 +1,108 @@
+{
+  "chapter_id": "ch_026",
+  "frontmatter": {
+    "chapter_id": "ch_026",
+    "volume_id": "vol_02",
+    "title": "账本当众",
+    "chapter_type": "爆发",
+    "timeline": "新历四十八年·春月二十六日·辰时",
+    "location": "幽影城·城主府",
+    "narrative_spine": {
+      "thread": "主线·恩怨平账",
+      "volume_phase": "阶段四：收口与跃迁",
+      "macro_goal": "当众摊开贡银底册，与沈天阙清算"
+    },
+    "present_characters": [
+      {
+        "id": "p_001",
+        "name": "陆沉",
+        "role": "protagonist",
+        "want": "当众摊开底册，坐实沈天阙暗桩身份",
+        "fear": "对方狗急跳墙",
+        "status_in": "锋锐"
+      },
+      {
+        "id": "p_002",
+        "name": "沈天阙",
+        "role": "antagonist",
+        "want": "毁账灭口，把罪名推给陆沉",
+        "fear": "誊本已送出城",
+        "status_in": "暴怒"
+      },
+      {
+        "id": "p_009",
+        "name": "韩拓",
+        "role": "supporting",
+        "want": "在两方之间取利",
+        "fear": "被两边同时记恨",
+        "status_in": "冷眼"
+      },
+      {
+        "id": "p_003",
+        "name": "苏黎",
+        "role": "deuteragonist",
+        "want": "护住账本与誊抄件",
+        "fear": "被沈天阙点中穴道",
+        "status_in": "决绝"
+      }
+    ],
+    "epistemology": {
+      "known": {
+        "p_001": [
+          "沈天阙是幽影门暗桩",
+          "矿难那天的银两出自执事院例钱"
+        ]
+      },
+      "blind_spots": {
+        "p_002": [
+          "柳如烟已把誊本交给青云宗外门长老"
+        ]
+      }
+    },
+    "foreshadowing_deltas": [
+      {
+        "id": "KNO-001",
+        "name": "沈天阙的真实身份",
+        "action": "resolve",
+        "desc": "[resolve] 账本当众：沈天阙腰间玄铁令并非青云宗制式，他是幽影门安插多年的暗桩",
+        "evidence": "沈天阙腰间那面玄铁令，边款不是青云宗的云纹，是一只展翅的蝠。"
+      },
+      {
+        "id": "GUN-002",
+        "name": "父亲之死的真凶",
+        "action": "reveal",
+        "desc": "[reveal] 账本当众：三年前矿难并非意外，殉职名册被人改写，真凶至今在宗门内"
+      }
+    ],
+    "state_deltas": {
+      "character_status": {
+        "p_001": "通玄境五重·当众清算构陷之怨"
+      },
+      "ledger": {
+        "pool": "通用资金池",
+        "delta": "+800",
+        "reason": "城主府按约支付护账酬金八百块下品灵石"
+      },
+      "debts": [
+        {
+          "source": "p_001",
+          "target": "沈天阙",
+          "type": "grudge",
+          "desc": "ch_001 构陷虚报矿课之怨当众摊账清算",
+          "action": "settle"
+        }
+      ]
+    },
+    "relation_deltas": [
+      {
+        "source": "p_001",
+        "target": "p_002",
+        "tension": 100,
+        "dynamic": "恩怨已明",
+        "subtext": "账本摊开的那一刻，两人再无回旋"
+      }
+    ],
+    "new_entities": [],
+    "locked_facts": []
+  }
+}

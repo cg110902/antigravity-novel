@@ -84,7 +84,9 @@ Evolution 进行研判与手术时，必须单次全量读取对应文件（严�
      ```
      确保 **0 errors** 完美放行；
    - 🔍 **【台账平账自检清单 v4.3.2】**：手改 `state/*.json` 后，`check` 会机械校验台账**内部**交叉引用，以下五类平账漏项会被直接判为阻断错误，务必一次改全：
-     1. **生死翻转要改两处**：改 `persons.json` 的 `life_status` 时，必须同步改写该角色 `arc_history` 中记录死亡的那一章 `status_out`（否则报「生死状态自相矛盾」），并同步更新 `locked.json` 里相关的法定事实；
+     1. **生死翻转要改两处**：改 `persons.json` 的 `life_status` 时，必须同步改写该角色 `arc_history` 中记录死亡的那一章 `status_out`（否则报「生死状态自相矛盾」——这是 `check` 目前**唯一**会因台账交叉引用而阻断的项），并同步更新 `locked.json` 里相关的法定事实；
+       - **定级现状（FIND-CT71/72）**：手改台账后跑 `check`，幽灵 ID 引用、伏笔缺 `planted_ch`/`resolved_ch`、资金池透支、时间线倒置、恩怨自指、关系轨迹重复、枚举/数值越界等一律是 **⚠️ 提醒级（exit 0）**，不再阻断；其中标 🩹 的条目你**不必手搓 JSON**——跑一次 `python studio.py sync <章号> --force`，引擎会自动补章（标 `_source: inferred`）、夹取数值、去重轨迹、清除自怨条目，并把每一步动作打在「🩹 自愈动作」清单里供你核验。你的精力应留给真正需要人脑裁决的设定冲突与因果平账；
+       - **四态语义**：`alive` 在世 ｜ `deceased` 阵亡（不可逆，进黑名单）｜ `missing` 失踪/下落不明 ｜ `unknown` 生死不明。后两态**不是死亡**，角色仍可登场，只受「不得擅自坐实生死」约束；把 `unknown`/`missing` 收束为 `deceased` 或 `alive` 都属正常定论（此前从未记死，无需改 arc_history 的死亡弧光）；
      2. **砍角色要清引用**：删除某个 `p_XXX` 前，必须一并清理 `debts.json`（`source_char`/`target_char`）、`relations.json`（`source_id`/`target_id`）与 `items.json`（`holder`）中指向它的记录；
      3. **伏笔闭环字段成对**：把 `lines.json` 某条改为 `status: resolved` 时必须同时补 `resolved_ch`；
      4. **道具持有者须可解析**：`holder` 只能填已建档的角色 ID/姓名（或泛指「主角」）；

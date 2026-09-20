@@ -1,0 +1,94 @@
+{
+  "chapter_id": "ch_029",
+  "frontmatter": {
+    "chapter_id": "ch_029",
+    "volume_id": "vol_02",
+    "title": "回宗的钟",
+    "chapter_type": "余韵",
+    "timeline": "新历四十八年·夏月二日·辰时",
+    "location": "幽影城·城主府",
+    "narrative_spine": {
+      "thread": "支线·收束与新局",
+      "volume_phase": "阶段四：收口与跃迁",
+      "macro_goal": "带着账本与名牌回青云宗"
+    },
+    "present_characters": [
+      {
+        "id": "p_001",
+        "name": "陆沉",
+        "role": "protagonist",
+        "want": "带账本与父亲名牌回宗",
+        "fear": "外门首座先下手",
+        "status_in": "伤愈·沉静"
+      },
+      {
+        "id": "p_003",
+        "name": "苏黎",
+        "role": "deuteragonist",
+        "want": "随行照料他的肩伤",
+        "fear": "此去宗门凶多吉少",
+        "status_in": "坚定"
+      },
+      {
+        "id": "p_009",
+        "name": "韩拓",
+        "role": "supporting",
+        "want": "送行并讨一份人情",
+        "fear": "城主府被牵连",
+        "status_in": "老练"
+      }
+    ],
+    "epistemology": {
+      "known": {
+        "p_001": [
+          "外门首座与幽影门有银钱往来"
+        ]
+      },
+      "blind_spots": {
+        "p_009": [
+          "陆沉把誊本交给了外门长老而非城主府"
+        ]
+      }
+    },
+    "foreshadowing_deltas": [
+      {
+        "id": "MIS-001",
+        "name": "外界对杂役的成见",
+        "action": "reveal",
+        "desc": "[reveal] 回宗的钟：全宗门都认定杂役命贱该认命，无人知道陆沉能听见矿脉的呼吸"
+      }
+    ],
+    "state_deltas": {
+      "character_status": {
+        "p_001": "通玄境六重·启程回青云宗"
+      },
+      "ledger": {
+        "pool": "通用资金池",
+        "delta": "-1200",
+        "reason": "结算入城以来全部开销与船坞修葺，付出一千二百块下品灵石"
+      },
+      "debts": [
+        {
+          "source": "p_001",
+          "target": "苏黎",
+          "type": "promise",
+          "desc": "陆沉立誓回宗后为她父亲苏检石正名",
+          "action": "record"
+        }
+      ]
+    },
+    "relation_deltas": [],
+    "new_entities": [
+      {
+        "id": "p_010",
+        "type": "person",
+        "name": "阿福",
+        "role": "supporting",
+        "tier_name": "凡人",
+        "summary": "城主府老仆，替陆沉收拾行装并捎带口信",
+        "sensory_anchor": "驼背，腰间挂着一串开不完的钥匙"
+      }
+    ],
+    "locked_facts": []
+  }
+}

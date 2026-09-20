@@ -1,2 +1,9 @@
 __pycache__/
 *.py[cod]
+
+# 长篇基座 workspace/long-lab 的逐章快照是**可再生产物**（build_long_lab.py 每次重建都会
+# 重新生成 30 个 zip ≈ 11MB 二进制）。只保留电池 C-10 / C-17 需要的两个回滚靶点入库，
+# 其余不入库；需要完整快照集时跑一次建造器即可。
+workspace/long-lab/snapshots/*
+!workspace/long-lab/snapshots/ch_014_*.zip
+!workspace/long-lab/snapshots/ch_015_*.zip

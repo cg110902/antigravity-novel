@@ -8,13 +8,64 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from engine.config import load_config
 from engine.errors import BusinessError
-from engine.ops import _find_volume_outline
+from engine.ops import _find_volume_outline, assert_beats_slot_free
 from engine.parser import parse_frontmatter
 from engine.state import StateManager
+
+
+_SLOT_TOKEN_RE = re.compile(r"\{\{slot:[^}]*\}\}")
+_DESLOT_MARK = "【未填设定】"
+
+
+def _deslot_text(text: str) -> Tuple[str, int]:
+    """FIND-CT55：把文本中的模板占位串 `{{slot:key|默认}}` 统一替换为显式【未填设定】标记。
+
+    返回 (净化后文本, 命中数)。绝不保留占位串原样、也绝不保留模板默认提示语——
+    后者（如「标志性穿戴与视觉记忆物象」）对只准读 pack.md 的 Drafter 而言
+    与真实设定无法区分，会被当成事实展开进正文。
+    """
+    if not text or "{{slot:" not in text:
+        return text, 0
+    return _SLOT_TOKEN_RE.subn(_DESLOT_MARK, text)
+
+
+_BRIEFING_MARK = "Engine 自动前置打捞"
+
+
+def _strip_engine_briefing(text: str) -> Tuple[str, int]:
+    """FIND-CT58：从注入装配包的细纲全文中剥离**面向编剧（Stage 1）的机要简报注释块**。
+
+    该块由 `beats new` 在装配脚手架时按当时台账快照写入 beats 文件顶部（HTML 注释），
+    内容是「上一章余温 / 在场候选 / 已故黑名单 / 伏笔雷达 / 下一可用 ID 速查」。
+    而 pack 的第二~八节会按**当前台账实时**重算同一批事实，两者同时进包有三个坏处：
+    1. **过期矛盾**：beats new 与 pack 之间若发生过 Evolution 手术 / 快照回滚 / 补账，
+       简报快照与实时装配会给出互相矛盾的事实，Drafter 无从裁决（其【绝对零命令】）；
+    2. **预算浪费**：简报常态 600~1000 Token，长篇每章白占 token_cap 的 5%~8%；
+    3. **职责串味**：「下一可用物理 ID 速查」是发号契约，Drafter 无发号权限，
+       看见只会被当噪声甚至误抄进正文。
+    只剥离引擎自产的简报注释（按标记定位其所在 `<!-- -->` 区间），作者自己写的
+    细纲注释与正文一律不动。返回 (剥离后文本, 剥离字符数)。
+    """
+    if not text or _BRIEFING_MARK not in text:
+        return text, 0
+    mi = text.find(_BRIEFING_MARK)
+    start = text.rfind("<!--", 0, mi)
+    end = text.find("-->", mi)
+    if start < 0 or end < 0:
+        return text, 0  # 注释未闭合：保守不动（宁可重复，不可吞内容）
+    end += 3
+    stripped = (text[:start] + text[end:]).replace("\n\n\n", "\n\n")
+    return stripped, end - start
+
+
+def _count_slots(obj: Any) -> int:
+    """统计任意来源（字符串/台账对象）中的未填槽位数，用于污染溯源旗标。"""
+    hay = obj if isinstance(obj, str) else repr(obj)
+    return len(_SLOT_TOKEN_RE.findall(hay or ""))
 
 
 def estimate_tokens(text: str) -> int:
@@ -157,12 +208,37 @@ def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dic
         )
 
     beats_text = beats_file.read_text(encoding="utf-8-sig", errors="replace")
+    # FIND-CT58：装配包只承载**实时**事实，编剧简报快照不进包（详见函数 docstring）
+    beats_text, _briefing_chars = _strip_engine_briefing(beats_text)
+    # FIND-CT52（L1·写手输入污染）：pack.md 是 Drafter（Stage 2）的**唯一准读输入**，
+    # 且该角色【绝对零命令】无从自查。旧版对细纲残留 {{slot:}} 零把关——实测全新 init
+    # 工作区 `beats new` ➔ `pack --write` exit 0、回执「🟢 预算健康 (无损全量装配)」，
+    # 而 pack.md 内落进 54 处槽位串（present_characters 的 want/fear/status_in、
+    # epistemology、伏笔、恩怨全为模板占位），Drafter 只能把占位串当事实展开进正文，
+    # 白干四道 LLM 工序后才在 S5 finalize 被拦。闸门前移到装配环节，与 S5 同源同口径。
+    assert_beats_slot_free(chapter_id, beats_file, "装配创作包", text=beats_text)
     frontmatter, _ = parse_frontmatter(beats_text)
     if not frontmatter:
         raise BusinessError(
             f"第 {chapter_id} 章细纲未包含有效 YAML Front-matter 元数据: {beats_file.name}",
             solution="请检查细纲顶部是否包含由 '---' 包裹的 YAML 区块（含 chapter_id, present_characters 等必要字段）。",
         )
+
+    pack_warnings: List[str] = []
+    # FIND-CT55：装配包注入源的槽位污染溯源表（来源标签 ➔ 命中数）
+    # FIND-CT65（L1·系统性崩溃）：本三件套原先定义在「3. 提取在场角色档案」段首，
+    # 而「2. 提取上一章尾声」段已经调用 `_note_slot(...)`——Python 闭包在 def 语句
+    # 执行前不存在 ⇒ 任何**存在上一章正文**的 pack（即 ch_002 及以后全部章节）
+    # 必崩 UnboundLocalError，CLI 兜成 exit 4「未预期异常」。长篇项目在第 2 章装配
+    # 环节 100% 断流，且报错文案指向「工作区文件完整性」，完全误导排错方向。
+    # 定义前移到首个调用点之前；AST 全量扫描（engine/*.py 局部函数先用后定义）已确认
+    # 这是唯一一处该形态的隐患。
+    slot_sources: Dict[str, int] = {}
+
+    def _note_slot(label: str, obj: Any) -> None:
+        n = _count_slots(obj)
+        if n:
+            slot_sources[label] = slot_sources.get(label, 0) + n
 
     # 2. 提取上一章尾声 (P1)
     prev_tail = ""
@@ -180,6 +256,7 @@ def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dic
                 if c.exists():
                     ptxt = c.read_text(encoding="utf-8-sig", errors="replace").strip()
                     prev_tail = ptxt[-1000:] if len(ptxt) > 1000 else ptxt
+                    _note_slot(f"上一章正文 {prev_id}", prev_tail)
                     break
 
     # 3. 提取在场角色全息档案与法定互称矩阵 (P1)
@@ -192,7 +269,6 @@ def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dic
     # `for _c in <str>` 按单字符迭代，产出 5 条幻影档案 [p]/[_]/[0]/[0]/[1]，
     # 主角 Want/Fear/卡/称谓矩阵全丢且 exit 0 无任何旗标。与 ops.py evidence
     # candidates 的归一化口径对齐：str/dict 整值先包成列表再迭代。
-    pack_warnings: List[str] = []
     _raw_pc = frontmatter.get("present_characters")
     _pc_iter: List[Any] = (
         [_raw_pc] if isinstance(_raw_pc, (str, dict))
@@ -241,6 +317,10 @@ def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dic
         for card_path in card_candidates:
             if card_path and card_path.exists():
                 raw_c_txt = card_path.read_text(encoding="utf-8-sig", errors="replace")
+                try:
+                    _note_slot(str(card_path.relative_to(workspace)), raw_c_txt[:800])
+                except ValueError:
+                    _note_slot(card_path.name, raw_c_txt[:800])
                 card_fm, _ = parse_frontmatter(raw_c_txt)
                 card_text = raw_c_txt[:800]
                 break
@@ -501,9 +581,11 @@ def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dic
     # 6. 提取世界偏离与战力标尺 (P2)
     dev_file = workspace / "bible" / "06_deviations.md"
     dev_text = dev_file.read_text(encoding="utf-8-sig", errors="replace")[:1200] if dev_file.exists() else "无"
+    _note_slot("bible/06_deviations.md", dev_text)
 
     power_file = workspace / "bible" / "02_power_system.md"
     power_text = power_file.read_text(encoding="utf-8-sig", errors="replace")[:1000] if power_file.exists() else "无"
+    _note_slot("bible/02_power_system.md", power_text)
 
     # 7. 提取全书不可违逆既定事实 (Locked Facts · P0 铁律)
     locked_facts = state_mgr.get_locked_facts()
@@ -630,6 +712,36 @@ def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dic
         locked_fact_blocks, rolling_synopses,
     )
 
+    # FIND-CT55（L1·写手输入污染第二源头）：细纲闸门（assert_beats_slot_free）只守 beats，
+    # 而装配包还会注入人物卡切片、bible 偏离清单/战力标尺、台账存量字段与上一章正文。
+    # 实测 field-lab 的 pack.md 内落进 characters/*.md 与 bible/02_power_system.md 的数十处
+    # {{slot:}}——「法定称谓矩阵」整条都是占位串、主角外观物象是模板提示语。Drafter（Stage 2）
+    # 唯一准读输入就是 pack.md 且【绝对零命令】无从自查，只能把模板提示语当设定事实展开进正文。
+    # 此处在渲染完成后统一净化为【未填设定】并显式插旗：写手一眼看出"此处无设定"，
+    # 污染源清单同时回报主控（CLI 侧展示 pack warnings）。
+    pack_md, _slot_hits = _deslot_text(pack_md)
+    if _slot_hits:
+        _attributed = sum(slot_sources.values())
+        if _slot_hits > _attributed:
+            slot_sources["state/ 台账存量字段（或细纲外其他注入源）"] = _slot_hits - _attributed
+        _src_lines = "\n".join(
+            f">    - {_k} ×{_v}" for _k, _v in sorted(slot_sources.items(), key=lambda kv: -kv[1])
+        )
+        _flag = (
+            f"\n> 🚩 【装配包净化旗标 · 严禁当事实使用】本包原有 {_slot_hits} 处未填模板槽位 "
+            f"({{{{slot:}}}})，已统一替换为 `{_DESLOT_MARK}`——它们**不是设定**，"
+            f"严禁把 `{_DESLOT_MARK}` 或任何模板提示语写进正文：\n{_src_lines}\n"
+            f">    💡 请派发 Stage 0A (novel-architect) 填实对应设定集/人物卡，"
+            f"或运行 `python studio.py check` 查看全量未填槽位清单。"
+        )
+        pack_md = pack_md.replace(badge, badge + _flag, 1)
+        pack_warnings.append(
+            f"装配包净化：注入源残留 {_slot_hits} 处未填模板槽位，已替换为 {_DESLOT_MARK}"
+            f"（污染源: {'; '.join(f'{k} ×{v}' for k, v in sorted(slot_sources.items(), key=lambda kv: -kv[1]))}）。"
+            f"\n      💡 方案：请派发 Stage 0A (novel-architect) 填实设定集与人物卡，"
+            f"或运行 `python studio.py check` 查看全量槽位清单后重修。"
+        )
+
     target_pack = workspace / "pack.md"
     if write_file:
         target_pack.write_text(pack_md, encoding="utf-8")
@@ -644,4 +756,7 @@ def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dic
         "over_budget": over_budget,
         "status": status_label,
         "warnings": pack_warnings,
+        "slot_pollution": dict(slot_sources),
+        "slot_hits": _slot_hits,
+        "briefing_stripped_chars": _briefing_chars,
     }

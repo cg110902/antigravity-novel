@@ -1,0 +1,122 @@
+{
+  "chapter_id": "ch_001",
+  "frontmatter": {
+    "chapter_id": "ch_001",
+    "volume_id": "vol_01",
+    "title": "矿道里的呼吸",
+    "chapter_type": "破局",
+    "timeline": "新历四十七年·霜月一日·亥时",
+    "location": "黑石矿区·三号矿道",
+    "narrative_spine": {
+      "thread": "主线·矿区求生与父仇追踪",
+      "volume_phase": "阶段一：黑石求生",
+      "macro_goal": "活下去并查清三年前矿难"
+    },
+    "present_characters": [
+      {
+        "id": "p_001",
+        "name": "陆沉",
+        "role": "protagonist",
+        "want": "完成当夜矿课，凑齐过冬的口粮",
+        "fear": "眉心旧疤发烫被人看出端倪",
+        "status_in": "完好·疲惫"
+      },
+      {
+        "id": "p_002",
+        "name": "沈天阙",
+        "role": "antagonist",
+        "want": "借矿课账目敲打杂役，立威外门",
+        "fear": "陆沉当真听见了什么不该听的动静",
+        "status_in": "盛气凌人"
+      },
+      {
+        "id": "p_003",
+        "name": "苏黎",
+        "role": "deuteragonist",
+        "want": "提醒陆沉矿道有异，护住这个朋友",
+        "fear": "重蹈其父三年前矿难覆辙",
+        "status_in": "微伤·警觉"
+      },
+      {
+        "id": "p_004",
+        "name": "陈铁",
+        "role": "supporting",
+        "want": "把陆沉带离将要塌方的支巷",
+        "fear": "沾上执事院的是非",
+        "status_in": "完好·咳嗽"
+      }
+    ],
+    "epistemology": {
+      "known": {
+        "p_001": [
+          "三号矿道尽头有一面刻满纹路的岩壁"
+        ],
+        "p_002": [
+          "陆沉近日常独自申报三号矿道"
+        ]
+      },
+      "blind_spots": {
+        "p_002": [
+          "陆沉能听见矿脉深处的剑鸣"
+        ]
+      }
+    },
+    "foreshadowing_deltas": [
+      {
+        "id": "GUN-001",
+        "name": "矿脉深处的上古剑碑",
+        "action": "plant",
+        "desc": "[plant] 矿道里的呼吸：三号矿道尽头有一面爬满剑纹的岩壁，与陆沉眉心旧疤同源",
+        "tier": "A",
+        "target_ch": "ch_015",
+        "evidence": "三号矿道尽头的岩壁上，剑纹在他掌心下轻轻震了一下。"
+      }
+    ],
+    "state_deltas": {
+      "character_status": {
+        "p_001": "眉心旧疤首次发烫·灵气初感（听见矿脉呼吸）"
+      },
+      "items": [
+        {
+          "id": "it_001",
+          "name": "九转聚灵珠",
+          "charges_delta": -1,
+          "status": "active",
+          "durability": "温润无瑕"
+        }
+      ],
+      "ledger": {
+        "pool": "通用资金池",
+        "delta": "+50",
+        "reason": "超额完成当月矿课，执事院核发五十块下品灵石"
+      },
+      "debts": [
+        {
+          "source": "p_001",
+          "target": "沈天阙",
+          "type": "grudge",
+          "desc": "沈天阙借塌方做局，欲坐实陆沉虚报矿课",
+          "action": "record"
+        }
+      ]
+    },
+    "relation_deltas": [
+      {
+        "source": "p_001",
+        "target": "p_002",
+        "tension": 85,
+        "dynamic": "生死对头",
+        "subtext": "沈天阙断定陆沉身怀异宝，陆沉低头记仇"
+      },
+      {
+        "source": "p_001",
+        "target": "p_003",
+        "tension": 65,
+        "dynamic": "生死之交",
+        "subtext": "塌方共患难建立的信任"
+      }
+    ],
+    "new_entities": [],
+    "locked_facts": []
+  }
+}

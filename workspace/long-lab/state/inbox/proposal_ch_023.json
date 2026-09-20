@@ -1,0 +1,79 @@
+{
+  "chapter_id": "ch_023",
+  "frontmatter": {
+    "chapter_id": "ch_023",
+    "volume_id": "vol_02",
+    "title": "暗门第二处",
+    "chapter_type": "爆发",
+    "timeline": "新历四十八年·春月十八日·子时",
+    "location": "幽影城·旧码头暗门",
+    "narrative_spine": {
+      "thread": "主线·幽影门反扑",
+      "volume_phase": "阶段三：正面交锋",
+      "macro_goal": "抢在幽影门销毁前拿下第二处暗门"
+    },
+    "present_characters": [
+      {
+        "id": "p_001",
+        "name": "陆沉",
+        "role": "protagonist",
+        "want": "抢占旧码头暗门",
+        "fear": "被幽影门高手围杀",
+        "status_in": "带伤"
+      },
+      {
+        "id": "p_008",
+        "name": "幽影使者",
+        "role": "antagonist",
+        "want": "带门中高手反扑",
+        "fear": "陆沉的剑碑碎片认主",
+        "status_in": "狠戾"
+      }
+    ],
+    "epistemology": {
+      "known": {
+        "p_001": [
+          "旧码头暗门连着三年前的运矿船坞"
+        ]
+      },
+      "blind_spots": {
+        "p_008": [
+          "柳如烟在暗中替陆沉递了三次警讯"
+        ]
+      }
+    },
+    "foreshadowing_deltas": [
+      {
+        "id": "GUN-003",
+        "name": "幽影令的来历",
+        "action": "reveal",
+        "desc": "[reveal] 暗门第二处：幽影令可开幽影门三处暗门，来历与青云宗十八年贡银纠缠不清"
+      }
+    ],
+    "state_deltas": {
+      "character_status": {
+        "p_001": "通玄境四重·旧码头暗门易手（左肩受创）",
+        "p_008": {
+          "life_status": "alive",
+          "condition": "落水后被船工救起，左臂留下影纹刺青，重现于旧码头"
+        }
+      },
+      "ledger": {
+        "pool": "通用资金池",
+        "delta": "-450",
+        "reason": "为抢暗门雇船工与打点码头巡夜，付出四百五十块下品灵石"
+      }
+    },
+    "relation_deltas": [
+      {
+        "source": "p_001",
+        "target": "p_008",
+        "tension": 95,
+        "dynamic": "仇敌再逢",
+        "subtext": "落河之人回来了，带着一身新伤"
+      }
+    ],
+    "new_entities": [],
+    "locked_facts": []
+  }
+}

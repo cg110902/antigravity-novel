@@ -1,0 +1,110 @@
+{
+  "chapter_id": "ch_020",
+  "frontmatter": {
+    "chapter_id": "ch_020",
+    "volume_id": "vol_02",
+    "title": "城主府的请帖",
+    "chapter_type": "铺垫",
+    "timeline": "新历四十八年·春月十日·午时",
+    "location": "幽影城·城主府",
+    "narrative_spine": {
+      "thread": "支线·城中势力与新城主",
+      "volume_phase": "阶段二：暗流汇聚",
+      "macro_goal": "借城主府之力查幽影门"
+    },
+    "present_characters": [
+      {
+        "id": "p_001",
+        "name": "陆沉",
+        "role": "protagonist",
+        "want": "应城主府之请，换取查账便利",
+        "fear": "被城主当成棋子",
+        "status_in": "沉着"
+      },
+      {
+        "id": "p_003",
+        "name": "苏黎",
+        "role": "deuteragonist",
+        "want": "以随从身份入府",
+        "fear": "府中规矩森严",
+        "status_in": "拘谨"
+      },
+      {
+        "id": "p_009",
+        "name": "韩拓",
+        "role": "supporting",
+        "want": "试探陆沉手里有多少幽影门把柄",
+        "fear": "被反将一军",
+        "status_in": "老练"
+      }
+    ],
+    "epistemology": {
+      "known": {
+        "p_009": [
+          "幽影门在城中有三处银路"
+        ]
+      },
+      "blind_spots": {
+        "p_009": [
+          "陆沉手里有剑碑碎片"
+        ]
+      }
+    },
+    "foreshadowing_deltas": [
+      {
+        "id": "GUN-003",
+        "name": "幽影令的来历",
+        "action": "plant",
+        "desc": "[plant] 城主府的请帖：幽影令可开幽影门三处暗门，来历与青云宗十八年贡银纠缠不清",
+        "tier": "A",
+        "target_ch": "ch_035",
+        "evidence": "幽影令入手冰凉，背面刻着一个「贡」字，笔画里嵌着干涸的暗红。"
+      }
+    ],
+    "state_deltas": {
+      "character_status": {
+        "p_001": "通玄境二重·取得城主府查账便利"
+      },
+      "ledger": {
+        "pool": "通用资金池",
+        "delta": "+1000",
+        "reason": "城主府预付查账酬金一千块下品灵石"
+      },
+      "items": []
+    },
+    "relation_deltas": [],
+    "new_entities": [
+      {
+        "id": "p_009",
+        "type": "person",
+        "name": "韩拓",
+        "role": "supporting",
+        "tier_name": "辟海境二重",
+        "summary": "幽影城城主，表面中立实则与幽影门有银钱往来",
+        "sensory_anchor": "紫袍金带，指上一枚城主令戒"
+      },
+      {
+        "id": "loc_005",
+        "type": "place",
+        "name": "幽影城·城主府",
+        "summary": "城中权力中枢，账房与刑房同在一进院",
+        "sensory_anchor": "府门两侧立着十二盏长明灯",
+        "danger_tier": 3,
+        "danger_level": "安全腹地",
+        "environment_rules": [
+          "入府须交兵器",
+          "府内禁谈矿课"
+        ]
+      },
+      {
+        "id": "it_003",
+        "type": "item",
+        "name": "幽影令",
+        "holder": "陆沉",
+        "status": "active",
+        "summary": "从幽影使者身上取回的玄铁令牌，可开幽影门三处暗门"
+      }
+    ],
+    "locked_facts": []
+  }
+}

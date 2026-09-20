@@ -54,6 +54,16 @@ foreshadowing_deltas:
 state_deltas:
   character_status:
     "{{slot:char_1_id|p_001}}": "{{slot:char_1_status_out|出场状态：如 位阶突破 / 身体受创 / 心境升华}}"
+  # 选填：生死契约为四态，只有「死亡」必须显式声明；其余状态可留空（引擎不逼填、不报错）
+  #   alive 在世 ｜ deceased 阵亡（须同时写 locked_facts）｜ missing 失踪/下落不明 ｜ unknown 生死不明
+  #   missing / unknown 都**不是死亡**：不进已故黑名单、后续章节仍可登场；引擎会把该角色
+  #   列进编剧简报的「❓ 生死不明人物悬念账」，此后各章不得擅自坐实其生死，直到某章显式定论。
+  # 字典形态写法（需要显式改生死状态时才用；注释里的示例请勿照抄进正文块）：
+  #   character_status:
+  #     "p_008":
+  #       life_status: "unknown"          # 生死不明（坠崖/沉船/爆炸后未确认）
+  #       condition: "被击落护城河，生死不明（未确认死亡）"
+  #   中文同义写法（生死不知 / 生死未卜 / 失联 / 下落不明…）引擎会自动归一，无需死记枚举。
   # 选填：道具流转、充能与状态损耗（无变动可省略或保留空）
   # items:
   #   - id: "it_001"

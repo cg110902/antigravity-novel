@@ -17,6 +17,7 @@ import hashlib
 import json
 import os
 import re
+import unicodedata
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -122,6 +123,54 @@ _FACTION_FM_FIELDS: Tuple[str, ...] = (
 )
 
 
+_SLOT_JUNK_RE = re.compile(r"\{\{slot:[^}]*\}\}")
+
+
+def _strip_slot_junk(obj: Any) -> Tuple[Any, int]:
+    """FIND-CT54（L1·槽位串入账污染台账）：递归剔除未填模板槽位值，返回 (净化对象, 命中数)。
+
+    根因实证：**金基座** workspace/test-lab/state/persons.json 里躺着一条
+    ``id = name = "{{slot:char_1_id|p_001}}"`` 的幽灵人物（condition 亦为槽位串），
+    还随快照进了 state/history/ch_001.json 与 ch_002.json；`id list person` 把它当
+    第 5 位人物陈列，而 `check` 全程 0 errors（详见 check_id_integrity 的存量巡检补丁）。
+    来源是 character_status 的自动打捞建档——「宽容自愈」公理要求未建档实体自动打捞，
+    但模板占位串不是实体，绝不能获得台账身份。
+
+    规则：字符串值命中 ``{{slot:`` 即整值丢弃（连同其所在键/列表项）；
+    dict/list 递归净化；其余类型原样保留。台账由此获得一条硬不变量：
+    **state/*.json 内永不出现模板占位串**。
+    """
+    if isinstance(obj, str):
+        if _SLOT_JUNK_RE.search(obj):
+            return None, len(_SLOT_JUNK_RE.findall(obj))
+        return obj, 0
+    if isinstance(obj, dict):
+        hits = 0
+        out: Dict[str, Any] = {}
+        for k, v in obj.items():
+            # 键本身也可能是槽位串（character_status 以 ID/姓名为键）
+            if isinstance(k, str) and _SLOT_JUNK_RE.search(k):
+                hits += len(_SLOT_JUNK_RE.findall(k))
+                continue
+            nv, nh = _strip_slot_junk(v)
+            hits += nh
+            if nh and nv is None:
+                continue  # 该字段整体是占位串：不落账
+            out[k] = nv
+        return out, hits
+    if isinstance(obj, list):
+        hits = 0
+        out_l: List[Any] = []
+        for it in obj:
+            nv, nh = _strip_slot_junk(it)
+            hits += nh
+            if nh and nv is None:
+                continue
+            out_l.append(nv)
+        return out_l, hits
+    return obj, 0
+
+
 def _paste_declared(rec: Dict[str, Any], src: Dict[str, Any], fields: Tuple[str, ...]) -> None:
     """把 src 中**显式声明过且非 None**的契约字段透传到 rec（FIND-L 核心通道）。
 
@@ -173,7 +222,38 @@ _LIFE_STATUS_NORM: Dict[str, str] = {
     "失踪": "missing",
     "下落不明": "missing",
     "失联": "missing",
+    # FIND-CT69（作者需求）：新增第四态 unknown =「生死不知」。
+    # missing 讲的是**下落**（人不见了），unknown 讲的是**存活状态本身未确认**
+    # （坠崖/爆炸/沉船后生死未卜，作者与读者都不知道死没死）。二者都**不等于死亡**：
+    # 不进已故黑名单、不受复活闸门约束、可以正常登场；但正文严禁擅自把其生死坐实。
+    # 长篇里这类「悬念人物」极易被后续章节写成死人或活人，故单独建态并在简报里立账。
+    "unknown": "unknown",
+    "生死不明": "unknown",
+    "生死不知": "unknown",
+    "生死未卜": "unknown",
+    "生死未明": "unknown",
+    "生死不详": "unknown",
+    "存亡未知": "unknown",
+    "存亡不明": "unknown",
+    "未知": "unknown",
+    "未确认": "unknown",
+    "不确定": "unknown",
 }
+
+# life_status 四态的中文展示标签（简报 / trace / ask 共用，避免各处硬编码）
+LIFE_STATUS_LABELS: Dict[str, str] = {
+    "alive": "在世",
+    "deceased": "已故",
+    "missing": "失踪（下落不明）",
+    "unknown": "生死不明",
+}
+
+
+def life_status_label(value: Any) -> str:
+    """life_status 枚举 → 中文标签；未知值原样返回（不猜、不改判）。"""
+    v = str(value or "").strip()
+    canon = _LIFE_STATUS_NORM.get(v.lower(), v)
+    return LIFE_STATUS_LABELS.get(canon, canon or "未标注")
 
 
 def _resolve_person_id(name_or_id: str, persons_db: Dict[str, Any]) -> Optional[str]:
@@ -244,7 +324,7 @@ def is_deceased(char_data: Any) -> bool:
 def _infer_life_status(text: str) -> str:
     """从自由文本推断生死枚举（L2 语义线索 → L1 契约的升格通道）。
 
-    返回 "deceased" / "missing" / "" （空串表示无法判定，交由调用方决定）。
+    返回 "deceased" / "missing" / "unknown" / "" （空串表示无法判定，交由调用方决定）。
     仅在 sync 落账时调用一次，把模糊文本**固化**成结构化契约；此后所有硬裁决
     只读 life_status，不再重复猜测。这样同一段文字的解释在全生命周期内唯一，
     不会出现"这次判死、下次判活"的漂移。
@@ -259,9 +339,15 @@ def _infer_life_status(text: str) -> str:
     for g in _NON_DEATH_GUARD_PATTERNS:
         if re.search(g, s):
             return ""
+    # FIND-CT69：先判「生死未确认」再判死亡词——「生死不明」里含「不明」不含死亡词，
+    # 但「坠崖后生死不知，疑似身亡」这类混写句必须落到 unknown（作者显式保留悬念），
+    # 绝不能被后半句的死亡词抢判成 deceased（那会把悬念人物直接钉死进黑名单）。
+    if any(k in s for k in ("生死不明", "生死不知", "生死未卜", "生死未明", "生死不详",
+                            "存亡未知", "存亡不明", "不知生死", "生死悬而未决")):
+        return "unknown"
     if any(k in s for k in _DEATH_KEYWORDS):
         return "deceased"
-    if any(k in s for k in ("失踪", "下落不明", "失联", "生死不明")):
+    if any(k in s for k in ("失踪", "下落不明", "失联", "杳无音信", "人间蒸发")):
         return "missing"
     return ""
 
@@ -315,6 +401,69 @@ _DEATH_KEYWORDS = (
     "病故", "病逝", "猝死", "离世", "过世", "去世", "咽了气", "断气", "殉职", "殉难",
     "圆寂", "仙逝", "长眠", "命丧", "毙于", "死在", "死了",
 )
+
+
+# FIND-CT64：伏笔 action 合法值只有 plant/reveal/resolve（screenwriter SKILL 第 51 行明写），
+# 但旧版对**任何**其它写法一律静默忽略——不告警、不落账、不阻断。SKILL 自己的措辞是
+# 「若本章有**推进**或回收」，模型照措辞写 `action: 推进` / `action: push` 是高频行为，
+# 后果是整条跨卷伏笔链在台账上永不推进（revealed_chs 恒空），卷末对账与 trace 全部失真，
+# 且作者拿不到任何一句提示。归一表按「同义词收敛 + 未知值 loud warning」双轨处理。
+_LINE_ACTION_ALIASES = (
+    ("plant", ("plant", "planted", "plants", "planting", "setup", "seed", "sow",
+               "埋", "埋设", "埋下", "埋伏", "植入", "播种", "设伏", "铺垫", "新埋", "首埋")),
+    ("reveal", ("reveal", "revealed", "reveals", "revealing", "push", "advance", "develop",
+                "hint", "hinted", "progress", "update",
+                "推进", "推", "揭示", "揭露", "发展", "递进", "深化", "加码", "暗示", "推动", "更新", "递进")),
+    ("resolve", ("resolve", "resolved", "resolves", "resolving", "payoff", "close", "closed",
+                 "回收", "收", "收束", "收尾", "揭晓", "揭破", "兑现", "解开", "闭环", "了结")),
+)
+
+
+def _normalize_line_action(raw: Any) -> str:
+    """伏笔 action → 法定三值；无法归一返回空串（调用方必须 loud warning）。"""
+    v = str(raw or "").strip()
+    if not v:
+        return ""
+    low = v.lower()
+    for canon, aliases in _LINE_ACTION_ALIASES:
+        if low == canon:
+            return canon
+        for a in aliases:
+            # 中文别名走「包含」判定（「本章推进」「首次埋设」这类整句写法），
+            # 英文别名走精确判定（避免 reveal 命中 reveals 之外的意外词）。
+            if (a.isascii() and low == a) or (not a.isascii() and a in v):
+                return canon
+    return ""
+
+
+# FIND-CT68（FP-4 裁决落地 · 倒叙/闪回豁免）：死者登场硬闸门旧版一刀切——
+# 「回忆杀」「梦境相见」「亡魂托梦」这类中文网文极高频的合法桥段，只要把已故角色
+# 写进 present_characters 就被判 exit 1 阻断，作者只能被迫把死者从在场表里删掉，
+# 于是这一场的对白/称谓/认知探针全部失去对象，细纲与正文对不上。
+# 裁决：**不放开生死台账**（life_status 仍是唯一权威，死者永不因登场而复活），
+# 只放开「登场形态」——细纲在该条目上显式声明回忆/闪回形态即豁免闸门，并留一条
+# 可追溯的 warning。既保住因果铁律，又不把合法叙事技法逼成脏数据。
+_FLASHBACK_KEYS = ("appearance", "mode", "form", "scene_mode", "登场形态", "形态", "出场形态")
+_FLASHBACK_MARKERS = (
+    "flashback", "memory", "dream", "illusion", "vision", "recollection",
+    "回忆", "倒叙", "闪回", "梦境", "梦中", "幻境", "幻象", "幻影", "生前",
+    "遗影", "亡魂", "魂魄", "灵魂", "鬼魂", "托梦", "追忆", "回想",
+)
+
+
+def flashback_appearance(entry: Any) -> str:
+    """返回 present_characters 条目声明的回忆/闪回形态标记；未声明返回空串。"""
+    if not isinstance(entry, dict):
+        return ""
+    for k in _FLASHBACK_KEYS:
+        v = str(entry.get(k, "") or "").strip()
+        if not v:
+            continue
+        low = v.lower()
+        for mk in _FLASHBACK_MARKERS:
+            if (mk.isascii() and low == mk) or (not mk.isascii() and mk in v):
+                return v
+    return ""
 
 
 def _ch_order(cid: str) -> int:
@@ -465,6 +614,469 @@ def _save_json(p: Path, data: Any) -> None:
         raise
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+#  FIND-CT73（公理二 · 自愈层）：脏数据在**写盘前**就地修正，且每一步都留痕
+# ──────────────────────────────────────────────────────────────────────────────
+#  设计取向（作者裁定：判据别太死板 + 增强自愈）：
+#   1. 引擎能确定性推断的一律自己修（ID 规范、取号建档、改名留别名、数值夹取、
+#      伏笔补章、流水去重、自怨清除、幽灵记录清扫），不再把「格式不好看」当阻断；
+#   2. **绝不偷偷改**：每个自愈动作追加一条人读记录进 sync 报告的「🩹 自愈动作」，
+#      写明改了哪张表、哪条记录、原值是什么、改成了什么；
+#   3. **绝不猜剧情**：涉及叙事因果的（死者复活、生死矛盾、伏笔回收章到底是哪章）
+#      只做「补一个可追溯的推断值 + 标注 inferred」或原样保留并提醒，不替作者定夺；
+#   4. 幂等：同章 --force 重放不会产生第二次改动（自愈只在值确实非法时触发）。
+# ══════════════════════════════════════════════════════════════════════════════
+
+#: 规范 ID 形态（唯一真值：id_tracker.CANONICAL_PREFIXES 的发号口径）
+CANONICAL_ID_RE: Dict[str, str] = {
+    "person": r"^p_(\d+)$",
+    "item": r"^it_(\d+)$",
+    "location": r"^loc_(\d+)$",
+    "faction": r"^fac_(\d+)$",
+}
+
+#: 细纲 type 写法 → ID 类别
+_TYPE_TO_CAT: Dict[str, str] = {
+    "person": "person", "character": "person",
+    "item": "item", "weapon": "item", "tool": "item",
+    "place": "location", "location": "location",
+    "faction": "faction", "organization": "faction",
+}
+
+#: 数值契约字段的合法区间（**唯一真值**，check.py 3.4b 直接 import 本表，
+#: 杜绝「体检口径」与「自愈口径」两处漂移——缺陷#15 的词表漂移就是前车之鉴）。
+#: None 表示该侧无界。
+NUMERIC_FIELD_BOUNDS: Dict[str, Dict[str, Tuple[Optional[int], Optional[int]]]] = {
+    "persons": {"tier_rank": (1, 12), "injury_level": (0, 5), "renown": (None, None)},
+    # FIND-CT37：max_charges/charges 下限按 -1 计（schema 默认值即 -1，表示非计数型）
+    "items": {"charges": (-1, None), "max_charges": (-1, None), "tier_rank": (1, 12)},
+    "factions": {"scale_tier": (1, 10)},
+    "places": {"danger_tier": (1, 10)},
+}
+
+_CN_NUM: Dict[str, int] = {
+    "零": 0, "〇": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5,
+    "六": 6, "七": 7, "八": 8, "九": 9, "十": 10, "十一": 11, "十二": 12,
+}
+
+
+def canonicalize_entity_id(raw: Any, category: str) -> Optional[str]:
+    """把常见 ID 笔误规范成法定形态；无法确定时返回 None（**不猜**）。
+
+    可确定性修的形态：大小写（P001）、缺下划线（p001）、位数不足（p_1 → p_001）、
+    全角字符（ｐ＿００１）、尾随空格/句点。修不了（如「张三」这种姓名串）返回 None，
+    交由调用方走取号建档路径。
+    """
+    rx = CANONICAL_ID_RE.get(category)
+    if not rx:
+        return None
+    s = str(raw or "").strip()
+    if not s:
+        return None
+    if re.match(rx, s):
+        # 已合法（含 p_1 这类未补零写法）：原样返回，**不重编号**——
+        # 改号会牵动全表引用（co_occurrence / entity_timeline / history 切片），
+        # 得不偿失；补零只是美观，不是正确性。
+        return s
+    prefix = re.match(r"\^(\w+?)_", rx).group(1)   # p / it / loc / fac
+    # NFKC 一把梭：全角字母数字、全角空格、兼容字符统统折回半角
+    norm = unicodedata.normalize("NFKC", s)
+    norm = re.sub(r"[\s\.\-—_·、]+", "", norm).strip()
+    m = re.match(rf"^{prefix}0*(\d+)$", norm, re.IGNORECASE)
+    if not m:
+        return None
+    return f"{prefix}_{int(m.group(1)):03d}"
+
+
+def _name_base(name: Any) -> str:
+    """姓名归一：剥括号补语、去空白与间隔号，用于判断「是否同一个人」。"""
+    s = re.sub(r"[（\(].*?[）\)]", "", str(name or ""))
+    return re.sub(r"[\s·・\-—_、,，.。]+", "", s).strip()
+
+
+def _is_known_alias(name: Any, rec: Dict[str, Any]) -> bool:
+    base = _name_base(name)
+    if not base:
+        return False
+    if _name_base(rec.get("name")) == base:
+        return True
+    return any(_name_base(a) == base for a in (rec.get("aliases") or []))
+
+
+def coerce_int(value: Any) -> Tuple[Optional[int], str]:
+    """尽力把值转成整数；返回 (整数或 None, 处置说明)。
+
+    支持：真 int、数字串（"3"/"+3"/"3.0"）、中文数字（"三"/"十二"）、bool（拒绝）。
+    转不动就返回 (None, 原因)——调用方据此决定「夹取/丢弃/告警」，绝不硬塞 0。
+    """
+    if isinstance(value, bool):
+        return None, "布尔值不是合法数值"
+    if isinstance(value, int):
+        return value, ""
+    if isinstance(value, float):
+        return int(value), f"浮点 {value} 截断为整数"
+    s = str(value or "").strip()
+    if not s:
+        return None, "空值"
+    if s in _CN_NUM:
+        return _CN_NUM[s], f"中文数字「{s}」"
+    m = re.match(r"^[+\-]?\d+(\.0+)?$", s)
+    if m:
+        return int(float(s)), f"数字串「{s}」"
+    # 兜底：从「第三重」「Tier 5」「9 品」这类带单位/汉字的写法里提取数值——
+    # 能提取就不丢字段（丢字段等于丢设定），只在真的一个数都找不到时才摘除。
+    m2 = re.search(r"(\d+)", s)
+    if m2:
+        return int(m2.group(1)), f"从「{s}」中提取数字"
+    for _cn, _n in sorted(_CN_NUM.items(), key=lambda kv: -len(kv[0])):
+        if _cn and _cn in s:
+            return _n, f"从「{s}」中识别中文数字「{_cn}」"
+    return None, f"无法解析的数值 {_value_repr(value)}"
+
+
+def _value_repr(v: Any) -> str:
+    s = repr(v)
+    return s if len(s) <= 40 else s[:37] + "..."
+
+
+def heal_numeric_fields(rec: Dict[str, Any], table: str, eid: str, healed: List[str]) -> None:
+    """数值契约字段自愈：类型纠正 → 区间夹取 → 无法解析则摘除字段（不塞假值）。"""
+    bounds = NUMERIC_FIELD_BOUNDS.get(table) or {}
+    for field, (lo, hi) in bounds.items():
+        if field not in rec:
+            continue
+        raw = rec[field]
+        if raw is None or raw == "":
+            # 选填字段留空是合法的：不补默认值、不告警（作者裁定：别太死板）
+            continue
+        num, note = coerce_int(raw)
+        if num is None:
+            rec.pop(field, None)
+            healed.append(
+                f"[{table}/{eid}] 数值字段 `{field}` = {_value_repr(raw)} {note}，"
+                f"已摘除该字段（选填，留空比塞假值安全；下游排序/统计不再被脏值绊倒）。"
+            )
+            continue
+        fixed = num
+        if lo is not None and fixed < lo:
+            fixed = lo
+        if hi is not None and fixed > hi:
+            fixed = hi
+        if fixed != raw:
+            rec[field] = fixed
+            _why = []
+            if note:
+                _why.append(note)
+            if lo is not None and num < lo:
+                _why.append(f"低于下限 {lo} 已夹取")
+            if hi is not None and num > hi:
+                _why.append(f"超出上限 {hi} 已夹取")
+            healed.append(
+                f"[{table}/{eid}] 数值字段 `{field}`：{_value_repr(raw)} → {fixed}"
+                f"（{'，'.join(_why) or '类型纠正'}）。"
+            )
+
+
+def heal_life_status_field(rec: Dict[str, Any], eid: str, healed: List[str]) -> None:
+    """life_status 归一自愈：中文写法/大小写/空格 → 法定四态；归一不了的原样保留。"""
+    raw = rec.get("life_status")
+    if raw in (None, ""):
+        return                      # 选填：缺省即在世语义，不硬写 alive、不告警
+    s = str(raw).strip()
+    canon = _LIFE_STATUS_NORM.get(s.lower())
+    if canon and canon != raw:
+        rec["life_status"] = canon
+        healed.append(f"[persons/{eid}] life_status 归一：「{s}」→ `{canon}`（{life_status_label(canon)}）。")
+    elif not canon and s.lower() not in LIFE_STATUS_LABELS:
+        # 自造值：不猜、不改判，只留痕提醒（死亡硬裁决按「非 deceased」处理）
+        healed.append(
+            f"[persons/{eid}] life_status「{s}」不在法定四态（alive/deceased/missing/unknown）内，"
+            f"引擎**未擅自改判**，按「非已故」处理；若要坐实死亡请显式改写为 deceased。"
+        )
+
+
+def apply_name_update(rec: Dict[str, Any], new_name: Any, eid: str, label: str,
+                      healed: List[str]) -> None:
+    """改名自愈（FIND-CT73 H3）：旧名**降级为别名保留**，绝不无声蒸发。
+
+    旧版三处 `if ename: rec["name"] = ename` 是台账最阴的一类污染——细纲把
+    `[p_010] 阿福` 写成 p_010（台账里是「王五」）时，sync 直接把王五改名成阿福：
+    既有角色的身份被顶替，而所有旧章的称谓、别名探针、address_matrix 全部失联，
+    check 事后只能报一条「ID 与姓名不一致」，损失已不可逆。
+    现在的处置：① 括号补语/间隔号差异（王莽（狂刀开荒队队长） vs 王莽）视为同一人，
+    直接更新写法；② 真·改名则把旧名塞进 aliases（引用与称谓仍可解析）并留痕。
+    """
+    new = str(new_name or "").strip()
+    if not new:
+        return
+    old = str(rec.get("name", "") or "").strip()
+    if old == new:
+        return
+    if not old or _name_base(old) == _name_base(new) or _is_known_alias(new, rec):
+        rec["name"] = new
+        return
+    aliases = [str(a).strip() for a in (rec.get("aliases") or []) if str(a).strip()]
+    if old not in aliases:
+        aliases.append(old)
+    rec["aliases"] = aliases
+    rec["name"] = new
+    healed.append(
+        f"[{label}/{eid}] 改名自愈：「{old}」→「{new}」，旧名已降级为 aliases 保留"
+        f"（称谓探针与旧章引用不失联）。若这是**另一个角色**被写错了 ID，"
+        f"请在 new_entities 用新号声明，引擎会自动改派。"
+    )
+
+
+def remap_chapter_refs(frontmatter: Dict[str, Any], old_id: str, new_id: str,
+                       name: str, healed: List[str]) -> None:
+    """撞号改派后，把**本章**同时带该 ID 与该姓名的引用改指新号（H2 配套）。
+
+    保守口径：只改「ID + 姓名双匹配」的条目。仅凭 ID 匹配的引用无法区分
+    「指新实体」还是「指原有实体」，一律不动，并在留痕里写明需要人工核对。
+    """
+    base = _name_base(name)
+    moved: List[str] = []
+
+    def _fix_entry(entry: Any, where: str) -> None:
+        if not isinstance(entry, dict):
+            return
+        if str(entry.get("id", "") or "").strip() == old_id and _name_base(entry.get("name")) == base:
+            entry["id"] = new_id
+            moved.append(where)
+
+    pres = frontmatter.get("present_characters")
+    if isinstance(pres, list):
+        for e in pres:
+            _fix_entry(e, "present_characters")
+    elif isinstance(pres, dict):
+        _fix_entry(pres, "present_characters")
+    sd = frontmatter.get("state_deltas")
+    if isinstance(sd, dict):
+        for key in ("items", "new_items"):
+            vals = sd.get(key)
+            if isinstance(vals, list):
+                for e in vals:
+                    _fix_entry(e, f"state_deltas.{key}")
+            elif isinstance(vals, dict):
+                _fix_entry(vals, f"state_deltas.{key}")
+    if moved:
+        healed.append(
+            f"同章引用已改指新号：{'、'.join(sorted(set(moved)))} 中 [{old_id}] {name} → [{new_id}]。"
+        )
+    healed.append(
+        f"⚠️ 仅凭 ID 匹配的引用（character_status 键、relation_deltas、debts）无法判定指向谁，"
+        f"引擎未改动；若本章这些块也在写「{name}」，请核对是否需改用 [{new_id}]。"
+    )
+
+
+def sweep_ghost_records(sm: "StateManager", healed: List[str]) -> None:
+    """台账幽灵记录清扫（槽位污染 / 空身份记录）。
+
+    · id 与 name **双双**是未填模板槽位（`{{slot:...}}`）→ 整条删除（确定的模板垃圾）；
+    · 只有 name 是槽位（ID 合法，人物真实存在）→ 保留记录，name 改为可追溯占位，
+      绝不因为一个字段脏就把角色从台账里抹掉。
+    """
+    for table, getter, fname, label in (
+        ("persons", sm.get_persons, sm.persons_file, "人物"),
+        ("items", sm.get_items, sm.items_file, "道具"),
+        ("places", sm.get_places, sm.places_file, "地点"),
+        ("factions", sm.get_factions, sm.factions_file, "势力"),
+    ):
+        try:
+            db = getter()
+        except Exception:
+            continue
+        if not isinstance(db, dict) or not db:
+            continue
+        changed = False
+        for eid in list(db.keys()):
+            rec = db[eid]
+            if not isinstance(rec, dict):
+                db.pop(eid, None)
+                changed = True
+                healed.append(f"[{table}] 删除非 dict 的畸形记录 [{eid}]（无法承载任何字段）。")
+                continue
+            _id_dirty = "{{slot:" in str(eid)
+            _nm_dirty = "{{slot:" in str(rec.get("name", ""))
+            if _id_dirty and _nm_dirty:
+                db.pop(eid, None)
+                changed = True
+                healed.append(f"[{table}] 清除幽灵记录 [{eid}]（id 与姓名都是未填模板槽位，无任何合法语义）。")
+            elif _nm_dirty:
+                rec["name"] = f"未命名{label}[{eid}]"
+                changed = True
+                healed.append(f"[{table}/{eid}] 姓名字段是未填槽位串，已改为可追溯占位「{rec['name']}」（记录保留，未删角色）。")
+            elif _id_dirty:
+                healed.append(f"[{table}] 记录 ID [{eid}] 含模板槽位但姓名「{rec.get('name')}」有效，"
+                              f"引擎不擅自改号（会牵动全表引用），请手工核对后处理。")
+        if changed:
+            try:
+                _save_json(fname, db)
+            except Exception as e:      # noqa: BLE001
+                healed.append(f"[{table}] 幽灵清扫写盘失败（原表未变）：{type(e).__name__}: {e}")
+
+
+def heal_tables_pass(sm: "StateManager", ch_id: str, healed: List[str]) -> None:
+    """sync 收尾的全表自愈一遍过（幂等）：数值、生死枚举、伏笔补章、经济数值、
+    恩怨自指、关系轨迹重复。只改**确定性可推**的部分，全部动作留痕。"""
+    # ── 人物 / 道具 / 势力 / 地点：数值 + 枚举 ──
+    for table, getter, fname in (
+        ("persons", sm.get_persons, sm.persons_file),
+        ("items", sm.get_items, sm.items_file),
+        ("factions", sm.get_factions, sm.factions_file),
+        ("places", sm.get_places, sm.places_file),
+    ):
+        try:
+            db = getter()
+        except Exception:
+            continue
+        if not isinstance(db, dict):
+            continue
+        dirty = False
+        for eid, rec in db.items():
+            if not isinstance(rec, dict):
+                continue
+            _before = repr(rec)
+            heal_numeric_fields(rec, table, eid, healed)
+            if table == "persons":
+                heal_life_status_field(rec, eid, healed)
+            if repr(rec) != _before:
+                dirty = True
+        if dirty:
+            try:
+                _save_json(fname, db)
+            except Exception as e:      # noqa: BLE001
+                healed.append(f"[{table}] 自愈写盘失败（原表未变）：{type(e).__name__}: {e}")
+
+    # ── 伏笔：planted_ch / resolved_ch 缺章自愈（推断值必须标注来源）──
+    try:
+        lines_db = sm.get_lines()
+        if isinstance(lines_db, dict) and lines_db:
+            dirty = False
+            for lid, lr in lines_db.items():
+                if not isinstance(lr, dict):
+                    continue
+                revealed = [str(x) for x in (lr.get("revealed_chs") or []) if str(x).strip()]
+                if not str(lr.get("planted_ch", "") or "").strip():
+                    infer = revealed[0] if revealed else ch_id
+                    lr["planted_ch"] = infer
+                    lr["planted_ch_source"] = "inferred"
+                    dirty = True
+                    healed.append(
+                        f"[lines/{lid}] 缺埋设章 planted_ch，已按{'最早的推进章' if revealed else '本次入账章'}"
+                        f"补为 {infer} 并标注 `planted_ch_source: inferred`（卷末对账需要它归卷；"
+                        f"真实埋设章若在更早，请在该章细纲补 `action: plant` 覆盖）。"
+                    )
+                if str(lr.get("status", "")).lower() == "resolved" and not str(lr.get("resolved_ch", "") or "").strip():
+                    infer = (revealed[-1] if revealed else str(lr.get("planted_ch", "") or ch_id)) or ch_id
+                    lr["resolved_ch"] = infer
+                    lr["resolved_ch_source"] = "inferred"
+                    dirty = True
+                    healed.append(
+                        f"[lines/{lid}] 状态已 resolved 却缺回收章 resolved_ch，已补为 {infer} "
+                        f"并标注 `resolved_ch_source: inferred`（引擎不猜真实回收章，请核对后覆盖）。"
+                    )
+            if dirty:
+                _save_json(sm.lines_file, lines_db)
+    except Exception as e:              # noqa: BLE001
+        healed.append(f"[lines] 伏笔补章自愈跳过：{type(e).__name__}: {e}")
+
+    # ── 经济：池余额 / 基线 / 流水 delta 的数值消毒（非数值会让下游算术崩栈）──
+    try:
+        led = sm.get_ledger()
+        if isinstance(led, dict):
+            dirty = False
+            for key in ("pools", "pools_baseline"):
+                bag = led.get(key)
+                if not isinstance(bag, dict):
+                    continue
+                for pname, val in list(bag.items()):
+                    num, note = coerce_int(val)
+                    if num is None:
+                        bag[pname] = 0
+                        dirty = True
+                        healed.append(f"[ledger/{key}] 池「{pname}」余额 {_value_repr(val)} {note}，已置 0（避免下游算术崩栈）；请按剧情核对后改写。")
+                    elif num != val:
+                        bag[pname] = num
+                        dirty = True
+                        healed.append(f"[ledger/{key}] 池「{pname}」余额 {_value_repr(val)} → {num}（{note or '类型纠正'}）。")
+            txs = led.get("transactions")
+            if isinstance(txs, list):
+                for tx in txs:
+                    if not isinstance(tx, dict):
+                        continue
+                    num, note = coerce_int(tx.get("delta", 0))
+                    if num is None:
+                        tx["delta"] = 0
+                        dirty = True
+                        healed.append(f"[ledger/transactions] 第 {tx.get('chapter', '?')} 章流水 delta {_value_repr(tx.get('delta'))} {note}，已置 0。")
+                    elif num != tx.get("delta"):
+                        tx["delta"] = num
+                        dirty = True
+                        healed.append(f"[ledger/transactions] 第 {tx.get('chapter', '?')} 章流水 delta → {num}（{note or '类型纠正'}）。")
+            if dirty:
+                _save_json(sm.ledger_file, led)
+    except Exception as e:              # noqa: BLE001
+        healed.append(f"[ledger] 经济数值自愈跳过：{type(e).__name__}: {e}")
+
+    # ── 恩怨：自指条目清除（p_001 欠 p_001 是幽灵关系）──
+    try:
+        debts = sm.get_debts()
+        if isinstance(debts, list) and debts:
+            kept = []
+            for d in debts:
+                if isinstance(d, dict):
+                    _s = str(d.get("source_char", "") or "").strip()
+                    _t = str(d.get("target_char", "") or "").strip()
+                    if _s and _t and _s == _t:
+                        healed.append(f"[debts] 清除自指恩怨 [{d.get('id', 'DEBT')}]（发起方与承受方同为 {_s}，属幽灵关系）。")
+                        continue
+                kept.append(d)
+            if len(kept) != len(debts):
+                _save_json(sm.debts_file, kept)
+    except Exception as e:              # noqa: BLE001
+        healed.append(f"[debts] 恩怨自愈跳过：{type(e).__name__}: {e}")
+
+    # ── 关系：同章重复轨迹去重（保留最后一条，与 sync 的按章幂等口径一致）──
+    try:
+        rel = sm.get_relations()
+        if isinstance(rel, dict) and rel:
+            dirty = False
+            for pair, r in rel.items():
+                if not isinstance(r, dict):
+                    continue
+                hist = r.get("history")
+                if not isinstance(hist, list) or len(hist) < 2:
+                    continue
+                seen: Dict[str, int] = {}
+                for h in hist:
+                    if isinstance(h, dict):
+                        hc = str(h.get("chapter", "") or "").strip()
+                        if hc:
+                            seen[hc] = seen.get(hc, 0) + 1
+                dup = {k for k, v in seen.items() if v > 1}
+                if not dup:
+                    continue
+                last_idx: Dict[str, int] = {}
+                for i, h in enumerate(hist):
+                    if isinstance(h, dict):
+                        hc = str(h.get("chapter", "") or "").strip()
+                        if hc in dup:
+                            last_idx[hc] = i
+                new_hist = [
+                    h for i, h in enumerate(hist)
+                    if not (isinstance(h, dict) and str(h.get("chapter", "") or "").strip() in dup
+                            and last_idx.get(str(h.get("chapter", "") or "").strip()) != i)
+                ]
+                r["history"] = new_hist
+                dirty = True
+                healed.append(f"[relations/{pair}] 关系轨迹同章重复，已去重（{len(hist)} → {len(new_hist)} 条，保留每章最后一条）。")
+            if dirty:
+                _save_json(sm.relations_file, rel)
+    except Exception as e:              # noqa: BLE001
+        healed.append(f"[relations] 关系轨迹自愈跳过：{type(e).__name__}: {e}")
+
+
 class StateManager:
     def __init__(self, workspace: Path):
         self.workspace = workspace.resolve()
@@ -590,6 +1202,12 @@ class StateManager:
         word_count: int = 0,
         beats_body: str = "",
     ) -> Dict[str, Any]:
+        # FIND-CT54：单一咽喉消毒——本章全部增量在进任何一条落账通道之前先剔除模板
+        # 占位串，八表由此获得「永不接纳 {{slot:}}」的硬不变量（sync 侧另有闸门双保险）。
+        frontmatter, _slot_dropped = _strip_slot_junk(frontmatter)
+        if not isinstance(frontmatter, dict):
+            frontmatter = {}
+
         ch_id = frontmatter.get("chapter_id", "ch_001")
         vol_id = frontmatter.get("volume_id", "vol_01")
         title = frontmatter.get("title", "")
@@ -598,6 +1216,21 @@ class StateManager:
         chapter_type = str(frontmatter.get("chapter_type", "")).strip()  # 节奏遥测用（v4.1）
 
         warnings: List[str] = []
+        # FIND-CT73（公理二 · 自愈层）：本次入账过程中引擎自己动手修好的每一处，
+        # 都记进 healed，随 sync 报告一并公示（改了什么、原值是什么，全程可追溯）。
+        healed: List[str] = []
+        # 在途号：同章连续取号时排除尚未落盘的新 ID，避免分配器发出重号（FIND-CT5 同源）
+        _inflight_ids: set = set()
+        # H10：先扫掉台账里的幽灵记录（槽位污染 / 畸形条目），
+        # 否则它们会占住发号水位、混进 id list 与简报。
+        sweep_ghost_records(self, healed)
+        if _slot_dropped:
+            warnings.append(
+                f"第 {ch_id} 章细纲含 {_slot_dropped} 处未填模板槽位值，已拒绝写入台账"
+                f"（台账永不接纳占位串，相关字段按未声明处理）。\n"
+                f"      💡 方案：请派发 Stage 1 (novel-screenwriter) 填实细纲剩余槽位后重跑 "
+                f"`python studio.py sync {ch_id} --force`；未使用的可选块整段删除或置 []。"
+            )
         cfg = load_config(self.workspace)
 
         # 0. 同步本章新登场实体 (new_entities)
@@ -616,7 +1249,62 @@ class StateManager:
                 etype = str(ne.get("type", "person")).strip().lower()
                 ename = str(ne.get("name", "")).strip()
                 if not eid:
-                    continue
+                    # 选填字段缺 ID 不再直接丢弃：能取号就取号建档（H4），
+                    # 没名字又没 ID 才真无从下手。
+                    if not ename:
+                        continue
+                    _cat0 = _TYPE_TO_CAT.get(etype)
+                    if not _cat0:
+                        continue
+                    from engine.id_tracker import IdTracker as _IdT
+                    eid = _IdT(self.workspace).get_next_id(_cat0, exclude=set(_inflight_ids))
+                    if not eid:
+                        continue
+                    ne["id"] = eid
+                    _inflight_ids.add(eid)
+                    healed.append(
+                        f"第 {ch_id} 章 new_entities 缺 id，已按类型 {_cat0} 自动取号 [{eid}] 建档「{ename}」"
+                        f"（选填字段缺漏不再整条丢弃）。"
+                    )
+                # H1：ID 笔误规范化（P001 / p001 / ｐ＿００１ → p_001）
+                _cat = _TYPE_TO_CAT.get(etype)
+                if _cat:
+                    _canon = canonicalize_entity_id(eid, _cat)
+                    if _canon and _canon != eid:
+                        healed.append(f"第 {ch_id} 章 new_entities ID 规范自愈：[{eid}] → [{_canon}]（{_cat}）。")
+                        eid = _canon
+                        ne["id"] = _canon
+                # H2：撞号改派——ID 已被**另一个名字**的实体占用时，旧版会把既有角色
+                # 改名顶替（台账身份被劫持）。现改为给新实体取新号，原记录分毫不动。
+                if _cat and ename:
+                    # 用**内存态**四表判定（新实体此时尚未落盘，重读磁盘会漏掉同章前几条）
+                    _db_now = {
+                        "person": persons_db, "item": items_db,
+                        "location": places_db, "faction": factions_db,
+                    }[_cat]
+                    _label_now = {"person": "人物", "item": "道具",
+                                  "location": "地点", "faction": "势力"}[_cat]
+                    _old_rec = _db_now.get(eid) if isinstance(_db_now, dict) else None
+                    if isinstance(_old_rec, dict):
+                        _old_name = str(_old_rec.get("name", "") or "").strip()
+                        if (_old_name and _name_base(_old_name) != _name_base(ename)
+                                and not _is_known_alias(ename, _old_rec)):
+                            from engine.id_tracker import IdTracker as _IdT2
+                            _new_id = _IdT2(self.workspace).get_next_id(
+                                _cat, exclude=set(_db_now.keys()) | _inflight_ids
+                            )
+                            if _new_id:
+                                _old_id = eid
+                                healed.append(
+                                    f"第 {ch_id} 章 new_entities 撞号自愈：ID [{eid}] 台账已登记为"
+                                    f"{_label_now}「{_old_name}」，细纲却声明新{_label_now}「{ename}」"
+                                    f"→ 已改派新号 [{_new_id}] 入账，原记录「{_old_name}」保持不变"
+                                    f"（旧版会静默覆盖姓名，等于把既有角色改名换姓）。"
+                                )
+                                eid = _new_id
+                                ne["id"] = _new_id
+                                _inflight_ids.add(_new_id)
+                                remap_chapter_refs(frontmatter, _old_id, _new_id, ename, healed)
                 # v4.3.3 BUG#46：细纲 new_entities 中残留的模板占位条目
                 # （name 为「待填写道具名」「待填写新角色名」等）此前被当作真实实体入账，
                 # 在 items/persons 表里留下幽灵记录，并占住 ID 让同号真实实体被丢弃
@@ -664,7 +1352,7 @@ class StateManager:
                         if not _entity_update_guard(_eprec, ch_id):
                             continue  # 旧章重放，比「上次演化章」更早，不回退字段
                         if ename:
-                            _eprec["name"] = ename
+                            apply_name_update(_eprec, ename, eid, "人物", healed)
                         _paste_declared(_eprec, ne, _PERSON_FM_FIELDS)
                         _ne_life = str(ne.get("life_status", "") or "").strip()
                         if _ne_life:
@@ -701,7 +1389,7 @@ class StateManager:
                         if not _entity_update_guard(_eirec, ch_id):
                             continue  # 旧章重放不回退
                         if ename:
-                            _eirec["name"] = ename
+                            apply_name_update(_eirec, ename, eid, "道具", healed)
                         _paste_declared(_eirec, ne, _ITEM_FM_FIELDS)
                         _mark_updated(_eirec, ch_id)
                 elif etype in ("place", "location"):
@@ -725,7 +1413,7 @@ class StateManager:
                         if not _entity_update_guard(_eplrec, ch_id):
                             continue  # 旧章重放不回退
                         if ename:
-                            _eplrec["name"] = ename
+                            apply_name_update(_eplrec, ename, eid, "地点", healed)
                         _paste_declared(_eplrec, ne, _PLACE_FM_FIELDS)
                         if "danger_level" in ne and ne["danger_level"] is not None:
                             _eplrec["danger_level"] = ne["danger_level"]
@@ -749,7 +1437,7 @@ class StateManager:
                         if not _entity_update_guard(_efrec, ch_id):
                             continue  # 旧章重放不回退
                         if ename:
-                            _efrec["name"] = ename
+                            apply_name_update(_efrec, ename, eid, "势力", healed)
                         _paste_declared(_efrec, ne, _FACTION_FM_FIELDS)
                         _mark_updated(_efrec, ch_id)
             # v4.3.2 缺陷#18（P0 · 阻断章仍污染台账）：旧版在此立即落盘 new_entities，
@@ -872,9 +1560,19 @@ class StateManager:
 
             if _is_dead:
                 _disp_name = cc.get("name") or (_prec.get("name") if _prec else _cid)
+                # FIND-CT68：显式声明回忆/闪回形态 ⇒ 豁免闸门，改记 warning（台账生死不变）
+                _fb = flashback_appearance(cc)
+                if _fb:
+                    warnings.append(
+                        f"第 {ch_id} 章已故角色 [{_disp_name}] ({_cid}) 以「{_fb}」形态登场，"
+                        f"已豁免复活闸门（其卒章仍为 {_d_ch}，台账 life_status=deceased 不变）。"
+                    )
+                    continue
                 _fatal.append(
                     f"因果冲突阻断：角色 [{_disp_name}] ({_cid}) 已于第 {_d_ch} 章阵亡，不能在后续章节作为在场人登场！\n"
-                    f"💡 方案：请在细纲 beats/ch_XXX.md 的 present_characters 中移除该角色；若确系复活反转剧情，请先委派 Stage 4C (novel-evolution) 重构人物档案。"
+                    f"💡 方案：① 若为回忆/闪回/梦境桥段，请在该 present_characters 条目补 `appearance: \"回忆\"`"
+                    f"（合法豁免，台账生死状态不变）；② 否则请从 present_characters 中移除该角色；"
+                    f"③ 若确系复活反转剧情，请先委派 Stage 4C (novel-evolution) 重构人物档案。"
                 )
         if isinstance(item_deltas, list):
             # FIND-D1（L3·透支预检盲区）：旧版在此从磁盘重读 items 表——同章
@@ -963,11 +1661,36 @@ class StateManager:
                 continue
             char_names_present.append(cname or cid)
 
-            p_data = persons_db.get(cid, CharacterRecord(id=cid, name=cname).to_dict())
+            # H1/H4：present_characters 里的 ID 笔误先规范化；规范后仍未建档的，
+            # 沿用旧有的「宽容自注册」路径（CharacterRecord 兜底建档），
+            # 但 ID 必须是法定形态——旧版会把「张三」这类姓名串直接当物理 ID，
+            # 产出 id=张三 的幽灵记录，污染 id list、发号水位与共现矩阵。
+            _canon_cid = canonicalize_entity_id(cid, "person")
+            if _canon_cid and _canon_cid != cid:
+                healed.append(f"第 {ch_id} 章 present_characters ID 规范自愈：[{cid}] → [{_canon_cid}]。")
+                cid = _canon_cid
+                c["id"] = _canon_cid
+            elif not _canon_cid:
+                from engine.id_tracker import IdTracker as _IdT3
+                _probe = _resolve_person_id(cid, persons_db)
+                if not _probe and cid:
+                    _alloc = _IdT3(self.workspace).get_next_id("person", exclude=set(persons_db.keys()) | _inflight_ids)
+                    if _alloc:
+                        _inflight_ids.add(_alloc)
+                        healed.append(
+                            f"第 {ch_id} 章 present_characters 条目 [{cid}] 不是规范人物 ID，"
+                            f"已自动取号建档为 [{_alloc}]（姓名沿用「{cname or cid}」）。"
+                        )
+                        cid = _alloc
+                        c["id"] = _alloc
+                        if not cname:
+                            cname = str(c.get("name") or "")
+
+            p_data = persons_db.get(cid, CharacterRecord(id=cid, name=cname or cid).to_dict())
             # 死亡状态校验已前置至事务预检（缺陷#10：写盘前拦截）
 
             if cname:
-                p_data["name"] = cname
+                apply_name_update(p_data, cname, cid, "人物", healed)
             if c.get("role"):
                 p_data["role"] = c["role"]
             if c.get("want"):
@@ -1031,8 +1754,28 @@ class StateManager:
                 target_pid = _resolve_person_id(cid, persons_db)
                 if not target_pid:
                     # 若未建档，自动打捞为临时角色建档，坚决不静默丢失状态！
-                    target_pid = cid
-                    persons_db[target_pid] = CharacterRecord(id=cid, name=cid).to_dict()
+                    # FIND-CT73 H4：物理 ID 必须规范——键是「P001/p001」这类笔误就规范化，
+                    # 是姓名串就取号建档，绝不把原始串直接当 ID 落库（幽灵记录源头）。
+                    _canon_key = canonicalize_entity_id(cid, "person")
+                    if _canon_key:
+                        target_pid = _canon_key
+                        if _canon_key != cid:
+                            healed.append(f"第 {ch_id} 章 character_status 键规范自愈：[{cid}] → [{_canon_key}]。")
+                        _display = _canon_key
+                    else:
+                        from engine.id_tracker import IdTracker as _IdT4
+                        target_pid = _IdT4(self.workspace).get_next_id(
+                            "person", exclude=set(persons_db.keys()) | _inflight_ids
+                        ) or cid
+                        if target_pid != cid:
+                            _inflight_ids.add(target_pid)
+                            healed.append(
+                                f"第 {ch_id} 章 character_status 键「{cid}」不是规范人物 ID，"
+                                f"已自动取号建档为 [{target_pid}]（姓名沿用「{cid}」）。"
+                            )
+                        _display = cid if not re.match(r"^[A-Za-z0-9_\-]+$", cid) else target_pid
+                    persons_db[target_pid] = CharacterRecord(id=target_pid, name=_display).to_dict()
+                    cid = target_pid
 
                 # 显式契约优先：支持字典形态 {life_status: "deceased", condition: "..."}
                 if isinstance(s_val, dict):
@@ -1240,10 +1983,22 @@ class StateManager:
                     continue
                 fid = fd.get("id", "").strip()
                 fname = fd.get("name", "").strip()
-                faction = str(fd.get("action", "plant")).lower().strip()
+                _raw_faction = str(fd.get("action", "") or "").strip()
                 fdesc = fd.get("desc", "").strip()
                 if not fid:
                     continue
+                # FIND-CT64：空值沿用旧默认 plant（无声明即视为本章埋设），
+                # 非空但无法归一的写法**不再静默吞掉**——先记一条告警，再按 plant 兜底，
+                # 保证伏笔至少入台账（宁可多一句提醒，不可整条链失踪）。
+                faction = _normalize_line_action(_raw_faction)
+                if not faction:
+                    warnings.append(
+                        f"第 {ch_id} 章伏笔 [{fid}] 的 action『{_raw_faction}』不在法定枚举 "
+                        f"(plant/reveal/resolve) 内，无法判定推进语义，已按 plant 兜底入账。"
+                        f"\n      💡 方案：请改写为 plant（埋设）/ reveal（推进揭示）/ resolve（回收）之一；"
+                        f"中文同义词（埋设/推进/回收）引擎可直接识别。"
+                    )
+                    faction = "plant"
 
                 lrecord = lines_db.get(fid, LineRecord(id=fid, name=fname or fid).to_dict())
                 if fname:
@@ -1261,7 +2016,32 @@ class StateManager:
                 if fdesc:
                     lrecord["desc"] = fdesc
 
+                # FIND-CT64 续：长篇跨卷最常见的两类伏笔时序事故——
+                #   ① 未埋先推/先收（planted_ch 空 ⇒ 卷末对账无法归属卷，trace 链路断裂）；
+                #   ② 已回收又回收（status 已 resolved ⇒ 二次回收会把 resolved_ch 改写，
+                #      回收章静默漂移，读者视角变成「伏笔收了两次」）。
+                _was_resolved = str(lrecord.get("status", "")).lower() == "resolved"
+                if faction in ("reveal", "resolve") and not str(lrecord.get("planted_ch", "")).strip():
+                    warnings.append(
+                        f"第 {ch_id} 章伏笔 [{fid}] {lrecord.get('name', '')} 尚未埋设"
+                        f"（planted_ch 为空）却声明 {faction}——台账无法确定它属于哪一卷。"
+                        f"\n      💡 方案：请确认埋设章是否漏声明（在该章细纲补 `action: plant`），"
+                        f"或把本章改为 plant。"
+                    )
+                if faction == "resolve" and _was_resolved:
+                    warnings.append(
+                        f"第 {ch_id} 章伏笔 [{fid}] 已于 {lrecord.get('resolved_ch', '?')} 回收，"
+                        f"本章重复声明 resolve，回收章将被改写为 {ch_id}。"
+                        f"\n      💡 方案：若本章只是余波提及，请改用 reveal；"
+                        f"若确为真正回收章，请回改前一章的 resolve 声明。"
+                    )
                 if faction == "plant":
+                    if str(lrecord.get("planted_ch", "")).strip() and lrecord.get("planted_ch") != ch_id:
+                        warnings.append(
+                            f"第 {ch_id} 章伏笔 [{fid}] 重复埋设：台账已记录埋设于 "
+                            f"{lrecord.get('planted_ch')}，本次改写为 {ch_id}。"
+                            f"\n      💡 方案：若本章只是再次提及，请改用 reveal。"
+                        )
                     lrecord["status"] = "active"
                     lrecord["planted_ch"] = ch_id
                     line_summary["planted"].append(fid)
@@ -1299,7 +2079,13 @@ class StateManager:
         ledger_db = self.get_ledger()
         ledger_delta = state_deltas.get("ledger") or {}
         if isinstance(ledger_delta, dict) and ledger_delta:
-            pool_name = ledger_delta.get("pool") or load_config(self.workspace).get("default_pool", "通用资金池")
+            # FIND-CT67 续：池名先 strip 再比对——尾随空格/换行是最常见的 YAML 手误，
+            # 旧版原样当键用 ⇒ 「通用资金池 」静默开出第二个池，全书经济被劈成两本账。
+            # 按公理二「能自动解决的直接自愈」就地归一；真正的别名（灵石池 vs 通用资金池）
+            # 仍由下方的「新资金池」warning 提醒作者核对。
+            pool_name = str(
+                ledger_delta.get("pool") or load_config(self.workspace).get("default_pool", "通用资金池")
+            ).strip()
             delta_val = str(ledger_delta.get("delta", "0")).strip()
             try:
                 d_num = int(delta_val.replace("+", ""))
@@ -1310,6 +2096,8 @@ class StateManager:
                 )
             pools = ledger_db.setdefault("pools", {})
             baseline = ledger_db.setdefault("pools_baseline", {})
+            # FIND-CT67：触账前的既有池名集合（用于识别「本章静默开出新资金池」）
+            _pre_pools = set(pools) | set(baseline)
             # 首次触账：把 Stage 0B 手工声明的既存池余额固化为基线（之后只增不改）
             for _p, _b in list(pools.items()):
                 if _p not in baseline and isinstance(_b, (int, float)) and not isinstance(_b, bool):
@@ -1328,6 +2116,29 @@ class StateManager:
             all_pools = set(baseline.keys()) | {t.get("pool") for t in txs}
             for p_name in all_pools:
                 pools[p_name] = baseline.get(p_name, 0) + sum(t.get("delta", 0) for t in txs if t.get("pool") == p_name)
+
+            # FIND-CT67（L2·经济面静默失衡）：道具充能透支有硬守卫（「道具规则阻断：
+            # 充能已耗尽，不可透支使用」⇒ exit 1），资金面却对笔误完全静默——实测把
+            # delta 写成 -999999，池余额直接转负近百万，sync 仍 exit 0 且零提示，
+            # 直到几十章后卷末对账才暴露，回溯成本极高。欠账/负债线是合法剧情
+            # （故**不阻断**，与充能的物理不可透支区分开），但必须 loud warning。
+            # 同理：ledger 声明一个台账从未出现过的池名（多打一个空格、写别名）会
+            # 静默开出第二个资金池，把全书经济劈成两半，也必须提醒作者核对。
+            if d_num != 0:
+                _bal = pools.get(pool_name, 0)
+                if isinstance(_bal, (int, float)) and not isinstance(_bal, bool) and _bal < 0:
+                    warnings.append(
+                        f"资金池「{pool_name}」余额已转负（{_bal}）：第 {ch_id} 章 delta={d_num:+d}。"
+                        f"\n      💡 方案：若为剧情欠账/负债线，可忽略本提醒；"
+                        f"若为笔误（多写一个零、正负号写反），请修正细纲 state_deltas.ledger.delta 后重跑 sync。"
+                    )
+                if pool_name not in _pre_pools:
+                    warnings.append(
+                        f"第 {ch_id} 章 ledger 开出新资金池「{pool_name}」（此前台账无此池，既有池: "
+                        f"{', '.join(sorted(_pre_pools)) or '无'}）。"
+                        f"\n      💡 方案：若为笔误（池名多空格/写别名），请改回既有池名后重跑 sync，"
+                        f"否则全书经济将被劈成两本账；若确为剧情新开户，可忽略本提醒。"
+                    )
         _save_json(self.ledger_file, ledger_db)
 
         # 4.5 同步恩怨情仇账本 (debts.json)
@@ -1696,6 +2507,11 @@ class StateManager:
         except Exception:
             pass
 
+        # 10.9 FIND-CT73（公理二 · 自愈层）：全表收尾自愈一遍过（幂等）——
+        # 数值类型/区间、life_status 归一、伏笔缺章补填、经济数值消毒、
+        # 恩怨自指清除、关系轨迹同章去重。全部动作留痕进 healed。
+        heal_tables_pass(self, ch_id, healed)
+
         # 11. 自动持久化当章全时空全息历史快照切片 (history/ch_XXX.json)
         self.save_chapter_snapshot(ch_id)
 
@@ -1710,6 +2526,8 @@ class StateManager:
             "lines_summary": line_summary,
             "active_lines_count": len(active_lines),
             "warnings": warnings,
+            # FIND-CT73：🩹 自愈动作清单（引擎自己修好的脏数据，逐条可追溯）
+            "healed": healed,
         }
 
     # 兼容别名

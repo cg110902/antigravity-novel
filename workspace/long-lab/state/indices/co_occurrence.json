@@ -1,0 +1,800 @@
+{
+  "p_001<->p_002": {
+    "pair": [
+      "p_001",
+      "p_002"
+    ],
+    "names": [
+      "陆沉",
+      "沈天阙"
+    ],
+    "first_seen_ch": "ch_001",
+    "last_seen_ch": "ch_028",
+    "total_co_occurrences": 7,
+    "chapters": [
+      "ch_001",
+      "ch_002",
+      "ch_005",
+      "ch_014",
+      "ch_025",
+      "ch_026",
+      "ch_028"
+    ],
+    "history": [
+      {
+        "chapter": "ch_001",
+        "dynamic": "生死对头",
+        "subtext": "沈天阙断定陆沉身怀异宝，陆沉低头记仇"
+      },
+      {
+        "chapter": "ch_002",
+        "dynamic": "生死对头",
+        "subtext": "沈天阙断定陆沉身怀异宝，陆沉低头记仇"
+      },
+      {
+        "chapter": "ch_005",
+        "dynamic": "彻底撕破脸",
+        "subtext": "沈天阙第一次在杂役面前失了面子"
+      },
+      {
+        "chapter": "ch_014",
+        "dynamic": "势均力敌",
+        "subtext": "第一次在执事院平起平坐"
+      },
+      {
+        "chapter": "ch_025",
+        "dynamic": "势均力敌",
+        "subtext": "第一次在执事院平起平坐"
+      },
+      {
+        "chapter": "ch_026",
+        "dynamic": "恩怨已明",
+        "subtext": "账本摊开的那一刻，两人再无回旋"
+      },
+      {
+        "chapter": "ch_028",
+        "dynamic": "恩怨已明",
+        "subtext": "账本摊开的那一刻，两人再无回旋"
+      }
+    ],
+    "last_interaction_summary": {
+      "chapter": "ch_028",
+      "dynamic": "恩怨已明",
+      "unspoken_subtext": "账本摊开的那一刻，两人再无回旋",
+      "tension": 100,
+      "affinity": 0
+    }
+  },
+  "p_001<->p_003": {
+    "pair": [
+      "p_001",
+      "p_003"
+    ],
+    "names": [
+      "陆沉",
+      "苏黎"
+    ],
+    "first_seen_ch": "ch_001",
+    "last_seen_ch": "ch_030",
+    "total_co_occurrences": 20,
+    "chapters": [
+      "ch_001",
+      "ch_002",
+      "ch_004",
+      "ch_005",
+      "ch_006",
+      "ch_009",
+      "ch_010",
+      "ch_011",
+      "ch_013",
+      "ch_015",
+      "ch_016",
+      "ch_018",
+      "ch_020",
+      "ch_022",
+      "ch_024",
+      "ch_026",
+      "ch_027",
+      "ch_028",
+      "ch_029",
+      "ch_030"
+    ],
+    "history": [
+      {
+        "chapter": "ch_001",
+        "dynamic": "生死之交",
+        "subtext": "塌方共患难建立的信任"
+      },
+      {
+        "chapter": "ch_002",
+        "dynamic": "生死之交",
+        "subtext": "塌方共患难建立的信任"
+      },
+      {
+        "chapter": "ch_004",
+        "dynamic": "并肩同行",
+        "subtext": "铜钱交接时的默契，未挑明的暖意"
+      },
+      {
+        "chapter": "ch_005",
+        "dynamic": "并肩同行",
+        "subtext": "铜钱交接时的默契，未挑明的暖意"
+      },
+      {
+        "chapter": "ch_006",
+        "dynamic": "并肩同行",
+        "subtext": "铜钱交接时的默契，未挑明的暖意"
+      },
+      {
+        "chapter": "ch_009",
+        "dynamic": "并肩同行",
+        "subtext": "铜钱交接时的默契，未挑明的暖意"
+      },
+      {
+        "chapter": "ch_010",
+        "dynamic": "默契渐深",
+        "subtext": "铜钱校准方位时的无言配合"
+      },
+      {
+        "chapter": "ch_011",
+        "dynamic": "默契渐深",
+        "subtext": "铜钱校准方位时的无言配合"
+      },
+      {
+        "chapter": "ch_013",
+        "dynamic": "生死相托",
+        "subtext": "苏黎把他背过三道岗哨"
+      },
+      {
+        "chapter": "ch_015",
+        "dynamic": "生死相托",
+        "subtext": "苏黎把他背过三道岗哨"
+      },
+      {
+        "chapter": "ch_016",
+        "dynamic": "生死相托",
+        "subtext": "苏黎把他背过三道岗哨"
+      },
+      {
+        "chapter": "ch_018",
+        "dynamic": "生死相托",
+        "subtext": "苏黎把他背过三道岗哨"
+      },
+      {
+        "chapter": "ch_020",
+        "dynamic": "生死相托",
+        "subtext": "苏黎把他背过三道岗哨"
+      },
+      {
+        "chapter": "ch_022",
+        "dynamic": "生死相托",
+        "subtext": "苏黎把他背过三道岗哨"
+      },
+      {
+        "chapter": "ch_024",
+        "dynamic": "生死相依",
+        "subtext": "船坞里她把名牌替他系在腕上"
+      },
+      {
+        "chapter": "ch_026",
+        "dynamic": "生死相依",
+        "subtext": "船坞里她把名牌替他系在腕上"
+      },
+      {
+        "chapter": "ch_027",
+        "dynamic": "生死相依",
+        "subtext": "船坞里她把名牌替他系在腕上"
+      },
+      {
+        "chapter": "ch_028",
+        "dynamic": "生死相许",
+        "subtext": "她替他挡刀，他替她按住伤口"
+      },
+      {
+        "chapter": "ch_029",
+        "dynamic": "生死相许",
+        "subtext": "她替他挡刀，他替她按住伤口"
+      },
+      {
+        "chapter": "ch_030",
+        "dynamic": "生死相许",
+        "subtext": "她替他挡刀，他替她按住伤口"
+      }
+    ],
+    "last_interaction_summary": {
+      "chapter": "ch_030",
+      "dynamic": "生死相许",
+      "unspoken_subtext": "她替他挡刀，他替她按住伤口",
+      "tension": 20,
+      "affinity": 0
+    }
+  },
+  "p_001<->p_004": {
+    "pair": [
+      "p_001",
+      "p_004"
+    ],
+    "names": [
+      "陆沉",
+      "陈铁"
+    ],
+    "first_seen_ch": "ch_001",
+    "last_seen_ch": "ch_008",
+    "total_co_occurrences": 4,
+    "chapters": [
+      "ch_001",
+      "ch_003",
+      "ch_007",
+      "ch_008"
+    ],
+    "history": [
+      {
+        "chapter": "ch_001",
+        "dynamic": "同场",
+        "subtext": ""
+      },
+      {
+        "chapter": "ch_003",
+        "dynamic": "恩义相系",
+        "subtext": "陈铁以命相护，陆沉记下这份债"
+      },
+      {
+        "chapter": "ch_007",
+        "dynamic": "生死相托",
+        "subtext": "陈铁把风时把自己的旱烟锅塞给他"
+      },
+      {
+        "chapter": "ch_008",
+        "dynamic": "生死相托",
+        "subtext": "陈铁把风时把自己的旱烟锅塞给他"
+      }
+    ],
+    "last_interaction_summary": {
+      "chapter": "ch_008",
+      "dynamic": "生死相托",
+      "unspoken_subtext": "陈铁把风时把自己的旱烟锅塞给他",
+      "tension": 15,
+      "affinity": 0
+    }
+  },
+  "p_002<->p_003": {
+    "pair": [
+      "p_002",
+      "p_003"
+    ],
+    "names": [
+      "沈天阙",
+      "苏黎"
+    ],
+    "first_seen_ch": "ch_001",
+    "last_seen_ch": "ch_028",
+    "total_co_occurrences": 5,
+    "chapters": [
+      "ch_001",
+      "ch_002",
+      "ch_005",
+      "ch_026",
+      "ch_028"
+    ],
+    "history": [
+      {
+        "chapter": "ch_001",
+        "dynamic": "同场",
+        "subtext": ""
+      },
+      {
+        "chapter": "ch_002",
+        "dynamic": "同场",
+        "subtext": ""
+      },
+      {
+        "chapter": "ch_005",
+        "dynamic": "同场",
+        "subtext": ""
+      },
+      {
+        "chapter": "ch_026",
+        "dynamic": "同场",
+        "subtext": ""
+      },
+      {
+        "chapter": "ch_028",
+        "dynamic": "同场",
+        "subtext": ""
+      }
+    ],
+    "last_interaction_summary": {
+      "chapter": "ch_028",
+      "dynamic": "同场",
+      "unspoken_subtext": "",
+      "tension": 20,
+      "affinity": 0
+    }
+  },
+  "p_002<->p_004": {
+    "pair": [
+      "p_002",
+      "p_004"
+    ],
+    "names": [
+      "沈天阙",
+      "陈铁"
+    ],
+    "first_seen_ch": "ch_001",
+    "last_seen_ch": "ch_001",
+    "total_co_occurrences": 1,
+    "chapters": [
+      "ch_001"
+    ],
+    "history": [
+      {
+        "chapter": "ch_001",
+        "dynamic": "同场",
+        "subtext": ""
+      }
+    ],
+    "last_interaction_summary": {
+      "chapter": "ch_001",
+      "dynamic": "同场",
+      "unspoken_subtext": "",
+      "tension": 20,
+      "affinity": 0
+    }
+  },
+  "p_003<->p_004": {
+    "pair": [
+      "p_003",
+      "p_004"
+    ],
+    "names": [
+      "苏黎",
+      "陈铁"
+    ],
+    "first_seen_ch": "ch_001",
+    "last_seen_ch": "ch_001",
+    "total_co_occurrences": 1,
+    "chapters": [
+      "ch_001"
+    ],
+    "history": [
+      {
+        "chapter": "ch_001",
+        "dynamic": "同场",
+        "subtext": ""
+      }
+    ],
+    "last_interaction_summary": {
+      "chapter": "ch_001",
+      "dynamic": "同场",
+      "unspoken_subtext": "",
+      "tension": 20,
+      "affinity": 0
+    }
+  },
+  "p_001<->p_005": {
+    "pair": [
+      "p_001",
+      "p_005"
+    ],
+    "names": [
+      "陆沉",
+      "赵三"
+    ],
+    "first_seen_ch": "ch_005",
+    "last_seen_ch": "ch_012",
+    "total_co_occurrences": 3,
+    "chapters": [
+      "ch_005",
+      "ch_008",
+      "ch_012"
+    ],
+    "history": [
+      {
+        "chapter": "ch_005",
+        "dynamic": "同场",
+        "subtext": ""
+      },
+      {
+        "chapter": "ch_008",
+        "dynamic": "血仇",
+        "subtext": "陆沉在矿道里第一次动了杀心"
+      },
+      {
+        "chapter": "ch_012",
+        "dynamic": "不死不休",
+        "subtext": "矿道两端对峙，谁都没退"
+      }
+    ],
+    "last_interaction_summary": {
+      "chapter": "ch_012",
+      "dynamic": "不死不休",
+      "unspoken_subtext": "矿道两端对峙，谁都没退",
+      "tension": 99,
+      "affinity": 0
+    }
+  },
+  "p_002<->p_005": {
+    "pair": [
+      "p_002",
+      "p_005"
+    ],
+    "names": [
+      "沈天阙",
+      "赵三"
+    ],
+    "first_seen_ch": "ch_005",
+    "last_seen_ch": "ch_005",
+    "total_co_occurrences": 1,
+    "chapters": [
+      "ch_005"
+    ],
+    "history": [
+      {
+        "chapter": "ch_005",
+        "dynamic": "同场",
+        "subtext": ""
+      }
+    ],
+    "last_interaction_summary": {
+      "chapter": "ch_005",
+      "dynamic": "同场",
+      "unspoken_subtext": "",
+      "tension": 20,
+      "affinity": 0
+    }
+  },
+  "p_003<->p_005": {
+    "pair": [
+      "p_003",
+      "p_005"
+    ],
+    "names": [
+      "苏黎",
+      "赵三"
+    ],
+    "first_seen_ch": "ch_005",
+    "last_seen_ch": "ch_005",
+    "total_co_occurrences": 1,
+    "chapters": [
+      "ch_005"
+    ],
+    "history": [
+      {
+        "chapter": "ch_005",
+        "dynamic": "同场",
+        "subtext": ""
+      }
+    ],
+    "last_interaction_summary": {
+      "chapter": "ch_005",
+      "dynamic": "同场",
+      "unspoken_subtext": "",
+      "tension": 20,
+      "affinity": 0
+    }
+  },
+  "p_004<->p_005": {
+    "pair": [
+      "p_004",
+      "p_005"
+    ],
+    "names": [
+      "陈铁",
+      "赵三"
+    ],
+    "first_seen_ch": "ch_008",
+    "last_seen_ch": "ch_008",
+    "total_co_occurrences": 1,
+    "chapters": [
+      "ch_008"
+    ],
+    "history": [
+      {
+        "chapter": "ch_008",
+        "dynamic": "同场",
+        "subtext": ""
+      }
+    ],
+    "last_interaction_summary": {
+      "chapter": "ch_008",
+      "dynamic": "同场",
+      "unspoken_subtext": "",
+      "tension": 20,
+      "affinity": 0
+    }
+  },
+  "p_001<->p_007": {
+    "pair": [
+      "p_001",
+      "p_007"
+    ],
+    "names": [
+      "陆沉",
+      "柳如烟"
+    ],
+    "first_seen_ch": "ch_015",
+    "last_seen_ch": "ch_030",
+    "total_co_occurrences": 5,
+    "chapters": [
+      "ch_015",
+      "ch_017",
+      "ch_021",
+      "ch_027",
+      "ch_030"
+    ],
+    "history": [
+      {
+        "chapter": "ch_015",
+        "dynamic": "同场",
+        "subtext": ""
+      },
+      {
+        "chapter": "ch_017",
+        "dynamic": "各取所需",
+        "subtext": "柳如烟要货，陆沉要账"
+      },
+      {
+        "chapter": "ch_021",
+        "dynamic": "各取所需",
+        "subtext": "柳如烟要货，陆沉要账"
+      },
+      {
+        "chapter": "ch_027",
+        "dynamic": "各取所需",
+        "subtext": "柳如烟要货，陆沉要账"
+      },
+      {
+        "chapter": "ch_030",
+        "dynamic": "各取所需",
+        "subtext": "柳如烟要货，陆沉要账"
+      }
+    ],
+    "last_interaction_summary": {
+      "chapter": "ch_030",
+      "dynamic": "各取所需",
+      "unspoken_subtext": "柳如烟要货，陆沉要账",
+      "tension": 60,
+      "affinity": 0
+    }
+  },
+  "p_003<->p_007": {
+    "pair": [
+      "p_003",
+      "p_007"
+    ],
+    "names": [
+      "苏黎",
+      "柳如烟"
+    ],
+    "first_seen_ch": "ch_015",
+    "last_seen_ch": "ch_030",
+    "total_co_occurrences": 3,
+    "chapters": [
+      "ch_015",
+      "ch_027",
+      "ch_030"
+    ],
+    "history": [
+      {
+        "chapter": "ch_015",
+        "dynamic": "同场",
+        "subtext": ""
+      },
+      {
+        "chapter": "ch_027",
+        "dynamic": "同场",
+        "subtext": ""
+      },
+      {
+        "chapter": "ch_030",
+        "dynamic": "同场",
+        "subtext": ""
+      }
+    ],
+    "last_interaction_summary": {
+      "chapter": "ch_030",
+      "dynamic": "同场",
+      "unspoken_subtext": "",
+      "tension": 20,
+      "affinity": 0
+    }
+  },
+  "p_001<->p_008": {
+    "pair": [
+      "p_001",
+      "p_008"
+    ],
+    "names": [
+      "陆沉",
+      "幽影使者"
+    ],
+    "first_seen_ch": "ch_016",
+    "last_seen_ch": "ch_023",
+    "total_co_occurrences": 3,
+    "chapters": [
+      "ch_016",
+      "ch_019",
+      "ch_023"
+    ],
+    "history": [
+      {
+        "chapter": "ch_016",
+        "dynamic": "暗中对峙",
+        "subtext": "税关一眼对视，双方都记下了对方"
+      },
+      {
+        "chapter": "ch_019",
+        "dynamic": "生死一搏",
+        "subtext": "税关铁栅上留下的两道剑痕"
+      },
+      {
+        "chapter": "ch_023",
+        "dynamic": "仇敌再逢",
+        "subtext": "落河之人回来了，带着一身新伤"
+      }
+    ],
+    "last_interaction_summary": {
+      "chapter": "ch_023",
+      "dynamic": "仇敌再逢",
+      "unspoken_subtext": "落河之人回来了，带着一身新伤",
+      "tension": 95,
+      "affinity": 0
+    }
+  },
+  "p_003<->p_008": {
+    "pair": [
+      "p_003",
+      "p_008"
+    ],
+    "names": [
+      "苏黎",
+      "幽影使者"
+    ],
+    "first_seen_ch": "ch_016",
+    "last_seen_ch": "ch_016",
+    "total_co_occurrences": 1,
+    "chapters": [
+      "ch_016"
+    ],
+    "history": [
+      {
+        "chapter": "ch_016",
+        "dynamic": "同场",
+        "subtext": ""
+      }
+    ],
+    "last_interaction_summary": {
+      "chapter": "ch_016",
+      "dynamic": "同场",
+      "unspoken_subtext": "",
+      "tension": 20,
+      "affinity": 0
+    }
+  },
+  "p_001<->p_009": {
+    "pair": [
+      "p_001",
+      "p_009"
+    ],
+    "names": [
+      "陆沉",
+      "韩拓"
+    ],
+    "first_seen_ch": "ch_020",
+    "last_seen_ch": "ch_029",
+    "total_co_occurrences": 4,
+    "chapters": [
+      "ch_020",
+      "ch_025",
+      "ch_026",
+      "ch_029"
+    ],
+    "history": [
+      {
+        "chapter": "ch_020",
+        "dynamic": "同场",
+        "subtext": ""
+      },
+      {
+        "chapter": "ch_025",
+        "dynamic": "互相利用",
+        "subtext": "城主府要令，陆沉要兵"
+      },
+      {
+        "chapter": "ch_026",
+        "dynamic": "互相利用",
+        "subtext": "城主府要令，陆沉要兵"
+      },
+      {
+        "chapter": "ch_029",
+        "dynamic": "互相利用",
+        "subtext": "城主府要令，陆沉要兵"
+      }
+    ],
+    "last_interaction_summary": {
+      "chapter": "ch_029",
+      "dynamic": "互相利用",
+      "unspoken_subtext": "城主府要令，陆沉要兵",
+      "tension": 70,
+      "affinity": 0
+    }
+  },
+  "p_003<->p_009": {
+    "pair": [
+      "p_003",
+      "p_009"
+    ],
+    "names": [
+      "苏黎",
+      "韩拓"
+    ],
+    "first_seen_ch": "ch_020",
+    "last_seen_ch": "ch_029",
+    "total_co_occurrences": 3,
+    "chapters": [
+      "ch_020",
+      "ch_026",
+      "ch_029"
+    ],
+    "history": [
+      {
+        "chapter": "ch_020",
+        "dynamic": "同场",
+        "subtext": ""
+      },
+      {
+        "chapter": "ch_026",
+        "dynamic": "同场",
+        "subtext": ""
+      },
+      {
+        "chapter": "ch_029",
+        "dynamic": "同场",
+        "subtext": ""
+      }
+    ],
+    "last_interaction_summary": {
+      "chapter": "ch_029",
+      "dynamic": "同场",
+      "unspoken_subtext": "",
+      "tension": 20,
+      "affinity": 0
+    }
+  },
+  "p_002<->p_009": {
+    "pair": [
+      "p_002",
+      "p_009"
+    ],
+    "names": [
+      "沈天阙",
+      "韩拓"
+    ],
+    "first_seen_ch": "ch_025",
+    "last_seen_ch": "ch_026",
+    "total_co_occurrences": 2,
+    "chapters": [
+      "ch_025",
+      "ch_026"
+    ],
+    "history": [
+      {
+        "chapter": "ch_025",
+        "dynamic": "同场",
+        "subtext": ""
+      },
+      {
+        "chapter": "ch_026",
+        "dynamic": "同场",
+        "subtext": ""
+      }
+    ],
+    "last_interaction_summary": {
+      "chapter": "ch_026",
+      "dynamic": "同场",
+      "unspoken_subtext": "",
+      "tension": 20,
+      "affinity": 0
+    }
+  }
+}

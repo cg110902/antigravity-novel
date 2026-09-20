@@ -3,77 +3,108 @@
   "frontmatter": {
     "chapter_id": "ch_001",
     "volume_id": "vol_01",
-    "title": "第ch_001章",
-    "chapter_type": "{{slot:chapter_type|破局}}",
-    "timeline": "{{slot:timeline|小说历纪年·时空时间}}",
-    "location": "{{slot:location|核心场景名}}",
+    "title": "矿道深处的剑鸣",
+    "chapter_type": "破局",
+    "timeline": "大夏历·玄一九八七年·秋·亥时三刻",
+    "location": "黑石矿区·三号矿道",
     "narrative_spine": {
-      "thread": "{{slot:thread|主线·核心冲突推进}}",
-      "volume_phase": "{{slot:volume_phase|阶段一：开局破局}}",
-      "macro_goal": "{{slot:macro_goal|本阶段跨章核心战役目标}}"
+      "thread": "主线·剑丸传承觉醒与底层求生",
+      "volume_phase": "阶段一：黑石求生（开局破局）",
+      "macro_goal": "在黑石矿区活下去：超额完成矿课、识破塌方前兆救人，顺势揭开剑碑一角"
     },
     "present_characters": [
       {
-        "id": "{{slot:char_1_id|p_001}}",
+        "id": "p_001",
         "name": "林渊",
         "role": "protagonist",
-        "want": "{{slot:char_1_want|本章核心利益诉求}}",
-        "fear": "{{slot:char_1_fear|本章最忌惮暴露的底牌或软肋}}",
-        "status_in": "{{slot:char_1_status_in|入场状态：如 完好/微伤/隐忍戒备}}"
+        "want": "完成当夜矿课并全身而退，凑齐温养剑丸的下品灵石",
+        "fear": "眉心剑丸的秘密暴露，被沈天阙这等强者觊觎夺舍",
+        "status_in": "完好·隐忍戒备"
       },
       {
-        "id": "{{slot:char_2_id|p_002}}",
-        "name": "{{slot:char_2_name|核心对手/反派名}}",
-        "role": "{{slot:char_2_role|antagonist}}",
-        "want": "{{slot:char_2_want|本章核心算计/施压目的}}",
-        "fear": "{{slot:char_2_fear|忌惮之处/死穴}}",
-        "status_in": "{{slot:char_2_status_in|入场状态：如 盛气凌人/暗中试探}}"
+        "id": "p_002",
+        "name": "沈天阙",
+        "role": "antagonist",
+        "want": "借塌方事故做局，坐实林渊虚报矿课并吞没其发现的剑碑线索",
+        "fear": "林渊当真从三号矿道带出什么了不得的东西",
+        "status_in": "盛气凌人·暗中试探"
+      },
+      {
+        "id": "p_003",
+        "name": "苏黎",
+        "role": "deuteragonist",
+        "want": "以检石铜钱示警救下矿道同伴，查清塌方是否又是人为",
+        "fear": "林渊重蹈其父三年前矿难覆辙",
+        "status_in": "微伤·警觉"
       }
     ],
     "epistemology": {
       "known": {
-        "{{slot:char_1_id|p_001}}": [
-          "{{slot:char_1_knows|明确知晓的事实}}"
+        "p_001": [
+          "三号矿道深处有异常灵石波动，与眉心刺痛同源",
+          "塌方前岩壁会发出地脉低鸣般的细碎回响"
         ],
-        "{{slot:char_2_id|p_002}}": [
-          "{{slot:char_2_knows|对方知晓的有限事实}}"
+        "p_002": [
+          "林渊近日常独自申报三号矿道的矿课",
+          "塌方发生在三号矿道，具体成因待查"
         ]
       },
       "blind_spots": {
-        "{{slot:char_2_id|p_002}}": [
-          "{{slot:char_2_blind|对方绝对不知道的秘密（严禁正文脱口而出）}}"
+        "p_002": [
+          "林渊眉心已孕得剑丸雏形，可越级感知矿脉与杀机"
         ]
       }
     },
     "foreshadowing_deltas": [
       {
-        "id": "{{slot:line_1_id|GUN-001}}",
-        "name": "{{slot:line_1_name|伏笔名}}",
-        "action": "{{slot:line_1_action|reveal}}",
-        "desc": "{{slot:line_1_desc|线索特征与因果描述}}"
+        "id": "GUN-001",
+        "name": "矿脉深处的上古剑碑",
+        "action": "plant",
+        "desc": "林渊在三号矿道尽头发现爬满剑纹的岩壁，眉心剑丸与之共鸣，暗金微光如活物呼吸——剑碑碎片是剑丸传承的源头，亦是幽影门千年图谋的目标"
       }
     ],
     "state_deltas": {
       "character_status": {
-        "{{slot:char_1_id|p_001}}": "{{slot:char_1_status_out|出场状态：如 位阶突破 / 身体受创 / 心境升华}}"
+        "p_001": "眉心孕得剑丸雏形·先天灵气初醒（剑丸传承觉醒）"
+      },
+      "items": [
+        {
+          "id": "it_001",
+          "name": "九转聚灵珠",
+          "charges_delta": -1,
+          "status": "active",
+          "durability": "温润无瑕"
+        }
+      ],
+      "ledger": {
+        "pool": "通用资金池",
+        "delta": "+50",
+        "reason": "超额完成当月矿课，执事院核发五十块下品灵石赏金"
       },
       "debts": [
         {
-          "source": "{{slot:debt_source|p_001}}",
-          "target": "{{slot:debt_target|恩怨对象名}}",
-          "type": "{{slot:debt_type|grudge}}",
-          "desc": "{{slot:debt_desc|具体过节或恩义内容}}",
-          "action": "{{slot:debt_action|record}}"
+          "source": "p_001",
+          "target": "沈天阙",
+          "type": "grudge",
+          "desc": "沈天阙设计塌方欲置林渊于死地并借题制造虚报矿课冤局，林渊隐忍记仇",
+          "action": "record"
         }
       ]
     },
     "relation_deltas": [
       {
-        "source": "{{slot:char_1_id|p_001}}",
-        "target": "{{slot:char_2_id|p_002}}",
-        "tension": "{{slot:rel_tension|75}}",
-        "dynamic": "{{slot:rel_dynamic|表面客套·暗中博弈}}",
-        "subtext": "{{slot:rel_subtext|利益争端/未挑明的死结}}"
+        "source": "p_001",
+        "target": "p_002",
+        "tension": "85",
+        "dynamic": "生死对头·不死不休",
+        "subtext": "沈天阙断定林渊身怀异宝，誓要夺宝灭口；林渊低头隐忍，暗记第一笔血账"
+      },
+      {
+        "source": "p_001",
+        "target": "p_003",
+        "tension": "65",
+        "dynamic": "生死之交·背靠背",
+        "subtext": "塌方共患难建立的信任，尚未挑明的暧昧与默契"
       }
     ],
     "new_entities": [],

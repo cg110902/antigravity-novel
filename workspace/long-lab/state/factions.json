@@ -1,0 +1,18 @@
+{
+  "fac_001": {
+    "id": "fac_001",
+    "name": "青云宗",
+    "scale_tier": 7,
+    "leader": "宗主·云霁",
+    "headquarters": "青云山主峰",
+    "summary": "占据黑石矿区的中等宗门，外门矿课是其灵石主源",
+    "core_assets": [
+      "黑石矿区矿课",
+      "外门弟子名册"
+    ],
+    "diplomacy": {
+      "幽影门": "hostile"
+    },
+    "type": "faction"
+  }
+}

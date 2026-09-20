@@ -19,7 +19,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from engine import __version__
 from engine.check import run_full_check
@@ -531,6 +531,12 @@ def main(argv: Optional[List[str]] = None) -> int:
                     print("   ⚠️ 装配包超出 token_cap 预算：Drafter 上下文可能被截断，建议拆分细纲或 `config set token_cap`。")
             else:
                 print(f"👀 预览模式（未落盘）: {p_res['target_pack']} ｜ 估算 Token: {p_res.get('estimated_tokens', 0)}")
+            # FIND-CT56（L2·告警静默丢弃）：build_pack 自 FIND-CT7b 起把无法解析的
+            # present_characters 条目、以及 FIND-CT55 的槽位净化溯源写进 warnings，
+            # 但 CLI 两个分支都只打印 over_budget——告警产出即蒸发，主控无从得知
+            # 装配包已被污染/角色档案已丢失（Drafter 唯一输入源的旗标必须上浮）。
+            for _pw in p_res.get("warnings", []) or []:
+                print(f"   ⚠️ {_pw}")
             return 0
 
         elif args.command == "audit":
@@ -563,6 +569,15 @@ def main(argv: Optional[List[str]] = None) -> int:
         elif args.command == "proposal":
             pr_res = proposal_auto(ws, args.chapter_id)
             print(f"📋 状态提案已生成: {pr_res['proposal_file']}")
+            _emg = (f" ｜ 涌现事实: 死亡 {pr_res.get('emergent_deaths', 0)} / "
+                    f"新实体 {pr_res.get('emergent_entities', 0)} / 道具变动 {pr_res.get('emergent_items', 0)}"
+                    f" ｜ 回填细纲: {'是' if pr_res.get('beats_backfilled') else '否'}")
+            if any(pr_res.get(k) for k in ("emergent_deaths", "emergent_entities", "emergent_items")):
+                print(f"   🧬{_emg.split('｜', 1)[1]}")
+            # FIND-CT59/CT60/CT62：提案阶段的合并冲突与不可执行值必须上浮——
+            # 旧版只打印文件路径，涌现事实被跳过/冲突时主控完全无感（exit 0 假绿）。
+            for _pw in pr_res.get("warnings", []) or []:
+                print(f"   ⚠️ {_pw}")
             return 0
 
         elif args.command == "sync":
@@ -571,6 +586,13 @@ def main(argv: Optional[List[str]] = None) -> int:
                 print(f"♻️ 第 {s_res['chapter_id']} 章 {s_res.get('note')}")
                 return 0
             print(f"🎉 第 {s_res['chapter_id']} 章 《{s_res['title']}》 原子封存成功！字数：{s_res['word_count']} ｜ 累计：{s_res['total_published_words']}")
+            # FIND-CT73（公理二 · 自愈留痕）：引擎自己修好的脏数据逐条公示，
+            # 绝不"偷偷改表"——作者看得见改了什么、原值是什么、为什么改。
+            _healed = s_res.get("healed", []) or []
+            if _healed:
+                print(f"   🩹 自愈动作 ×{len(_healed)}（引擎已自动修正，无需手工改表）：")
+                for _h in _healed:
+                    print(f"      - {_h}")
             for w in s_res.get("warnings", []) or []:
                 print(f"   ⚠️ {w}")
             return 0
@@ -591,7 +613,20 @@ def main(argv: Optional[List[str]] = None) -> int:
             )
             # v4.3：等待超时同样视为阻断（此前只认 brake，超时会静默 exit 0）
             braked = any(r.get("status") in ("brake", "timeout") for r in report.get("results", []))
-            print("🚢 巡航报告: " + json.dumps(report, ensure_ascii=False, default=str)[:1500])
+            # FIND-CT75（无人值守友好）：巡航报告旧版被 `[:1500]` 硬截断——
+            # 半截 JSON 既 json.loads 不了，也看不出刹车原因与自愈动作，
+            # 无人值守只能靠人眼猜（第四轮实测踩坑：报告尾部整段蒸发）。
+            # 现全量落盘 log/cruise_report.json 供机器判读，控制台打印完整 JSON。
+            _rep_file = ws / "log" / "cruise_report.json"
+            try:
+                _rep_file.parent.mkdir(parents=True, exist_ok=True)
+                _rep_file.write_text(
+                    json.dumps(report, ensure_ascii=False, indent=2, default=str), encoding="utf-8"
+                )
+                print(f"🚢 巡航报告已落盘: {_rep_file}")
+            except Exception as _e:      # noqa: BLE001
+                print(f"🚢 巡航报告落盘失败（不影响巡航结论）: {type(_e).__name__}: {_e}")
+            print("🚢 巡航报告: " + json.dumps(report, ensure_ascii=False, default=str))
             return 1 if braked else 0
 
 

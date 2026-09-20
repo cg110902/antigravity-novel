@@ -21,10 +21,13 @@ from typing import Any, Dict, List, Optional
 from engine.errors import BusinessError
 
 DEFAULT_CONFIG: Dict[str, Any] = {
-    # 正文字数指引（每章推荐参考体量，用于细纲与写手提示词参考，不做硬性拦截）
+    # FIND-CT70（作者裁定 · 引擎退出文学性判断）：本项**只是作者的体量规划值**，
+    # 供大纲 target_words 与写手提示词参考；引擎不据此判定、不告警、不拦截。
+    # 唯一与字数有关的硬判定是「空正文拒绝封存」（数据完整性，非文学判断）。
     "words_per_chapter": [1500, 2600],
-    # v4.3.3 BUG#43：对白行占比区间（dehydrator 手册第 5 节规定 25%~55%）
-    "dialogue_ratio": [25, 55],
+    # 原 dialogue_ratio（对白行占比 25%~55%）已于 FIND-CT70 整项退役：对白配比属
+    # 文学节奏判断，交由 Stage 3A/4A 语义评估，引擎不再设形式指标。
+    # 旧 project.json 里若仍带该键，load_config 原样容忍、不参与任何计算。
     # 装配包 Token 预算上限
     "token_cap": 15000,
     # 细纲 state_deltas.ledger 未声明 pool 时使用的默认货币池名（全题材中性，可按书改为 灵石/人民币/积分…）
@@ -37,8 +40,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 
 # config guide 展示用的旋钮说明
 CONFIG_GUIDE: Dict[str, str] = {
-    "words_per_chapter": "每章正文参考体量区间 [min, max]（作为提示词体量指引，不做代码硬性拦截）",
-    "dialogue_ratio": "对白行占比参考区间 [min%, max%]（探针 warning 级遥测，体裁性偏离可忽略）",
+    "words_per_chapter": "每章正文体量**规划值** [min, max]：只供大纲 target_words 与写手提示词参考，引擎不据此判定、不告警、不拦截（FIND-CT70：章节长短属创作自由）。唯一与字数有关的硬判定是「空正文拒绝封存」（数据完整性，非文学判断）。",
     "token_cap": "装配包 pack.md Token 预算上限",
     "default_pool": "细纲 ledger 未声明货币池时的默认池名（全题材可按书覆盖）",
     "cruise_max_chapters": "无人值守巡航单批次最大章数",

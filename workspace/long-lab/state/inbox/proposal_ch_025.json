@@ -1,0 +1,87 @@
+{
+  "chapter_id": "ch_025",
+  "frontmatter": {
+    "chapter_id": "ch_025",
+    "volume_id": "vol_02",
+    "title": "幽影令易主",
+    "chapter_type": "过渡",
+    "timeline": "新历四十八年·春月二十三日·酉时",
+    "location": "幽影城·城主府",
+    "narrative_spine": {
+      "thread": "支线·城中势力反噬",
+      "volume_phase": "阶段四：收口与跃迁",
+      "macro_goal": "把幽影令交出去换一条活路"
+    },
+    "present_characters": [
+      {
+        "id": "p_001",
+        "name": "陆沉",
+        "role": "protagonist",
+        "want": "以幽影令换城主府出兵护账",
+        "fear": "令一交，暗门再也开不了",
+        "status_in": "权衡"
+      },
+      {
+        "id": "p_009",
+        "name": "韩拓",
+        "role": "supporting",
+        "want": "接过幽影令，暗中通报幽影门",
+        "fear": "被陆沉看出端倪",
+        "status_in": "老练藏锋"
+      },
+      {
+        "id": "p_002",
+        "name": "沈天阙",
+        "role": "antagonist",
+        "want": "以青云宗执事身份入府要人",
+        "fear": "陆沉手里的账本",
+        "status_in": "阴沉逼压"
+      }
+    ],
+    "epistemology": {
+      "known": {
+        "p_002": [
+          "陆沉在城中查幽影银路"
+        ]
+      },
+      "blind_spots": {
+        "p_009": [
+          "陆沉已把底册誊本送出城"
+        ]
+      }
+    },
+    "foreshadowing_deltas": [
+      {
+        "id": "GUN-003",
+        "name": "幽影令的来历",
+        "action": "reveal",
+        "desc": "[reveal] 幽影令易主：幽影令可开幽影门三处暗门，来历与青云宗十八年贡银纠缠不清"
+      }
+    ],
+    "state_deltas": {
+      "character_status": {
+        "p_001": "通玄境四重·幽影令交予沈天阙（换城主府护账）"
+      },
+      "items": [
+        {
+          "id": "it_003",
+          "name": "幽影令",
+          "holder_change": "陆沉 -> 沈天阙",
+          "status": "active",
+          "durability": "玄铁令身多了一道新划痕"
+        }
+      ]
+    },
+    "relation_deltas": [
+      {
+        "source": "p_001",
+        "target": "p_009",
+        "tension": 70,
+        "dynamic": "互相利用",
+        "subtext": "城主府要令，陆沉要兵"
+      }
+    ],
+    "new_entities": [],
+    "locked_facts": []
+  }
+}

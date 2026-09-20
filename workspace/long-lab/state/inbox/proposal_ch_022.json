@@ -1,0 +1,74 @@
+{
+  "chapter_id": "ch_022",
+  "frontmatter": {
+    "chapter_id": "ch_022",
+    "volume_id": "vol_02",
+    "title": "十八年贡银",
+    "chapter_type": "回收",
+    "timeline": "新历四十八年·春月十五日·寅时",
+    "location": "幽影城·南市钱庄",
+    "narrative_spine": {
+      "thread": "主线·沈天阙身份坐实",
+      "volume_phase": "阶段三：正面交锋",
+      "macro_goal": "把贡银底册与钱庄暗账对上"
+    },
+    "present_characters": [
+      {
+        "id": "p_001",
+        "name": "陆沉",
+        "role": "protagonist",
+        "want": "把两份账对上，坐实沈天阙的暗桩身份",
+        "fear": "证据不足以在宗门定罪",
+        "status_in": "冷峻"
+      },
+      {
+        "id": "p_003",
+        "name": "苏黎",
+        "role": "deuteragonist",
+        "want": "誊抄账目留底",
+        "fear": "誊本被夺",
+        "status_in": "细致"
+      }
+    ],
+    "epistemology": {
+      "known": {
+        "p_001": [
+          "钱庄暗账第三署名是天阙",
+          "幽影门收青云宗贡银十八年"
+        ]
+      },
+      "blind_spots": {
+        "p_002": [
+          "陆沉已握有贡银底册"
+        ]
+      }
+    },
+    "foreshadowing_deltas": [
+      {
+        "id": "KNO-001",
+        "name": "沈天阙的真实身份",
+        "action": "reveal",
+        "desc": "[reveal] 十八年贡银：沈天阙腰间玄铁令并非青云宗制式，他是幽影门安插多年的暗桩"
+      },
+      {
+        "id": "GUN-002",
+        "name": "父亲之死的真凶",
+        "action": "reveal",
+        "desc": "[reveal] 十八年贡银：三年前矿难并非意外，殉职名册被人改写，真凶至今在宗门内"
+      }
+    ],
+    "state_deltas": {
+      "character_status": {
+        "p_001": "通玄境三重·掌握沈天阙暗桩铁证"
+      }
+    },
+    "relation_deltas": [],
+    "new_entities": [],
+    "locked_facts": [
+      {
+        "id": "LOCK-004",
+        "fact": "ch_022 贡银底册与钱庄暗账互证，坐实沈天阙为幽影门安插青云宗十八年的暗桩"
+      }
+    ]
+  }
+}

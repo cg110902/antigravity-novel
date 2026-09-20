@@ -1,0 +1,226 @@
+{
+  "p_001->p_002": {
+    "pair": "p_001->p_002",
+    "source_id": "p_001",
+    "target_id": "p_002",
+    "affinity": 0,
+    "trust": 50,
+    "tension": 100,
+    "dynamic_label": "恩怨已明",
+    "unspoken_subtext": "账本摊开的那一刻，两人再无回旋",
+    "history": [
+      {
+        "chapter": "ch_001",
+        "dynamic": "生死对头",
+        "subtext": "沈天阙断定陆沉身怀异宝，陆沉低头记仇",
+        "affinity": 0,
+        "tension": 85
+      },
+      {
+        "chapter": "ch_005",
+        "dynamic": "彻底撕破脸",
+        "subtext": "沈天阙第一次在杂役面前失了面子",
+        "affinity": 0,
+        "tension": 92
+      },
+      {
+        "chapter": "ch_014",
+        "dynamic": "势均力敌",
+        "subtext": "第一次在执事院平起平坐",
+        "affinity": 0,
+        "tension": 95
+      },
+      {
+        "chapter": "ch_026",
+        "dynamic": "恩怨已明",
+        "subtext": "账本摊开的那一刻，两人再无回旋",
+        "affinity": 0,
+        "tension": 100
+      }
+    ],
+    "last_updated_ch": "ch_026"
+  },
+  "p_001->p_003": {
+    "pair": "p_001->p_003",
+    "source_id": "p_001",
+    "target_id": "p_003",
+    "affinity": 0,
+    "trust": 50,
+    "tension": 20,
+    "dynamic_label": "生死相许",
+    "unspoken_subtext": "她替他挡刀，他替她按住伤口",
+    "history": [
+      {
+        "chapter": "ch_001",
+        "dynamic": "生死之交",
+        "subtext": "塌方共患难建立的信任",
+        "affinity": 0,
+        "tension": 65
+      },
+      {
+        "chapter": "ch_004",
+        "dynamic": "并肩同行",
+        "subtext": "铜钱交接时的默契，未挑明的暖意",
+        "affinity": 0,
+        "tension": 55
+      },
+      {
+        "chapter": "ch_010",
+        "dynamic": "默契渐深",
+        "subtext": "铜钱校准方位时的无言配合",
+        "affinity": 0,
+        "tension": 45
+      },
+      {
+        "chapter": "ch_013",
+        "dynamic": "生死相托",
+        "subtext": "苏黎把他背过三道岗哨",
+        "affinity": 0,
+        "tension": 35
+      },
+      {
+        "chapter": "ch_024",
+        "dynamic": "生死相依",
+        "subtext": "船坞里她把名牌替他系在腕上",
+        "affinity": 0,
+        "tension": 25
+      },
+      {
+        "chapter": "ch_028",
+        "dynamic": "生死相许",
+        "subtext": "她替他挡刀，他替她按住伤口",
+        "affinity": 0,
+        "tension": 20
+      }
+    ],
+    "last_updated_ch": "ch_028"
+  },
+  "p_001->p_004": {
+    "pair": "p_001->p_004",
+    "source_id": "p_001",
+    "target_id": "p_004",
+    "affinity": 0,
+    "trust": 50,
+    "tension": 15,
+    "dynamic_label": "生死相托",
+    "unspoken_subtext": "陈铁把风时把自己的旱烟锅塞给他",
+    "history": [
+      {
+        "chapter": "ch_003",
+        "dynamic": "恩义相系",
+        "subtext": "陈铁以命相护，陆沉记下这份债",
+        "affinity": 0,
+        "tension": 20
+      },
+      {
+        "chapter": "ch_007",
+        "dynamic": "生死相托",
+        "subtext": "陈铁把风时把自己的旱烟锅塞给他",
+        "affinity": 0,
+        "tension": 15
+      }
+    ],
+    "last_updated_ch": "ch_007"
+  },
+  "p_001->p_005": {
+    "pair": "p_001->p_005",
+    "source_id": "p_001",
+    "target_id": "p_005",
+    "affinity": 0,
+    "trust": 50,
+    "tension": 99,
+    "dynamic_label": "不死不休",
+    "unspoken_subtext": "矿道两端对峙，谁都没退",
+    "history": [
+      {
+        "chapter": "ch_008",
+        "dynamic": "血仇",
+        "subtext": "陆沉在矿道里第一次动了杀心",
+        "affinity": 0,
+        "tension": 98
+      },
+      {
+        "chapter": "ch_012",
+        "dynamic": "不死不休",
+        "subtext": "矿道两端对峙，谁都没退",
+        "affinity": 0,
+        "tension": 99
+      }
+    ],
+    "last_updated_ch": "ch_012"
+  },
+  "p_001->p_008": {
+    "pair": "p_001->p_008",
+    "source_id": "p_001",
+    "target_id": "p_008",
+    "affinity": 0,
+    "trust": 50,
+    "tension": 95,
+    "dynamic_label": "仇敌再逢",
+    "unspoken_subtext": "落河之人回来了，带着一身新伤",
+    "history": [
+      {
+        "chapter": "ch_016",
+        "dynamic": "暗中对峙",
+        "subtext": "税关一眼对视，双方都记下了对方",
+        "affinity": 0,
+        "tension": 80
+      },
+      {
+        "chapter": "ch_019",
+        "dynamic": "生死一搏",
+        "subtext": "税关铁栅上留下的两道剑痕",
+        "affinity": 0,
+        "tension": 100
+      },
+      {
+        "chapter": "ch_023",
+        "dynamic": "仇敌再逢",
+        "subtext": "落河之人回来了，带着一身新伤",
+        "affinity": 0,
+        "tension": 95
+      }
+    ],
+    "last_updated_ch": "ch_023"
+  },
+  "p_001->p_007": {
+    "pair": "p_001->p_007",
+    "source_id": "p_001",
+    "target_id": "p_007",
+    "affinity": 0,
+    "trust": 50,
+    "tension": 60,
+    "dynamic_label": "各取所需",
+    "unspoken_subtext": "柳如烟要货，陆沉要账",
+    "history": [
+      {
+        "chapter": "ch_017",
+        "dynamic": "各取所需",
+        "subtext": "柳如烟要货，陆沉要账",
+        "affinity": 0,
+        "tension": 60
+      }
+    ],
+    "last_updated_ch": "ch_017"
+  },
+  "p_001->p_009": {
+    "pair": "p_001->p_009",
+    "source_id": "p_001",
+    "target_id": "p_009",
+    "affinity": 0,
+    "trust": 50,
+    "tension": 70,
+    "dynamic_label": "互相利用",
+    "unspoken_subtext": "城主府要令，陆沉要兵",
+    "history": [
+      {
+        "chapter": "ch_025",
+        "dynamic": "互相利用",
+        "subtext": "城主府要令，陆沉要兵",
+        "affinity": 0,
+        "tension": 70
+      }
+    ],
+    "last_updated_ch": "ch_025"
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "chapter_id": "ch_018",
+  "frontmatter": {
+    "chapter_id": "ch_018",
+    "volume_id": "vol_02",
+    "title": "三年前的运矿队",
+    "chapter_type": "过渡",
+    "timeline": "新历四十八年·春月六日·辰时",
+    "location": "幽影城·旧码头",
+    "narrative_spine": {
+      "thread": "主线·父仇真相",
+      "volume_phase": "阶段二：暗流汇聚",
+      "macro_goal": "找到三年前运矿队的活口"
+    },
+    "present_characters": [
+      {
+        "id": "p_001",
+        "name": "陆沉",
+        "role": "protagonist",
+        "want": "找到三年前押运矿石的船工",
+        "fear": "船工被灭口",
+        "status_in": "迫切"
+      },
+      {
+        "id": "p_003",
+        "name": "苏黎",
+        "role": "deuteragonist",
+        "want": "在码头打探船期",
+        "fear": "被幽影门盯上",
+        "status_in": "警觉"
+      }
+    ],
+    "epistemology": {
+      "known": {
+        "p_003": [
+          "三年前那批矿石没有入库记录"
+        ]
+      },
+      "blind_spots": {
+        "p_001": [
+          "船工的雇主是青云宗执事院"
+        ]
+      }
+    },
+    "foreshadowing_deltas": [
+      {
+        "id": "GUN-002",
+        "name": "父亲之死的真凶",
+        "action": "reveal",
+        "desc": "[reveal] 三年前的运矿队：三年前矿难并非意外，殉职名册被人改写，真凶至今在宗门内"
+      }
+    ],
+    "state_deltas": {
+      "character_status": {
+        "p_001": "通玄境二重·父仇线索成链"
+      }
+    },
+    "relation_deltas": [],
+    "new_entities": [],
+    "locked_facts": []
+  }
+}

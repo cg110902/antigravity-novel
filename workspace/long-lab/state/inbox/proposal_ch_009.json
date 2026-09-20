@@ -1,0 +1,67 @@
+{
+  "chapter_id": "ch_009",
+  "frontmatter": {
+    "chapter_id": "ch_009",
+    "volume_id": "vol_01",
+    "title": "名册上的第四个名字",
+    "chapter_type": "回收",
+    "timeline": "新历四十七年·霜月二十日·午时",
+    "location": "黑石矿区·杂役通铺",
+    "narrative_spine": {
+      "thread": "主线·父仇与名册真相",
+      "volume_phase": "阶段三：深渊探险",
+      "macro_goal": "从名册抄件里找出被改写的那一行"
+    },
+    "present_characters": [
+      {
+        "id": "p_001",
+        "name": "陆沉",
+        "role": "protagonist",
+        "want": "辨认名册抄件上被涂改的名字",
+        "fear": "抄件被执事院搜走",
+        "status_in": "沉痛·冷静"
+      },
+      {
+        "id": "p_003",
+        "name": "苏黎",
+        "role": "deuteragonist",
+        "want": "替陆沉辨字迹",
+        "fear": "字迹指向执事院书吏",
+        "status_in": "紧张"
+      }
+    ],
+    "epistemology": {
+      "known": {
+        "p_003": [
+          "三年前当值书吏姓周"
+        ]
+      },
+      "blind_spots": {
+        "p_001": [
+          "涂改者是执事院书吏，但授意者另有其人"
+        ]
+      }
+    },
+    "foreshadowing_deltas": [
+      {
+        "id": "GUN-002",
+        "name": "父亲之死的真凶",
+        "action": "reveal",
+        "desc": "[reveal] 名册上的第四个名字：三年前矿难并非意外，殉职名册被人改写，真凶至今在宗门内"
+      }
+    ],
+    "state_deltas": {
+      "character_status": {
+        "p_001": "淬体境七重·心境由悲转厉"
+      },
+      "ledger": {
+        "pool": "通用资金池",
+        "delta": "+300",
+        "reason": "把陈铁留下的矿石份额折价售出，入账三百块下品灵石"
+      }
+    },
+    "relation_deltas": [],
+    "new_entities": [],
+    "locked_facts": []
+  }
+}

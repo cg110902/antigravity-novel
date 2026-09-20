@@ -1,0 +1,86 @@
+{
+  "chapter_id": "ch_010",
+  "frontmatter": {
+    "chapter_id": "ch_010",
+    "volume_id": "vol_01",
+    "title": "听矿脉的人",
+    "chapter_type": "铺垫",
+    "timeline": "新历四十七年·霜月二十三日·戌时",
+    "location": "黑石矿区·主巷",
+    "narrative_spine": {
+      "thread": "支线·能力成长与外界成见",
+      "volume_phase": "阶段三：深渊探险",
+      "macro_goal": "把越级感知练成保命本事"
+    },
+    "present_characters": [
+      {
+        "id": "p_001",
+        "name": "陆沉",
+        "role": "protagonist",
+        "want": "在主巷练出稳定的矿脉感知",
+        "fear": "感知过载伤及眉心",
+        "status_in": "完好·专注"
+      },
+      {
+        "id": "p_003",
+        "name": "苏黎",
+        "role": "deuteragonist",
+        "want": "用检石铜钱替他校准方位",
+        "fear": "铜钱裂了",
+        "status_in": "关切"
+      }
+    ],
+    "epistemology": {
+      "known": {
+        "p_001": [
+          "矿脉低鸣可预警塌方"
+        ]
+      },
+      "blind_spots": {
+        "p_002": [
+          "陆沉的感知范围已达十丈"
+        ]
+      }
+    },
+    "foreshadowing_deltas": [
+      {
+        "id": "MIS-001",
+        "name": "外界对杂役的成见",
+        "action": "plant",
+        "desc": "[plant] 听矿脉的人：全宗门都认定杂役命贱该认命，无人知道陆沉能听见矿脉的呼吸",
+        "tier": "B",
+        "evidence": "杂役的命也是命？执事堂上没人接这句话。"
+      },
+      {
+        "id": "GUN-001",
+        "name": "矿脉深处的上古剑碑",
+        "action": "reveal",
+        "desc": "[reveal] 听矿脉的人：三号矿道尽头有一面爬满剑纹的岩壁，与陆沉眉心旧疤同源"
+      }
+    ],
+    "state_deltas": {
+      "character_status": {
+        "p_001": "淬体境八重·矿脉感知稳定（十丈内杀机可辨）"
+      },
+      "items": [
+        {
+          "id": "it_001",
+          "name": "九转聚灵珠",
+          "charges_delta": -1,
+          "status": "active"
+        }
+      ]
+    },
+    "relation_deltas": [
+      {
+        "source": "p_001",
+        "target": "p_003",
+        "tension": 45,
+        "dynamic": "默契渐深",
+        "subtext": "铜钱校准方位时的无言配合"
+      }
+    ],
+    "new_entities": [],
+    "locked_facts": []
+  }
+}

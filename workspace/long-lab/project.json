@@ -1,0 +1,28 @@
+{
+  "schema": "novel-studio.project/v4",
+  "title": "长篇一致性验证之书",
+  "genre": "玄幻脑洞",
+  "protagonist": "陆沉",
+  "scope": {
+    "target_words": 400000,
+    "target_volumes": 5,
+    "chapters_per_volume": 40,
+    "words_per_chapter": [
+      1500,
+      2600
+    ]
+  },
+  "engine": {
+    "token_cap": 15000,
+    "cruise_max_chapters": 10,
+    "cruise_human_gate": 0,
+    "cruise_wait_timeout": 900,
+    "default_pool": "通用资金池"
+  },
+  "current_status": {
+    "current_vol": "vol_02",
+    "current_ch": "ch_030",
+    "total_published_words": 48178
+  },
+  "created_at": "2026-09-20"
+}

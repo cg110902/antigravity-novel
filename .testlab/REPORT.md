@@ -184,3 +184,102 @@ ID-6 trace 递归/模糊命中不标注、ID-7 slot 无管道形态、ID-8 decla
 
 **环境与产物**：Python 3.14.6 / v4.4.0 / 16 模块 8332 行 / 编译 0 错；沙盒 probe（脏数据）、test-lab（金基座 2 章）、field-lab（字段边界 9 章）；修复涉及 11 个引擎文件；档案 REPORT.md / matrix.md / audit/*.md 五份。
 
+
+---
+---
+
+# 第四轮 · 长篇一致性与 SKILL 命令面专项（完结）
+
+> 范围：新建 2 卷 30 章长篇基座 `workspace/long-lab`（48,178 字），跑通真实引擎全链
+> （init ➔ beats new ➔ pack ➔ audit ➔ finalize ➔ proposal auto ➔ sync ➔ snapshot ➔ 卷末三连），
+> 复证跨卷一致性（伏笔/生死闸门/充能/资金/ID 增长/时光机）与 10 个 SKILL 的命令面。
+> 工作笔记：`.testlab/round4-notes.md`。
+
+## 六、第四轮缺陷闭环（CT52～CT68 · 17 项）
+
+| 编号 | 级别 | 缺陷 | 修复 |
+|---|---|---|---|
+| CT52 | **L1** | `pack` 无槽位闸门 ⇒ Drafter 唯一输入源被 54 处 `{{slot:}}` 污染，三个 LLM 工序白干 | pack 前置槽位闸门 + 溯源提示 |
+| CT53 | **L1** | `proposal auto` 无槽位闸门 ⇒ S5 三兄弟闸门不一致，槽位态回写细纲 SSOT | 同款闸门，产出零槽位 |
+| CT54/54b | **L1** | 存量槽位串被登记为台账实体（金基座 `persons.json` 里躺着幽灵人物），`check` 全程 0 errors 假绿 | state 层单一咽喉消毒 + `check_id_integrity` 四表存量 ID 形态校验 |
+| CT55 | L2 | `pack` token 预算回溯失真（曾被误判为假警报） | 采样方法论修正 + 预算口径统一 |
+| CT58 | L2 | 装配包/简报残留槽位与冗余 | pack.md 单一滚动文件（8 节）+ 简报槽位剥离 |
+| CT59~CT62 | L2 | 涌现事实收割/合并/回填链多处漏账 | proposal auto 收割 → 回填细纲 → 引擎发号 → sync 入册全链打通 |
+| CT63 | L2 | 模板示例被 Auditor 照抄 ⇒ 幽灵实体 | 注释态范例零入账 + auditor SKILL 加反照抄警示 |
+| CT64 | L2 | 非法 `action` 静默吞掉；未埋先推 / 重复回收零提示 | loud warning + 按 plant 兜底入账（宁可多提醒，不可整条链失踪） |
+| CT65 | L2 | `pack ch_002` UnboundLocalError | 变量作用域修正 |
+| CT66 | L2 | 卷末对账语义含混（活跃/遗留/逾期不分） | 报告五段式：已闭环 / 本卷埋设仍活跃 / 前卷遗留 / 范围说明 / ⛔ 逾期 |
+| CT67 | L2 | 资金池负余额零告警、新池静默开出、池名尾随空格劈成两本账 | 负余额 loud warning + 新池提醒 + `.strip()` 就地自愈 |
+| CT68 | L2 | 倒叙/回忆章死者登场被硬阻断（FP-4 裁决项） | `appearance: "回忆"` 豁免 + 可追溯提醒，台账生死永不改变；无标记仍阻断 |
+
+**FN-8 裁决 = 驳回**（正文层死亡检测保持 warning-only，理由见 round4-notes）。
+
+## 七、第四轮测试资产（可重跑）
+
+| 资产 | 内容 | 终态 |
+|---|---|---|
+| `.testlab/tools/long_lab_data.py` | 30 章剧情数据 + 跨卷靶点编排（LINE_META / LINE_EVIDENCE） | — |
+| `.testlab/tools/build_long_lab.py` | 基座建造器（只调官方 CLI，逐章记退出码，任何非预期非零即停机） | 30 章 ｜ 事故 0 |
+| `.testlab/tools/long_lab_battery.py` | A 命令面冒烟 / B 跨卷不变量 / C 负向与假阳性 | 117/117 ✅ |
+| `.testlab/tools/skill_surface_audit.py` | 10 SKILL × 命令存在性 / 旗标合法性 / 文件契约路径 / 零命令红线 | 108/108 ✅ |
+| 差分回归 | 旧引擎（HEAD）vs 新引擎，test-lab / probe / field-lab 12 张状态表 | 逐字节一致 |
+
+**跨卷一致性关键靶点**：伏笔 5 条（GUN-001 A/ch_015、GUN-002 S/ch_028、KNO-001 A/ch_026、
+MIS-001 B/无排期、GUN-003 A/ch_035 跨卷）全部按台账归位；生死闸门（陈铁 ch_008 / 沈天阙 ch_028）
+零复活；充能账本 12 笔流水四要素齐备；时光机回滚 ch_015 后 134 个未来文件清除且 current/定稿/备份三对齐。
+
+---
+---
+
+# 第五轮 · 作者 6 项指令落地（完结）
+
+> 作者指令：① 确认第四轮收尾；② 存活状态新增「未知（生死不知）」；③ 引擎不管文学性判断
+> （字数限制、对白占比等）；④ 判据别太死板、选填字段缺失不报错、无人值守别动辄 error；
+> ⑤ 增强自愈能力；⑥ 全部解决后提交并 PR 到主分支。
+> 工作笔记：`.testlab/round5-notes.md`（含逐条裁决理由与实证明细）。
+
+## 八、第五轮变更总览（FIND-CT69～CT75）
+
+| 编号 | 作者指令 | 落地 |
+|---|---|---|
+| **CT69** | ② 生死不明第四态 | `life_status` 四态化：新增 `unknown` + 11 个中文同义写法归一；推断分流「先判生死未确认再判死亡词」；新增 `life_status_label()` 唯一标签源；`check` 白名单纳入；编剧简报新增「❓ 生死不明人物悬念账」（不进黑名单、可登场、严禁擅自坐实生死）；templates/README + templates/beats + screenwriter/evolution SKILL 同步 |
+| **CT70** | ③ 退出文学判断 | 对白占比探针**整块删除**（probes/check/config 旋钮退役）；字数分档 `severe_short/short/long` 全撤，只余 `ok/empty` 纯计量；体检「体量遥测」告警、sync「低字数」告警删除；cockpit「🟡 节奏黄牌 + 建议换气」改为纯事实；dehydrator SKILL 的 25%~55% 硬指标改写为文学指引。唯一保留：空正文拒绝封存（数据完整性，非文学判断） |
+| **CT71** | ④ 判据松绑 | `scan_ledger_integrity` 改返回 `(errors, warnings)`：十项交叉校验中**只有「生死状态自相矛盾」仍阻断**，引用断裂/伏笔缺章/资金透支/时间线倒置/恩怨自指/轨迹重复等全部降为提醒 + 🩹 自愈指引；reconcile 第五节按 ⛔硬矛盾（Level 2 上报）/ ⚠️账面瑕疵（Level 1 交引擎自愈）分级展示 |
+| **CT72** | ④ 判据松绑 | `check_id_integrity` 定级重排：11 处 ID 类 error 降为 warning + 🩹；仍阻断只剩「细纲文件不存在」与「已故角色登场（复活闸门）」 |
+| **CT73** | ⑤ 增强自愈 | `state.py` 自愈层 10 类动作：H1 ID 笔误规范化 / H2 撞号改派新号 / H3 改名保留旧名为 alias / H4 未建档自动取号建档 / H5 数值解析·夹取·摘除 / H6 伏笔补章（标 `inferred`）/ H7 经济数值消毒 / H8 恩怨自指清除 / H9 关系轨迹去重 / H10 幽灵记录清扫。全部动作写入 sync 报告 `healed`（🩹 公示，含原值）；`NUMERIC_FIELD_BOUNDS` 由 state.py 单点定义、check.py import（体检口径＝自愈口径） |
+| **CT74** | ④ 不刷屏 | `collapse_similar_warnings()`：同类 ≥3 条折叠成一行清单（不改判、不丢信息）。实测 7 条「地点数据残缺」压成 1 行 |
+| **CT75** | ④ 无人值守 | 巡航报告不再被 `[:1500]` 截断（半截 JSON 无法机器判读）：全量落盘 `log/cruise_report.json` + 完整打印；心跳行增 `🩹xN`；批次报告带 `healed`/`healed_count`。退出码契约不变 |
+
+**修掉的隐性数据破坏（CT73 H2/H3 的动机）**：旧版 `if ename: rec["name"] = ename` 在细纲写错 ID 时
+会把既有角色**改名换姓**（声明 `p_010 = 阿福` 而 p_010 是王五 ⇒ 王五被静默改名为阿福），
+所有旧章称谓/别名/共现引用随之失联，而 `check` 事后只能报一条不一致——损失不可逆。
+现改为改派新号 + 旧名留 alias，原记录分毫不动。
+
+## 九、第五轮验证总账
+
+| 项目 | 结果 |
+|---|---|
+| 长篇电池 A/B/C | **136/136 ✅**（第四轮 117 + 本轮新增 C-17～C-27 共 19 项） |
+| SKILL 面审计 | **110/110 ✅** |
+| long-lab 全量重建 | 30 章 ｜ 48,178 字 ｜ 事故 **0** ｜ **自愈动作 0** ｜ 警告 1（既有 ledger 漂移探针） |
+| 差分回归（第五轮前 vs 后） | 12 张状态表逐字节一致；`milestones.json`/`sync_log.json` **仅时间戳差异** ⇒ 语义零漂移 |
+| 四工作区 `check` | long-lab / test-lab / field-lab / probe 全 exit 0、0 errors |
+| 假自愈回归 | 干净数据重放 🩹 = 0（C-27 + 30 章重建 + test-lab 单章）；脏数据 field-lab 一次 sync 修好 5 项脏类型，二次重放归零（幂等） |
+| 端到端实证 | unknown 四态走完 ch_019 落河 ➔ ch_020~023 简报悬念账 ➔ ch_023 定论 alive ➔ ch_024 悬念账消失；200 字短章全链 exit 0 零体量告警；回滚态 `cruise --once` 优雅等待（exit 0，报告可解析）；卷末 `cruise --vol vol_01 --once` 自动刹车三连 |
+
+**保留为 error 的 8 类判据**（松绑≠放水，逐条理由见 round5-notes 第 5 节）：
+复活闸门、台账生死矛盾、充能透支、空正文封存、细纲文件不存在/无 front-matter、
+状态表损坏或蒸发、确认级认知泄露、SSOT/init 覆盖。
+
+## 十、五轮累计
+
+| 轮次 | 主题 | 缺陷闭环 | 测试资产 |
+|---|---|---|---|
+| 一 | CLI 退出码 / 幂等 / 脏值 / 时光机 | 12 | matrix.md + audit/*.md |
+| 二 | 探针假阴假阳 / SSOT / 装配展示 | 15 | 同上 |
+| 三 | 字段边界 160+ 用例 | 9（#33~35 等） | workspace/field-lab |
+| 四 | 长篇一致性 + SKILL 命令面 | 17（CT52~CT68） | long-lab 基座 + 电池 117 + SKILL 审计 108 |
+| 五 | 作者 6 项指令（四态/去文学判断/松绑/自愈） | 7（CT69~CT75） | 电池扩至 136 + SKILL 审计 110 |
+| **合计** | | **60 项闭环** | 4 工作区 + 4 件可重跑资产 |
+
+**环境**：Python 3.11.2（沙盒）/ Novel Studio 4.4.0 / 引擎 16 模块全量编译 0 错。

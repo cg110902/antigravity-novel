@@ -100,7 +100,9 @@ templates/
      - `power_benchmark`: 破坏力与防御物理实物标尺（`str`）
    - 🩺 **生命与存在状态**：
      - `status`: 实体活跃状态（严格枚举：`active` 活跃, `retired` 隐退/沉睡）
-     - `life_status`: 生命体生死状态（严格枚举：`alive` 在世, `deceased` 阵亡, `missing` 失踪）
+     - `life_status`: 生命体生死状态（枚举：`alive` 在世, `deceased` 阵亡, `missing` 失踪/下落不明, `unknown` 生死不明）
+       · `unknown` 与 `missing` 都**不等于死亡**：不进已故黑名单、可正常登场；区别是 `missing` 讲下落不明，`unknown` 讲存活状态本身未确认（坠崖/沉船/爆炸后生死未卜）。引擎会在编剧简报里单立「❓ 生死不明人物悬念账」，提醒后续章节不得擅自坐实其生死；真要定论时显式改写 `life_status`（如 `unknown` ➔ `alive`/`deceased`）即可。
+       · 枚举外的写法不再报错：引擎按同义词自动归一（「生死不知/生死未卜」➔ `unknown`，「失联/杳无音信」➔ `missing`），归一不了的原样保留并只给一条提醒。
      - `condition`: 肉身或物性状态（如 `"重伤"`、`"经脉受损"`、`"完好"`）
      - `injury_level`: 伤势等级 `0~5`（`0`=无伤，`5`=濒死；人物专用可算字段，建议与 `injury_desc` 同写）
      - `injury_desc`: 伤势文字说明（如 `"左臂骨折"`）

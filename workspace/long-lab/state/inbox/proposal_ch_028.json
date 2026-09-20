@@ -1,0 +1,96 @@
+{
+  "chapter_id": "ch_028",
+  "frontmatter": {
+    "chapter_id": "ch_028",
+    "volume_id": "vol_02",
+    "title": "执事院的最后一夜",
+    "chapter_type": "爆发",
+    "timeline": "新历四十八年·春月三十日·子时",
+    "location": "幽影城·北门税关",
+    "narrative_spine": {
+      "thread": "主线·宿敌终局",
+      "volume_phase": "阶段四：收口与跃迁",
+      "macro_goal": "与沈天阙了断，为父正名"
+    },
+    "present_characters": [
+      {
+        "id": "p_001",
+        "name": "陆沉",
+        "role": "protagonist",
+        "want": "在税关铁栅下了断沈天阙",
+        "fear": "自己也被剑气贯肩",
+        "status_in": "决死"
+      },
+      {
+        "id": "p_002",
+        "name": "沈天阙",
+        "role": "antagonist",
+        "want": "以幽影令召门中高手反杀",
+        "fear": "令已裂，无人来",
+        "status_in": "疯狂"
+      },
+      {
+        "id": "p_003",
+        "name": "苏黎",
+        "role": "deuteragonist",
+        "want": "替他挡住背后一刀",
+        "fear": "被剑气扫中",
+        "status_in": "带伤"
+      }
+    ],
+    "epistemology": {
+      "known": {
+        "p_001": [
+          "沈天阙是三年前炸巷的授意者"
+        ]
+      },
+      "blind_spots": {
+        "p_002": [
+          "剑碑碎片能替陆沉挡一次致命剑气"
+        ]
+      }
+    },
+    "foreshadowing_deltas": [
+      {
+        "id": "GUN-002",
+        "name": "父亲之死的真凶",
+        "action": "resolve",
+        "desc": "[resolve] 执事院的最后一夜：三年前矿难并非意外，殉职名册被人改写，真凶至今在宗门内",
+        "evidence": "名册第四行的墨迹比其余三行新，纸背还留着刮刀的毛边。"
+      }
+    ],
+    "state_deltas": {
+      "character_status": {
+        "p_001": "通玄境六重·贯肩重伤（宿敌已除）",
+        "p_002": {
+          "life_status": "deceased",
+          "condition": "税关铁栅前被陆沉一剑贯胸，当场气绝身亡，尸身坠入护城河"
+        }
+      },
+      "items": [
+        {
+          "id": "it_003",
+          "name": "幽影令",
+          "status": "lost",
+          "durability": "玄铁令在最后一击中碎成三片，坠入护城河"
+        }
+      ]
+    },
+    "relation_deltas": [
+      {
+        "source": "p_001",
+        "target": "p_003",
+        "tension": 20,
+        "dynamic": "生死相许",
+        "subtext": "她替他挡刀，他替她按住伤口"
+      }
+    ],
+    "new_entities": [],
+    "locked_facts": [
+      {
+        "id": "LOCK-005",
+        "fact": "p_002 沈天阙 于 ch_028 幽影城北门税关被陆沉斩杀，幽影令同坠护城河"
+      }
+    ]
+  }
+}

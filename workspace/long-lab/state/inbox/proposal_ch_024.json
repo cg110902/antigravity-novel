@@ -1,0 +1,70 @@
+{
+  "chapter_id": "ch_024",
+  "frontmatter": {
+    "chapter_id": "ch_024",
+    "volume_id": "vol_02",
+    "title": "船坞里的名牌",
+    "chapter_type": "余韵",
+    "timeline": "新历四十八年·春月二十日·午时",
+    "location": "幽影城·旧码头船坞",
+    "narrative_spine": {
+      "thread": "主线·父仇真相收束",
+      "volume_phase": "阶段三：正面交锋",
+      "macro_goal": "从运矿船上取回父亲的名牌"
+    },
+    "present_characters": [
+      {
+        "id": "p_001",
+        "name": "陆沉",
+        "role": "protagonist",
+        "want": "在船舱里找到父亲的殉职名牌",
+        "fear": "名牌上的编号被磨去",
+        "status_in": "沉痛"
+      },
+      {
+        "id": "p_003",
+        "name": "苏黎",
+        "role": "deuteragonist",
+        "want": "替他抄录船坞记录",
+        "fear": "记录里少了一页",
+        "status_in": "哽咽"
+      }
+    ],
+    "epistemology": {
+      "known": {
+        "p_003": [
+          "三年前运矿船回程空载"
+        ]
+      },
+      "blind_spots": {
+        "p_001": [
+          "船坞记录缺的那一页在沈天阙手上"
+        ]
+      }
+    },
+    "foreshadowing_deltas": [
+      {
+        "id": "GUN-002",
+        "name": "父亲之死的真凶",
+        "action": "reveal",
+        "desc": "[reveal] 船坞里的名牌：三年前矿难并非意外，殉职名册被人改写，真凶至今在宗门内"
+      }
+    ],
+    "state_deltas": {
+      "character_status": {
+        "p_001": "通玄境四重·心境由复仇转为求真"
+      }
+    },
+    "relation_deltas": [
+      {
+        "source": "p_001",
+        "target": "p_003",
+        "tension": 25,
+        "dynamic": "生死相依",
+        "subtext": "船坞里她把名牌替他系在腕上"
+      }
+    ],
+    "new_entities": [],
+    "locked_facts": []
+  }
+}

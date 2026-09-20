@@ -1,0 +1,75 @@
+{
+  "chapter_id": "ch_006",
+  "frontmatter": {
+    "chapter_id": "ch_006",
+    "volume_id": "vol_01",
+    "title": "万宝阁的掌柜",
+    "chapter_type": "过渡",
+    "timeline": "新历四十七年·霜月十二日·酉时",
+    "location": "黑石矿区·万宝阁分号",
+    "narrative_spine": {
+      "thread": "支线·资源线与市井情报",
+      "volume_phase": "阶段二：悄然发育",
+      "macro_goal": "把灵石换成能保命的东西"
+    },
+    "present_characters": [
+      {
+        "id": "p_001",
+        "name": "陆沉",
+        "role": "protagonist",
+        "want": "用灵石换两粒回气丹与一份矿区旧档",
+        "fear": "被人认出聚灵珠",
+        "status_in": "完好"
+      },
+      {
+        "id": "p_003",
+        "name": "苏黎",
+        "role": "deuteragonist",
+        "want": "替陆沉望风",
+        "fear": "被执事院的人撞见",
+        "status_in": "警觉"
+      }
+    ],
+    "epistemology": {
+      "known": {
+        "p_003": [
+          "万宝阁收矿证也收旧档"
+        ]
+      },
+      "blind_spots": {
+        "p_001": [
+          "万宝阁背后是幽影门的银路"
+        ]
+      }
+    },
+    "foreshadowing_deltas": [],
+    "state_deltas": {
+      "character_status": {
+        "p_001": "淬体境五重·经脉温养中"
+      },
+      "items": [
+        {
+          "id": "it_001",
+          "name": "九转聚灵珠",
+          "charges_delta": 0,
+          "status": "active"
+        }
+      ],
+      "ledger": {
+        "pool": "通用资金池",
+        "delta": "-200",
+        "reason": "在万宝阁购置两粒回气丹与一份三年前矿区旧档"
+      }
+    },
+    "relation_deltas": [],
+    "new_entities": [
+      {
+        "id": "p_011",
+        "type": "person",
+        "name": "王五",
+        "summary": "万宝阁山脚分号掌柜，收矿证也收旧档"
+      }
+    ],
+    "locked_facts": []
+  }
+}

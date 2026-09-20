@@ -1,0 +1,48 @@
+[
+  {
+    "id": "DEBT-AUTO-03fa0717",
+    "source_char": "p_001",
+    "target_char": "沈天阙",
+    "type": "grudge",
+    "desc": "沈天阙借塌方做局，欲坐实陆沉虚报矿课",
+    "status": "settled",
+    "created_ch": "ch_001",
+    "settled_ch": "ch_026"
+  },
+  {
+    "id": "DEBT-AUTO-d9692300",
+    "source_char": "p_001",
+    "target_char": "赵三",
+    "type": "grudge",
+    "desc": "赵三夜袭灭口，陈铁为其挡刀重伤",
+    "status": "unpaid",
+    "created_ch": "ch_003"
+  },
+  {
+    "id": "DEBT-AUTO-9bd39f85",
+    "source_char": "p_003",
+    "target_char": "陆沉",
+    "type": "favor",
+    "desc": "苏黎把亡父检石铜钱借给陆沉辨灵脉走向",
+    "status": "unpaid",
+    "created_ch": "ch_004"
+  },
+  {
+    "id": "DEBT-AUTO-8f5d441e",
+    "source_char": "p_001",
+    "target_char": "赵三",
+    "type": "grudge",
+    "desc": "赵三封巷致陈铁身亡，此仇不共戴天",
+    "status": "unpaid",
+    "created_ch": "ch_008"
+  },
+  {
+    "id": "DEBT-AUTO-92f9acb9",
+    "source_char": "p_001",
+    "target_char": "苏黎",
+    "type": "promise",
+    "desc": "陆沉立誓回宗后为她父亲苏检石正名",
+    "status": "unpaid",
+    "created_ch": "ch_029"
+  }
+]
