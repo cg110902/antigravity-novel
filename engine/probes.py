@@ -43,12 +43,27 @@ def _extract_dialogues_with_speakers(text: str, known_names: List[str]) -> List[
     # ➔ 近距宽松兜底（仅后置宽松，前置宽松正是误配根源，弃用——归属失败宁交疑似级）。
     _SPEECH_VERBS = "说道问答喊吼喝叫嚷骂嘀咕低语咆哮怒斥冷笑回断言讲聊吟哼解释补充嘲讽讥笑喊叫道"
 
+    def _speech_verb_adjacent(tail: str) -> bool:
+        """言语动词是否**紧邻**姓名（允许中间夹 1~2 个助词/副词字）。
+
+        v4.3.2 缺陷#34：旧版只要姓名后 25 字窗口内**任意位置**出现动词表中的字
+        就判定为说话人。汉语叙述里「说/道/回/答」等字极常见，窗口一宽必然误命中。
+        实测 ch_006：「"周老。"（裴砚在喊周伯）\\n\\n周伯的眼睛动了一下。他想说话」
+        ——后置式因远处「他想**说**话」的「说」把这句归给了周伯，而实际说话人是裴砚。
+        对白归属是认知泄露探针（error 级）的判定基础，错配会同时制造**漏检**
+        （真泄露归错人而静默）与**误报**（合法台词被判成本人泄密）。
+        """
+        # 邻接窗口取 4 字：容纳「忽然笑了一声」「缓缓说道」「压低声音道」这类
+        # 副词/状语前置的合法后置式，又能排除「的眼睛动了一下。他想说话」
+        # 这种跨句误命中（「说」在第 12 字）。
+        return any(v in tail[:4] for v in _SPEECH_VERBS)
+
     def _find_after(following: str) -> Optional[str]:
         s = following.lstrip("。，、！？：；’\"”」》 \n")
         for name in known:
             if s.startswith(name):
                 tail = s[len(name):len(name) + 25]
-                if any(v in tail for v in _SPEECH_VERBS):
+                if _speech_verb_adjacent(tail):
                     return name
         return None
 
@@ -57,16 +72,33 @@ def _extract_dialogues_with_speakers(text: str, known_names: List[str]) -> List[
             pos = context.rfind(name)
             if pos >= 0:
                 tail = context[pos + len(name):]
-                if len(tail) <= 25 and (any(v in tail for v in _SPEECH_VERBS)
+                if len(tail) <= 25 and (_speech_verb_adjacent(tail)
                                         or tail.rstrip().endswith(("：", ":"))):
                     return name
         return None
 
     def _find_after_loose(following: str) -> Optional[str]:
+        """宽松兜底：仅当名字**紧跟**引号且短距内伴随言语动词时才归属。
+
+        v4.3.2 缺陷#34：旧版只要名字出现在引号后 30 字符内就判为说话人，不要求
+        任何言语动词，于是**下一段叙述的动作主语**被大面积误认。实测 ch_006：
+        「"周老。"（裴砚在喊周伯）\\n\\n周伯的眼睛动了一下」——"周老。" 被归给周伯；
+        「"崔。"她盯着那个残笔，"京里姓崔的官不止一个。"」——沈拂云的台词
+        因下一句 "念珠。"裴砚说 落在窗口内而被归给裴砚。
+        对白归属是认知泄露探针（error 级）的判定基础，错配会同时制造
+        **漏检**（真泄露归错人）与**误报**（合法台词判成泄密），危害远大于归属失败。
+        收紧后：名字须出现在引号后 12 字符内，且其后 15 字符内含言语动词；
+        否则宁可返回 None 交由疑似级人工复核。
+        """
+        s = following.lstrip("。，、！？：；’\"”」》 \n")
         for name in known:
-            pos = following.find(name)
-            if 0 <= pos <= 30:
-                return name
+            pos = s.find(name)
+            if 0 <= pos <= 12:
+                tail = s[pos + len(name):pos + len(name) + 15]
+                # 言语动词须**紧邻**姓名（允许中间夹一个副词/助词字），否则
+                # 「周伯的眼睛动了一下。他想说话」这类叙述会因远处的「说」被误判。
+                if _speech_verb_adjacent(tail):
+                    return name
         return None
 
     # v4.3 缺陷#C7：对白识别兼容中文弯引号 “…”、直角引号 「…」 与英文直引号 "…"
@@ -175,16 +207,50 @@ def probe_epistemology_leaks(text: str, blind_spots: Dict[str, List[str]],
     }
 
 
-def probe_address_matrix(text: str, persons_db: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """法定称谓落地探针（warning 级）：在场双方同章时，法定称谓从未出现则提醒。"""
+def probe_address_matrix(text: str, persons_db: Optional[Dict[str, Any]] = None,
+                         present_ids: Optional[List[str]] = None) -> Dict[str, Any]:
+    """法定称谓落地探针（warning 级）：在场双方同章时，法定称谓从未出现则提醒。
+
+    v4.3.2 缺陷#32：旧版仅以「名字是否在正文出现」判定在场，无法区分**在场**与
+    **被提及**。实测 ch_005 崔敬亭全程未出场，只是被裴砚与沈拂云在对话里提到
+    （「崔通判说尸格不成立」），探针却要求「崔敬亭→沈拂云 应称沈仵作」落地——
+    两人根本不在同一场景，该称谓无从发生。误报会淹没真实疏漏，使探针失去可信度。
+    修正：以细纲 `present_characters` 为权威在场名单，只校验**双方均在场**的称谓对。
+    """
     persons_db = persons_db or {}
     ungrounded: List[Dict[str, str]] = []
+    _present = set(present_ids or [])
+    # 在场者的姓名集合（present_ids 为空时退回旧口径，保持向后兼容）
+    _present_names = {
+        str((persons_db.get(pid) or {}).get("name", "")).strip()
+        for pid in _present
+    } - {""}
+    # v4.3.2 缺陷#33：称谓只能通过**开口说话**落地。旧版只要角色在场就要求其
+    # 法定称谓出现，但重伤濒死、昏迷、被缚等无台词角色本就说不出话——实测 ch_006
+    # 周伯全程濒死（status_in「重伤·濒死」，只递出半页纸便断气），探针仍要求
+    # 「周伯→裴砚 应称裴大人」「周伯→沈拂云 应称云丫头」落地。这类提醒无法通过
+    # 任何合理写法消除，只会淹没真实疏漏。改为：仅对**本章确有对白**的角色校验。
+    _speakers = {sp for sp, _ in _extract_dialogues_with_speakers(
+        text, [str((persons_db.get(i) or {}).get("name", "")).strip() for i in (_present or persons_db)]
+    ) if sp}
+
     for pid, p in persons_db.items():
         speaker = p.get("name", "")
         if not speaker or speaker not in text:
             continue
+        # 说话人必须真正在场，而非仅被提及
+        if _present and pid not in _present:
+            continue
+        # 本章没有任何可归属台词的角色，不苛求其称谓落地
+        if _speakers and speaker not in _speakers:
+            continue
         for tgt, addr in (p.get("address_matrix") or {}).items():
-            if tgt and tgt in text and addr and addr not in text:
+            if not (tgt and tgt in text and addr):
+                continue
+            # 称谓对象同样必须在场——对不在场者不会当面称呼
+            if _present_names and tgt not in _present_names:
+                continue
+            if addr not in text:
                 ungrounded.append({"speaker": speaker, "target": tgt, "expected_address": addr})
     return {
         "name": "法定称谓矩阵探针",
@@ -196,21 +262,53 @@ def probe_address_matrix(text: str, persons_db: Optional[Dict[str, Any]] = None)
     }
 
 
-def probe_grounding(text: str, frontmatter: Dict[str, Any]) -> Dict[str, Any]:
+def probe_grounding(text: str, frontmatter: Dict[str, Any],
+                    persons_db: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """伏笔与道具物象落地探针（warning 级）：细纲声明 plant/reveal 的伏笔、流转的道具，
     其名称/物象应至少在正文中出现一次，防止「细纲写了正文忘了写」。
 
-    token 粒度：全名 + 描述的二元词组（bigram）——只要物象的任意局部意象出现即算落地，
-    规避整句改写导致的合法误报；仅当正文完全无任何相关物象时才提醒。
+    v4.3.2 缺陷#31：旧版把 `name` 与 `desc` 的全部 bigram 混为一池，命中任意一个即算落地。
+    但 desc 是一句自然语言描述，必然混入角色名与通用词——实测 GUN-001
+    「死者右手的半枚灯签」/desc「第七具死者右手攥着半枚铜灯签，与裴砚随身那半枚是一对」
+    切出的 24 个 token 里，`第七`/`七具`/`死者`/`裴砚` 四个属无区分度通用词。
+    把正文中全部「灯签」字样删光后，探针仍因这四个词判定「已落地」而静默。
+    伏笔漏写正是本探针唯一的职责，却因此永远抓不到。
+
+    新口径：
+    1. `name`（伏笔的标志性物象）为主判据——命中即落地；
+    2. 仅当 name 缺失时，才用 desc 的 bigram 兜底，且先剔除在场角色名与停用通用词。
     """
     misses: List[Dict[str, str]] = []
+
+    # 在场角色名（含别名）与通用词一律不作为「物象落地」的判据
+    _noise: set = set()
+    for _p in (persons_db or {}).values():
+        if not isinstance(_p, dict):
+            continue
+        _nm = str(_p.get("name", "")).strip()
+        if _nm:
+            _noise.add(_nm)
+            for i in range(len(_nm) - 1):
+                _noise.add(_nm[i:i + 2])
+        for _al in (_p.get("aliases") or []):
+            _al = str(_al).strip()
+            if _al:
+                _noise.add(_al)
+                for i in range(len(_al) - 1):
+                    _noise.add(_al[i:i + 2])
+    _noise |= {
+        "死者", "尸身", "尸体", "第一", "第二", "第三", "第四", "第五", "第六", "第七",
+        "一具", "二具", "三具", "七具", "右手", "左手", "身上", "随身", "手里", "手中",
+        "之后", "之前", "当年", "十年", "今日", "昨夜", "一个", "一处", "一道", "一张",
+        "自己", "对方", "他们", "其中", "那半", "半枚", "这个", "那个",
+    }
 
     def _desc_bigrams(desc: str) -> List[str]:
         runs = re.findall(r"[\u4e00-\u9fff]{2,}", desc)
         grams: List[str] = []
         for run in runs[:4]:
             grams.extend(run[i:i + 2] for i in range(0, max(1, len(run) - 1), 1))
-        return grams
+        return [g for g in grams if g not in _noise]
 
     # v4.3：单 dict 形态统一包裹为列表（与 state.py 归一化口径一致）
     raw_fd = frontmatter.get("foreshadowing_deltas") or []
@@ -221,11 +319,25 @@ def probe_grounding(text: str, frontmatter: Dict[str, Any]) -> Dict[str, Any]:
         action = str(fd.get("action", "plant")).lower()
         if action not in ("plant", "reveal"):
             continue
+        # v4.3.2 缺陷#31（续）：只有 GUN-（实体暗线/信物）才有可供字面核验的物象。
+        # KNO-（知情差）与 MIS-（认知偏差）本质是角色脑内的认知状态，靠内心戏与
+        # 言行错位来承载，没有对应的字面意象——实测合规正文写足了沈拂云的误判内心戏，
+        # 仍被判「漏写 MIS-001」。对这两类做字面匹配只会制造无法消除的噪音，
+        # 其落地与否交由 Stage 4A (Auditor) 语义评估。
+        _fid = str(fd.get("id", "")).strip().upper()
+        if _fid.startswith(("KNO-", "MIS-")):
+            continue
         name = str(fd.get("name", "")).strip()
         desc = str(fd.get("desc", "")).strip()
-        tokens = [name] if name else []
-        tokens += _desc_bigrams(desc)
-        if tokens and not any(t and t in text for t in tokens):
+        if name:
+            # name 为主判据：整名命中，或其去噪 bigram 命中
+            _ngrams = [name] + [g for g in (name[i:i + 2] for i in range(len(name) - 1))
+                                if g not in _noise]
+            grounded = any(t and t in text for t in _ngrams)
+        else:
+            tokens = _desc_bigrams(desc)
+            grounded = any(t and t in text for t in tokens) if tokens else True
+        if not grounded:
             misses.append({"kind": "伏笔", "ref": str(fd.get("id", "")), "hint": name or desc[:20]})
 
     sd = frontmatter.get("state_deltas") or {}
@@ -236,7 +348,8 @@ def probe_grounding(text: str, frontmatter: Dict[str, Any]) -> Dict[str, Any]:
             iname = str(it.get("name", "")).strip()
             iid = str(it.get("id", "")).strip()
             tokens = [t for t in (iname, iid) if t]
-            tokens += _desc_bigrams(iname)
+            tokens += [g for g in (iname[i:i + 2] for i in range(max(0, len(iname) - 1)))
+                       if g not in _noise]
             if tokens and not any(t and t in text for t in tokens):
                 misses.append({"kind": "道具", "ref": iid, "hint": iname})
 
@@ -275,6 +388,21 @@ _CORPSE_PATTERNS = [
     r"(?:尸体|尸身|残躯|断肢|遗体).{0,10}(?:倒|躺|跌落|僵硬|冰冷|横陈|跌入)",
 ]
 
+# v4.3.3 BUG#47 分层说明：
+#   以下正则属 **L2 语义线索层**——只用于「提醒作者补契约」，不做任何硬裁决。
+#   角色是否死亡的权威判定在 state.is_deceased()，只读 life_status 结构化枚举。
+#   因此这里漏掉某种汉语写法，后果仅是少一句提醒（作者仍可显式声明 life_status），
+#   不会导致死者复活等数据事故；多匹配一条也只是多一句可忽略的 warning。
+#   这就是把汉语的不可穷举性隔离在"提醒层"的意义：**词表不完备不再是致命缺陷**。
+
+# L2 泛称停用词：仅用于抑制"未建档说话人"提醒的噪声，非硬裁决依据。
+_GENERIC_SPEAKER_STOPWORDS = (
+    "那人", "对方", "众人", "他们", "我们", "声音", "女子", "男子", "老者", "少年", "修士",
+    # 常见题材泛称补充（同样不追求完备，漏掉只是多一句可忽略的提醒）
+    "道友", "前辈", "晚辈", "差役", "小吏", "仆人", "侍女", "掌柜", "伙计", "路人",
+    "士兵", "守卫", "同学", "老师", "护士", "医生", "旁人", "有人", "某人",
+)
+
 # 排除非死亡修辞与虚假语境（守卫：杜绝误报）
 _NON_DEATH_GUARDS = [
     r"死死", r"找死", r"该死", r"不死", r"生死", r"要死", r"怕死",
@@ -283,6 +411,46 @@ _NON_DEATH_GUARDS = [
     r"不知死活", r"哪怕死", r"宁可死", r"纵死", r"就算死",
     r"如果.{0,6}死", r"万一.{0,6}死", r"若是.{0,6}死", r"以为.{0,6}死",
 ]
+
+
+def probe_dialogue_ratio(text: str, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """对白行占比遥测（v4.3.3 新增 · BUG#43）。
+
+    `.agents/skills/dehydrator/SKILL.md` 第 5 节明文规定「对白行占比维持在
+    25%~55% 之间」，但引擎此前无任何代码检测——一条可确定性量化、却完全
+    无人守护的硬规则。实测 workspace/lantern 16 章有 11 章越界（最低 3.0%
+    的独角戏章、最高 63.0% 的纯对话章）。
+
+    判据：非空、非标题行中含成对引号（中英文直角/弯引号均计）的行视为对白行。
+    体裁差异很大（独白章、战斗章天然低对白），故只报 warning，不阻断。
+    """
+    ratio_range = (config or {}).get("dialogue_ratio") or [25, 55]
+    try:
+        lo, hi = float(ratio_range[0]), float(ratio_range[1])
+    except (TypeError, ValueError, IndexError):
+        lo, hi = 25.0, 55.0
+
+    lines = [ln.strip() for ln in text.splitlines()
+             if ln.strip() and not ln.strip().startswith("#")]
+    if not lines:
+        return {"name": "对白占比遥测", "passed": True, "ratio": 0.0,
+                "dialogue_lines": 0, "total_lines": 0, "range": [lo, hi],
+                "detail": "正文为空，跳过对白占比遥测"}
+
+    dlg = [ln for ln in lines if re.search(r"[\"“”「」『』]", ln)]
+    ratio = len(dlg) / len(lines) * 100.0
+    passed = lo <= ratio <= hi
+    if passed:
+        detail = f"对白行 {len(dlg)}/{len(lines)}（{ratio:.1f}%），处于 {lo:.0f}%~{hi:.0f}% 区间"
+    elif ratio < lo:
+        detail = (f"对白行仅 {len(dlg)}/{len(lines)}（{ratio:.1f}%），低于下限 {lo:.0f}%"
+                  f"——叙述压过人物，检查是否大段转述代替了现场交锋")
+    else:
+        detail = (f"对白行 {len(dlg)}/{len(lines)}（{ratio:.1f}%），高于上限 {hi:.0f}%"
+                  f"——接近纯台词剧本，检查是否缺少动作、物象与场景落地")
+    return {"name": "对白占比遥测", "passed": passed, "ratio": round(ratio, 1),
+            "dialogue_lines": len(dlg), "total_lines": len(lines),
+            "range": [lo, hi], "detail": detail}
 
 
 def probe_unregistered_fatalities(
@@ -345,8 +513,19 @@ def probe_unregistered_fatalities(
 
     c_status = (frontmatter.get("state_deltas") or {}).get("character_status") or {}
     for k, v in c_status.items():
-        v_str = str(v).lower()
-        if any(w in v_str for w in ("deceased", "dead", "阵亡", "死亡", "身亡", "气绝")):
+        # v4.3.3 BUG#47：此处与 state._infer_life_status 是同一语义判断，
+        # 旧版各自维护一套词表必然漂移（实测「病故」在 state 侧判死、在此侧不判，
+        # 于是细纲已声明死亡却仍被探针报"未登记死亡"）。统一复用单一真值函数。
+        if isinstance(v, dict):
+            _vt = str(v.get("life_status") or v.get("condition") or v.get("status") or v.get("desc") or "")
+        else:
+            _vt = str(v or "")
+        try:
+            from engine.state import _infer_life_status as _inf_ls
+            _hit = _inf_ls(_vt) == "deceased"
+        except Exception:
+            _hit = any(w in _vt.lower() for w in ("deceased", "dead", "阵亡", "死亡", "身亡", "气绝"))
+        if _hit:
             acknowledged_deaths.add(k)
             if k in known_chars:
                 acknowledged_deaths.add(known_chars[k].get("name", k))
@@ -410,7 +589,11 @@ def probe_unregistered_fatalities(
     speaker_counts: Dict[str, int] = {}
     for spk, _ in dialogues:
         if spk and spk not in known_name_set and len(spk) in (2, 3, 4):
-            if not any(stop in spk for stop in ("那人", "对方", "众人", "他们", "我们", "声音", "女子", "男子", "老者", "少年", "修士")):
+            # v4.3.3 BUG#47 分层说明：泛称停用词同属 L2 提醒层，天然无法穷举
+            # （不同题材的泛称差异极大：修真"道友"、军事"士兵"、校园"同学"…）。
+            # 因其只影响"是否多一句建档提醒"，不做硬裁决，故不追求完备；
+            # 真正的守护在 check 的「未定义 ID 引用」阻断（那里走结构化 ID 校验）。
+            if not any(stop in spk for stop in _GENERIC_SPEAKER_STOPWORDS):
                 speaker_counts[spk] = speaker_counts.get(spk, 0) + 1
 
     for spk, cnt in speaker_counts.items():
@@ -449,6 +632,18 @@ def run_all_probes(text: str, frontmatter: Dict[str, Any],
     for pid, p in (persons_db or {}).items():
         if isinstance(p, dict) and p.get("name"):
             name_by_id[pid] = p["name"]
+    # v4.3.2 缺陷#4（首登场角色泄密漏判）：旧版 name_by_id 只取台账。
+    # 而首章/新角色登场章在 audit 时人物尚未 sync 入账 ⇒ 盲区角色名解析不到，
+    # 「本人对白泄密」被降级成疑似（warning），同一份正文等 sync 之后再 check
+    # 又会突然升级为确认级 error，判定随时点漂移。此处并入细纲 present_characters
+    # 的 id→name 声明（细纲是 SSOT，优先级高于尚未入账的台账）。
+    _raw_pc_names = frontmatter.get("present_characters") or []
+    _pc_name_list = [_raw_pc_names] if isinstance(_raw_pc_names, (str, dict)) else (
+        _raw_pc_names if isinstance(_raw_pc_names, list) else []
+    )
+    for _c in _pc_name_list:
+        if isinstance(_c, dict) and _c.get("id") and _c.get("name"):
+            name_by_id[str(_c["id"]).strip()] = str(_c["name"]).strip()
     # v4.3：present_ids 兼容字符串紧凑形态（[p_001, p_003] 此前被整段跳过，
     # 导致「盲区角色在场，他人公开提及」的疑似级提醒失效）
     present_ids: List[str] = []
@@ -462,10 +657,33 @@ def run_all_probes(text: str, frontmatter: Dict[str, Any],
     blind_spots = (frontmatter.get("epistemology") or {}).get("blind_spots", {})
 
     total_words = _count_total(text)
+    # v4.3.3 BUG#42：config 此前收而不用——字数遥测只判 >0，体量偏离要等 sync
+    # 入账之后才由 ops 警告，体检阶段（check/audit）对 24 字的残章报「✅ 通过」，
+    # 拦截时机完全失位。此处让探针按项目配置的 words_per_chapter 做体量遥测。
+    _wpc = (config or {}).get("words_per_chapter") or [1500, 2600]
+    try:
+        _wc_min, _wc_max = int(_wpc[0]), int(_wpc[1])
+    except (TypeError, ValueError, IndexError):
+        _wc_min, _wc_max = 1500, 2600
+    _words_detail = f"当前 {total_words} 字（参考区间 {_wc_min}~{_wc_max}）"
+    _words_level = "ok"
+    if total_words <= 0:
+        _words_detail = "正文内容为空（0 字）"
+        _words_level = "empty"
+    elif total_words < _wc_min * 0.5:
+        _words_detail = f"当前 {total_words} 字，不足标准下限（{_wc_min} 字）的一半，疑为残章或截断"
+        _words_level = "severe_short"
+    elif total_words < _wc_min:
+        _words_detail = f"当前 {total_words} 字，低于参考下限 {_wc_min} 字"
+        _words_level = "short"
+    elif total_words > _wc_max:
+        _words_detail = f"当前 {total_words} 字，超出参考上限 {_wc_max} 字"
+        _words_level = "long"
     p_epistemology = probe_epistemology_leaks(text, blind_spots, name_by_id=name_by_id, present_ids=present_ids)
-    p_address = probe_address_matrix(text, persons_db)
-    p_grounding = probe_grounding(text, frontmatter)
+    p_address = probe_address_matrix(text, persons_db, present_ids=present_ids)
+    p_grounding = probe_grounding(text, frontmatter, persons_db=persons_db)
     p_fatalities = probe_unregistered_fatalities(text, frontmatter, persons_db=persons_db, audit_text=audit_text)
+    p_dialogue = probe_dialogue_ratio(text, config=config)
 
     # 阻断级错误：空正文 (0字)、确认级角色认知泄露、未登记角色死亡
     all_passed = (total_words > 0) and p_epistemology["passed"] and p_fatalities["passed"]
@@ -477,11 +695,16 @@ def run_all_probes(text: str, frontmatter: Dict[str, Any],
                 "name": "正文字数遥测",
                 "word_count": total_words,
                 "passed": total_words > 0,
-                "detail": f"当前 {total_words} 字" if total_words > 0 else "正文内容为空（0 字）",
+                # BUG#42：level 供消费侧分级展示；仍只有「空正文」是阻断级，
+                # 体量偏离属创作自由，报 warning 由作者定夺（短章/长章都可能是有意为之）。
+                "level": _words_level,
+                "words_range": [_wc_min, _wc_max],
+                "detail": _words_detail,
             },
             "epistemology": p_epistemology,
             "address": p_address,
             "grounding": p_grounding,
             "fatalities_and_entities": p_fatalities,
+            "dialogue_ratio": p_dialogue,
         },
     }

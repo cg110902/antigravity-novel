@@ -1,0 +1,16 @@
+{
+  "pools": {
+    "银两": 47
+  },
+  "transactions": [
+    {
+      "chapter": "ch_003",
+      "pool": "银两",
+      "delta": -3,
+      "reason": "打点杂役调阅旧档"
+    }
+  ],
+  "pools_baseline": {
+    "银两": 50
+  }
+}

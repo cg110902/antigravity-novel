@@ -1,0 +1,132 @@
+{
+  "loc_001": {
+    "id": "loc_001",
+    "name": "城南义庄",
+    "type": "place",
+    "danger_level": 1,
+    "desc": "停放无主尸身之所，终年阴冷",
+    "atmosphere": "石床、草席、灰烬味",
+    "sensory_anchor": "石床冷硬，草席下压着陈年灰烬味",
+    "environment_rules": "义庄夜不闭户，尸身按序编号，不得移位",
+    "visited_chapters": [
+      "ch_001",
+      "ch_002"
+    ]
+  },
+  "loc_002": {
+    "id": "loc_002",
+    "name": "仵作行后院",
+    "type": "place",
+    "danger_level": 2,
+    "desc": "仵作行存放旧档与器具的院落",
+    "atmosphere": "油灯、樟木箱、药气",
+    "sensory_anchor": "油灯昏黄，樟木箱与药气混作一处",
+    "environment_rules": "后院旧档只准行内人调阅，需杂役引路",
+    "visited_chapters": [
+      "ch_003",
+      "ch_006"
+    ]
+  },
+  "loc_003": {
+    "id": "loc_003",
+    "name": "灯市旧址",
+    "type": "place",
+    "danger_level": 1,
+    "desc": "十年前大火后未重建的空坊",
+    "atmosphere": "焦木桩、三道坊门残基",
+    "sensory_anchor": "焦木桩立在雪地里，三道坊门只剩残基",
+    "environment_rules": "灯市旧址荒废十年，无人夜宿",
+    "visited_chapters": [
+      "ch_004"
+    ]
+  },
+  "loc_004": {
+    "id": "loc_004",
+    "name": "顺天府正堂",
+    "type": "place",
+    "danger_level": 3,
+    "desc": "崔敬亭坐镇之处",
+    "atmosphere": "紫檀、茶香、匾额",
+    "sensory_anchor": "堂前铜磬蒙布，廊下停着押解的囚车",
+    "environment_rules": "顺天府正堂押解前不许外人久留"
+  },
+  "loc_005": {
+    "id": "loc_005",
+    "name": "大理寺正堂",
+    "type": "place",
+    "danger_level": 2,
+    "desc": "复核刑狱、对簿之所",
+    "atmosphere": "高阶、卷宗架、铜磬",
+    "sensory_anchor": "铜磬蒙着薄尘，满堂官服里夹着一件青布仵作衣",
+    "environment_rules": "大理寺正堂陈奏须依《大明律》验录文书之例"
+  },
+  "loc_006": {
+    "id": "loc_006",
+    "name": "大理寺值房·灯下",
+    "danger_level": "普通",
+    "sensory_anchor": "一盏不熄的油灯，卷宗架的影子压在墙上",
+    "environment_rules": "大理寺值房夜不熄灯，非当值者不得入内",
+    "summary": "",
+    "visited_chapters": [
+      "ch_005"
+    ]
+  },
+  "loc_007": {
+    "id": "loc_007",
+    "name": "顺天府衙·西厢值房",
+    "danger_level": "普通",
+    "sensory_anchor": "炭盆烧得正旺，窗纸被风吹得响，案上一碗未动的茶",
+    "environment_rules": "顺天府衙西厢为通判私署，外官入内须通报",
+    "summary": "",
+    "visited_chapters": [
+      "ch_007"
+    ]
+  },
+  "loc_008": {
+    "id": "loc_008",
+    "name": "大理寺·评事值房",
+    "danger_level": "普通",
+    "sensory_anchor": "空了半架的卷宗格，砚台边压着一张黄封公文",
+    "environment_rules": "大理寺评事值房，卷宗当日调当日还",
+    "summary": "",
+    "visited_chapters": [
+      "ch_008",
+      "ch_009",
+      "ch_011",
+      "ch_013"
+    ]
+  },
+  "loc_010": {
+    "id": "loc_010",
+    "name": "义庄·底档房",
+    "danger_level": "普通",
+    "sensory_anchor": "樟木箱一排贴着年号纸签，蜡只剩一截，停尸石床空着",
+    "environment_rules": "义庄底档房夜间上锁；死因存疑者底档一式两份",
+    "summary": "",
+    "visited_chapters": [
+      "ch_012"
+    ]
+  },
+  "loc_011": {
+    "id": "loc_011",
+    "name": "大理寺·礼部档房",
+    "danger_level": "普通",
+    "sensory_anchor": "无窗的廊房，门口一线光，总册厚得压手，箱中散档按年扎捆",
+    "environment_rules": "档册不得携出房外，只许就地抄录",
+    "summary": "",
+    "visited_chapters": [
+      "ch_015"
+    ]
+  },
+  "loc_012": {
+    "id": "loc_012",
+    "name": "裴知节旧居·堂屋",
+    "danger_level": "普通",
+    "sensory_anchor": "十年积灰，蒙布的桌椅，堂屋当中一只三足铜灯台",
+    "environment_rules": "旧居久无人住，入夜无灯",
+    "summary": "",
+    "visited_chapters": [
+      "ch_016"
+    ]
+  }
+}

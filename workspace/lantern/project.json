@@ -1,0 +1,28 @@
+{
+  "schema": "novel-studio.project/v4",
+  "title": "灯下不照",
+  "genre": "古代悬疑",
+  "protagonist": "裴砚",
+  "scope": {
+    "target_words": 400000,
+    "target_volumes": 3,
+    "chapters_per_volume": 14,
+    "words_per_chapter": [
+      900,
+      1600
+    ]
+  },
+  "engine": {
+    "token_cap": 15000,
+    "cruise_max_chapters": 10,
+    "cruise_human_gate": 0,
+    "cruise_wait_timeout": 900,
+    "default_pool": "通用资金池"
+  },
+  "current_status": {
+    "current_vol": "vol_02",
+    "current_ch": "ch_016",
+    "total_published_words": 14000
+  },
+  "created_at": "2026-09-20"
+}

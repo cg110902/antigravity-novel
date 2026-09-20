@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import List, Optional
@@ -143,6 +144,16 @@ def _build_help_data() -> dict:
     }
 
 
+def _chapter_num_arg(value: str) -> int:
+    """argparse type 钩子：把 `ch_010` / `ch010` / `10` 统一解析为整数章号。"""
+    s = str(value).strip()
+    m = re.fullmatch(r"(?:ch[_-]?)?0*(\d+)", s, flags=re.IGNORECASE)
+    if not m:
+        raise argparse.ArgumentTypeError(
+            f"章号格式非法: {value!r}。请使用 ch_010 或 10 这样的形式。")
+    return int(m.group(1))
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = _StudioArgumentParser(
         prog="studio.py",
@@ -197,6 +208,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_audit = subparsers.add_parser("audit", help="运行探针生成质检报告")
     p_audit.add_argument("chapter_id")
     p_audit.add_argument("--write", action="store_true")
+    p_audit.add_argument("--force", action="store_true", help="强制重置已含 Auditor 成果的质检报告（自动备份 .bak）")
     p_audit.add_argument("-w", "--workspace", default=None)
 
     # finalize
@@ -251,7 +263,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_ms_sub = p_ms.add_subparsers(dest="subcommand")
     p_ms_add = p_ms_sub.add_parser("add", help="添加里程碑")
     p_ms_add.add_argument("--title", required=True)
-    p_ms_add.add_argument("--target-ch", type=int, required=True)
+    # v4.3.2 缺陷#16：旧版 type=int 只收裸数字，而全系统（细纲 chapter_id、check、
+    # cruise、trace、cockpit 提示）统一使用 ch_XXX 章号形态，文档示例也两种写法混用。
+    # Architect 按直觉传 --target-ch ch_010 会吃 exit 2 语法错误。改为两种都收，归一存储。
+    p_ms_add.add_argument("--target-ch", type=_chapter_num_arg, required=True,
+                          help="目标章号，支持 ch_010 或 10 两种写法")
     p_ms_add.add_argument("--desc", default="")
     p_ms_add.add_argument("-w", "--workspace", default=None)
     p_ms_ach = p_ms_sub.add_parser("achieve", help="达成里程碑")
@@ -325,8 +341,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_exp.add_argument("-w", "--workspace", default=None)
 
     # style (跨章文风重复度)
-    p_style = subparsers.add_parser("style", help="跨章文风重复度报告")
-    p_style.add_argument("--last", dest="last", type=int, default=10, help="分析最近 N 章定稿（默认 10）")
+    # v4.3.2 缺陷#22：style 已于 v4.2 退役为说明性命令（语义评估交由 Stage 3A/4A），
+    # 但 CLI 仍保留 --last N 参数且被完全忽略——调用方按参数语义以为"分析了最近 N 章"，
+    # 实际一个文件都没读。保留参数以兼容既有调用，但显式标注已失效，帮助文本同步更正。
+    p_style = subparsers.add_parser("style", help="文风评估说明（语义评估已交由 Stage 3A/4A）")
+    p_style.add_argument("--last", dest="last", type=int, default=10,
+                         help="[已失效] 该参数自 v4.2 起被忽略，本命令不再做统计分析")
     p_style.add_argument("-w", "--workspace", default=None)
 
     # config (引擎配置中心)
@@ -476,9 +496,14 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 0
 
         elif args.command == "audit":
-            a_res = audit_chapter(ws, args.chapter_id, write_file=args.write)
+            a_res = audit_chapter(ws, args.chapter_id, write_file=args.write,
+                                  force=getattr(args, "force", False))
             if args.write:
-                print(f"🔍 探针骨架已生成: {a_res['target_audit']} (字数: {a_res['word_count']})")
+                if a_res.get("preserved"):
+                    print(f"🛡️ 已保留既有质检报告（含 Auditor 修补配方/涌现事实，未覆盖）: {a_res['target_audit']} (字数: {a_res['word_count']})")
+                    print("   💡 如需按最新正文重置探针骨架，请追加 --force（旧报告自动备份为 .bak）。")
+                else:
+                    print(f"🔍 探针骨架已生成: {a_res['target_audit']} (字数: {a_res['word_count']})")
             else:
                 print(f"👀 预览模式（未落盘）: 字数: {a_res['word_count']}")
             return 0
@@ -621,14 +646,29 @@ def main(argv: Optional[List[str]] = None) -> int:
         elif args.command == "simulate":
             sim_res = simulate_impact(ws, getattr(args, "entity", ""), action=getattr(args, "action", "retcon") or "retcon")
             print(f"🔬 【因果波及与风险测算报告】")
-            print(f"   - 测算实体：{sim_res['entity']} ｜ 拟定动作：{sim_res['action']}")
+            _ident = sim_res["entity"]
+            if sim_res.get("entity_kind", "unknown") != "unknown":
+                _ident = (f"{sim_res['resolved_name']} ({sim_res['resolved_id']}"
+                          f" ｜ {sim_res['entity_kind']})")
+            print(f"   - 测算实体：{_ident} ｜ 拟定动作：{sim_res['action']}")
             print(f"   - 风险等级：{sim_res['risk_level']}")
             if sim_res["affected_chapters"]:
-                print(f"   - 波及章节：{', '.join(sim_res['affected_chapters'])}")
-            if sim_res["affected_lines"]:
-                print(f"   - 关联伏笔：{', '.join(sim_res['affected_lines'])}")
-            if sim_res["affected_locked_facts"]:
-                print(f"   - 关联锁定事实：{', '.join(sim_res['affected_locked_facts'])}")
+                print(f"   - 波及章节 ({len(sim_res['affected_chapters'])})："
+                      f"{', '.join(sim_res['affected_chapters'])}")
+            for _label, _key in (
+                ("关联伏笔", "affected_lines"),
+                ("关联锁定事实", "affected_locked_facts"),
+                ("关联恩怨链", "affected_debts"),
+                ("关联关系网", "affected_relations"),
+                ("关联道具", "affected_items"),
+                ("关联地点", "affected_places"),
+                ("关联里程碑", "affected_milestones"),
+            ):
+                _vals = sim_res.get(_key) or []
+                if _vals:
+                    print(f"   - {_label} ({len(_vals)})：")
+                    for _v in _vals:
+                        print(f"      · {_v}")
             print(f"   - 操作指引：{sim_res['recommendation']}")
             return 0
 
@@ -651,8 +691,12 @@ def main(argv: Optional[List[str]] = None) -> int:
 
         elif args.command == "style":
             print("🎨 【文风与招牌动作评估说明】")
+            print("   ℹ️ 本命令自 v4.2 起为说明性命令，不读取任何章节、不产出统计数据。")
             print("   跨章文风重复度与 AI 味招牌动作已全量交由 Stage 3A (Dehydrator) 与 Stage 4 (Auditor) 语义评估；")
             print("   确定性引擎已彻底移除死板的停用词表与粗粒度 n-gram 统计。")
+            if getattr(args, "last", None) not in (None, 10):
+                print(f"   ⚠️ 已忽略 --last {args.last}：该参数自 v4.2 起失效，本命令不做章节分析。")
+            print("   💡 需要跨章文风体检，请派发 Stage 3A (novel-dehydrator) 或 Stage 4A (novel-auditor)。")
             return 0
 
         elif args.command == "config":

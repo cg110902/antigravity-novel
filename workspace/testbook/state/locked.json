@@ -1,0 +1,14 @@
+[
+  {
+    "id": "LOCK-001",
+    "fact": "灰烬打火机每次点燃，焚毁他人三分钟记忆，并索取持有者一段记忆作为代价",
+    "domain": "rule",
+    "established_ch": "ch_001"
+  },
+  {
+    "id": "LOCK-002",
+    "fact": "齐鸣于 ch_004 死于清算组档案室火场",
+    "domain": "plot",
+    "established_ch": "ch_004"
+  }
+]

@@ -58,7 +58,13 @@ def _read_project_meta(workspace: Path) -> Dict[str, Any]:
 
 
 def _volume_digest(synopsis: Dict[str, Any], volume_id: str, chapters: List[Path]) -> List[str]:
-    """从 synopsis 记录生成分卷前情提要行（v4.3 R2：调用方单次载入后注入，避免逐章重读）。"""
+    """生成分卷前情提要行。
+
+    v4.3.3 BUG#41：旧版把「本卷」章节梗概逐条列在本卷卷首，等于开卷剧透
+    （vol_01 卷首直接写明第 14 章崔敬亭认罪、念珠交接）。前情提要的读者语义是
+    「此前发生了什么」，因此改为回顾**前序各卷**；首卷无前情，返回空。
+    参数 volume_id 此前收而不用，现用于定位卷序。
+    """
     lines: List[str] = []
     for cf in chapters:
         cid = cf.stem
@@ -140,7 +146,15 @@ def export_book(
             continue
 
         vol_label = vol_dir.name
-        digest = _volume_digest(synopsis_db, vol_label, chapters) if include_digest else []
+        # BUG#41：前情提要取**前序各卷**已封存章节，而非本卷（避免开卷剧透）。
+        _prior: List[Path] = []
+        for _pv in vol_dirs:
+            if _pv.name == vol_label:
+                break
+            for _pc in _list_final_chapters(_pv):
+                if _pc.stem in sync_log:
+                    _prior.append(_pc)
+        digest = _volume_digest(synopsis_db, vol_label, _prior) if (include_digest and _prior) else []
 
         if out_format == "md":
             book.append(f"\n\n## {vol_label}")

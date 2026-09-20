@@ -23,6 +23,8 @@ from engine.errors import BusinessError
 DEFAULT_CONFIG: Dict[str, Any] = {
     # 正文字数指引（每章推荐参考体量，用于细纲与写手提示词参考，不做硬性拦截）
     "words_per_chapter": [1500, 2600],
+    # v4.3.3 BUG#43：对白行占比区间（dehydrator 手册第 5 节规定 25%~55%）
+    "dialogue_ratio": [25, 55],
     # 装配包 Token 预算上限
     "token_cap": 15000,
     # 细纲 state_deltas.ledger 未声明 pool 时使用的默认货币池名（全题材中性，可按书改为 灵石/人民币/积分…）
@@ -36,6 +38,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 # config guide 展示用的旋钮说明
 CONFIG_GUIDE: Dict[str, str] = {
     "words_per_chapter": "每章正文参考体量区间 [min, max]（作为提示词体量指引，不做代码硬性拦截）",
+    "dialogue_ratio": "对白行占比参考区间 [min%, max%]（探针 warning 级遥测，体裁性偏离可忽略）",
     "token_cap": "装配包 pack.md Token 预算上限",
     "default_pool": "细纲 ledger 未声明货币池时的默认池名（全题材可按书覆盖）",
     "cruise_max_chapters": "无人值守巡航单批次最大章数",

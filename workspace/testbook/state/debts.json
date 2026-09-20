@@ -1,0 +1,29 @@
+[
+  {
+    "id": "DEBT-001",
+    "source_char": "p_002",
+    "target_char": "p_001",
+    "type": "grudge",
+    "desc": "裴照手背被烙下编号，认定是沈决所为",
+    "status": "unpaid",
+    "created_ch": "ch_001"
+  },
+  {
+    "id": "DEBT-003",
+    "source_char": "p_001",
+    "target_char": "p_002",
+    "type": "grudge",
+    "desc": "齐鸣之死的血债",
+    "status": "unpaid",
+    "created_ch": "ch_004"
+  },
+  {
+    "id": "DEBT-002",
+    "source_char": "p_001",
+    "target_char": "p_005",
+    "type": "favor",
+    "desc": "齐鸣替沈决按下警报延时",
+    "status": "unpaid",
+    "created_ch": "ch_003"
+  }
+]

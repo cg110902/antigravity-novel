@@ -746,6 +746,36 @@ def check_id_integrity(workspace: Path, chapter_id: Optional[str] = None) -> Dic
             if isinstance(ne, dict) and ne.get("id"):
                 declared_new_ids.add(str(ne["id"]).strip())
 
+        # v4.3.3 BUG#40：new_entities 声明的 ID 若已被占用，state.py 的
+        # `if eid not in xxx_db` 会静默跳过——实体既不入账也无任何提示，
+        # 作者却以为已登记，后续章节引用时才发现不存在（且台账原记录不受影响，
+        # 属"无声吞掉"而非覆盖）。此处在 check 阶段前置拦截。
+        _EXIST_DB = {
+            "person": (persons_db, "人物"), "character": (persons_db, "人物"),
+            "item": (items_db, "道具"), "weapon": (items_db, "道具"), "tool": (items_db, "道具"),
+            "place": (places_db, "地点"), "location": (places_db, "地点"),
+            "faction": (factions_db, "势力"), "organization": (factions_db, "势力"),
+        }
+        for ne in new_ents:
+            if not isinstance(ne, dict):
+                continue
+            _nid = str(ne.get("id", "")).strip()
+            _nty = str(ne.get("type", "person")).strip().lower()
+            _nnm = str(ne.get("name", "")).strip()
+            if not _nid or "{{" in _nid or _nty not in _EXIST_DB:
+                continue
+            _db, _label = _EXIST_DB[_nty]
+            if _nid in _db:
+                _old = str(_db[_nid].get("name", "")).strip()
+                if _nnm and _nnm != _old:
+                    errors.append(
+                        f"第 {ch} 章 new_entities 的 {_label} ID 已被占用: [{_nid}] 台账中已登记为「{_old}」，"
+                        f"细纲却声明为新实体「{_nnm}」。该声明会被静默丢弃，实体不会入账。\n"
+                        f"      💡 方案：新实体请改用未占用的 ID（可运行 `python studio.py id next "
+                        f"{'person' if _label == '人物' else 'item' if _label == '道具' else 'location' if _label == '地点' else 'faction'}` 取号）；"
+                        f"若本就想引用既有实体，请从 new_entities 移除该条。"
+                    )
+
         # 1. 人物在场校验 (present_characters)
         from engine.state import is_deceased
         raw_pres = fm.get("present_characters") or []
@@ -767,6 +797,28 @@ def check_id_integrity(workspace: Path, chapter_id: Optional[str] = None) -> Dic
                 elif pid not in persons_db and pid not in declared_new_ids and pid not in declared_card_ids:
                     errors.append(f"第 {ch} 章细纲引用未定义的人物 ID: [{pid}]（未在 state/persons.json 登记，且未在当章 new_entities 或实体卡声明）。\n      💡 方案：可运行 `python studio.py id list person` 查看已有人物；若属新登场角色，请在细纲 new_entities 声明登记，或在 characters/ 建立人物卡。")
 
+            # v4.3.3 BUG#37：id 与 name 必须指向同一人。
+            # 旧版对 pid、pname 各自单独校验，从不比对二者是否自洽。
+            # 一旦错配（如 id: p_003 配 name: 崔敬亭），sync 会以 name 为准回写
+            # persons 表：被冒名者姓名遭覆盖、死亡/状态增量记到无关角色头上，
+            # 且 check 全程 0 error 无感。此处做交叉核对。
+            if pid in persons_db and pname:
+                _reg = str(persons_db[pid].get("name", "")).strip()
+                _reg_base = re.sub(r"[（\(].*?[）\)]", "", _reg).strip()
+                _pn_base = re.sub(r"[（\(].*?[）\)]", "", pname).strip()
+                if _reg and _pn_base != _reg_base:
+                    _owner = next(
+                        (f"（{pname} 实为 {_oid}）" for _oid, _op in persons_db.items()
+                         if re.sub(r"[（\(].*?[）\)]", "", str(_op.get("name", ""))).strip() == _pn_base),
+                        "",
+                    )
+                    errors.append(
+                        f"第 {ch} 章细纲人物 ID 与姓名不一致: [{pid}] 在台账中登记为「{_reg}」，"
+                        f"细纲却写作「{pname}」{_owner}。\n"
+                        f"      💡 方案：请修正 present_characters 中该条目的 id 或 name，使二者指向同一人"
+                        f"（可运行 `python studio.py id list person` 核对）。"
+                    )
+
             # 死者登场硬阻断 (Anti-Resurrection Guard · 时序因果校验)
             # 仅当当章章节号晚于角色阵亡章节时阻断（在阵亡当章登场属于合法生理事实）
             from engine.state import get_death_chapter
@@ -776,13 +828,17 @@ def check_id_integrity(workspace: Path, chapter_id: Optional[str] = None) -> Dic
                 return int(m.group(1)) if m else 0
 
             # 1) 按 ID 检查
+            # v4.3.2 缺陷#10：ID 命中后必须短路，否则紧随其后的「按名检索」会对同一个
+            # 死者再报一遍，体检输出出现两条一模一样的阻断错误（实测 ch_007 韩姨 ×2）。
+            _dead_reported = False
             if pid in persons_db and is_deceased(persons_db[pid]):
                 d_ch = get_death_chapter(persons_db[pid])
                 if _ch_num(ch) > _ch_num(d_ch):
                     dead_name = persons_db[pid].get("name") or pid
                     errors.append(f"第 {ch} 章细纲因果严重冲突：角色 [{dead_name}] ({pid}) 已于第 {d_ch} 章阵亡，禁止在后续章节登场！\n      💡 方案：请从 present_characters 中移除该角色，或委派 Stage 4C (novel-evolution) 处理剧情反转。")
+                    _dead_reported = True
             # 2) 按 Name 检查（防止用临时 ID 或中文名登场死者）
-            probe_name = pname or (pid if not pid.startswith("p_") else "")
+            probe_name = "" if _dead_reported else (pname or (pid if not pid.startswith("p_") else ""))
             if probe_name:
                 for _d_id, _d_p in persons_db.items():
                     if is_deceased(_d_p):
@@ -792,6 +848,37 @@ def check_id_integrity(workspace: Path, chapter_id: Optional[str] = None) -> Dic
                             if probe_name == _d_p.get("name") or (probe_name == _d_base and len(probe_name) >= 2):
                                 errors.append(f"第 {ch} 章细纲因果严重冲突：角色 [{probe_name}] ({_d_id}) 已于第 {d_ch} 章阵亡，禁止在后续章节登场！\n      💡 方案：请从 present_characters 中移除该角色，或委派 Stage 4C (novel-evolution) 处理剧情反转。")
                                 break
+
+        # v4.3.3 BUG#47 · L3 兜底：细纲 character_status 的自由文本若疑似描述死亡，
+        # 但既未写成法定枚举、推断也不确定，则主动索要显式契约——
+        # 宁可让作者补一个字段，也不让引擎替作者猜生死。
+        try:
+            from engine.state import _infer_life_status, _LIFE_STATUS_NORM, _DEATH_KEYWORDS
+            _sd_cs = (fm.get("state_deltas") or {}).get("character_status") or {}
+            if isinstance(_sd_cs, dict):
+                for _cid, _cv in _sd_cs.items():
+                    _txt = ""
+                    _explicit = ""
+                    if isinstance(_cv, dict):
+                        _explicit = str(_cv.get("life_status", "")).strip().lower()
+                        _txt = str(_cv.get("condition") or _cv.get("status") or _cv.get("desc") or "")
+                    else:
+                        _txt = str(_cv or "")
+                    if _explicit in _LIFE_STATUS_NORM:
+                        continue  # 已有显式契约，无需干预
+                    if _infer_life_status(_txt):
+                        continue  # 推断明确，sync 会自动升格为契约
+                    # 推断为空但文本含死亡字样 ⇒ 处于「疑似死亡 + 语境不明」的灰区
+                    if any(_k in _txt for _k in _DEATH_KEYWORDS):
+                        warnings.append(
+                            f"第 {ch} 章角色 [{_cid}] 的状态「{_txt}」含死亡语义，但语境不明确"
+                            f"（可能是假设、反事实或未遂），引擎不擅自判定生死。\n"
+                            f"      💡 方案：若该角色确已死亡，请改写为字典形态显式声明："
+                            f'{_cid}: {{life_status: "deceased", condition: "{_txt}"}}；'
+                            f"若未死亡则可忽略本提醒。"
+                        )
+        except Exception:
+            pass
 
         # 2. 人物状态增量校验 (state_deltas.character_status)
         raw_sd = fm.get("state_deltas") or {}

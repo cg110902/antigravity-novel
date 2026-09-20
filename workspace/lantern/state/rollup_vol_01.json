@@ -1,0 +1,134 @@
+{
+  "volume_id": "vol_01",
+  "archived_at": "2026-09-19 23:55:35",
+  "chapters_count": 14,
+  "total_words": 12359,
+  "chapters": [
+    {
+      "chapter_id": "ch_001",
+      "title": "城南第七具（焚尸案发）",
+      "chapter_type": "破局",
+      "word_count": 1027,
+      "dramatic_goal": "裴砚在城南义庄验第七具焚尸，凭一处灰烬走向判定火是从屋内点起，与顺天府「失火」结论相悖",
+      "cliffhanger": "裴砚翻开尸格，发现验尸人签名是十年前早已死去的仵作"
+    },
+    {
+      "chapter_id": "ch_002",
+      "title": "复核（崔敬亭登场）",
+      "chapter_type": "铺垫",
+      "word_count": 1098,
+      "dramatic_goal": "崔敬亭亲至义庄复核，三言两语令尸格改判「失火」；裴砚当场不争，退而抄录原件",
+      "cliffhanger": "崔敬亭走前捻念珠，第三颗的烧痕一闪而过"
+    },
+    {
+      "chapter_id": "ch_003",
+      "title": "仵作行的价钱",
+      "chapter_type": "过渡",
+      "word_count": 988,
+      "dramatic_goal": "沈拂云透露仵作行改一份尸格值五十两；裴砚用三钱银子买通杂役调出旧档",
+      "cliffhanger": "旧档上一行小字：灯市案，坊门自内锁"
+    },
+    {
+      "chapter_id": "ch_004",
+      "title": "自内锁",
+      "chapter_type": "爆发",
+      "word_count": 1015,
+      "dramatic_goal": "裴砚复盘十年前灯市火场，确认三道坊门是从内侧落的锁——有人要火烧死里面的人",
+      "cliffhanger": "沈拂云问：你为什么记得这么清楚？"
+    },
+    {
+      "chapter_id": "ch_005",
+      "title": "幸存者",
+      "chapter_type": "回收",
+      "word_count": 841,
+      "dramatic_goal": "裴砚承认自己是灯市案幸存孤儿；沈拂云决定站在他这边",
+      "cliffhanger": "当夜，仵作行后院起火"
+    },
+    {
+      "chapter_id": "ch_006",
+      "title": "周伯之死",
+      "chapter_type": "爆发",
+      "word_count": 992,
+      "dramatic_goal": "周伯死于后院火场，手中攥着半页旧档；裴砚在火场外看着，救不及",
+      "cliffhanger": "半页纸上只剩一个字：崔"
+    },
+    {
+      "chapter_id": "ch_007",
+      "title": "念珠",
+      "chapter_type": "交锋",
+      "word_count": 793,
+      "dramatic_goal": "裴砚以查案为名求见崔敬亭，故意提起灯市；崔敬亭捻念珠的手停在第三颗",
+      "cliffhanger": "崔敬亭说：裴评事，你父亲当年也是这么坐着的"
+    },
+    {
+      "chapter_id": "ch_008",
+      "title": "调令",
+      "chapter_type": "压制",
+      "word_count": 724,
+      "dramatic_goal": "一纸调令要把裴砚外放；沈拂云替他压下三日",
+      "cliffhanger": "裴砚说：三日够了"
+    },
+    {
+      "chapter_id": "ch_009",
+      "title": "三页供状",
+      "chapter_type": "推进",
+      "word_count": 722,
+      "dramatic_goal": "裴砚默诵出早被销毁的三页供状内容，沈拂云执笔重录",
+      "cliffhanger": "重录供状的最后一行，写着崔敬亭的名字"
+    },
+    {
+      "chapter_id": "ch_010",
+      "title": "对簿",
+      "chapter_type": "爆发",
+      "word_count": 892,
+      "dramatic_goal": "大理寺堂上，裴砚以重录供状指认崔敬亭锁死坊门",
+      "cliffhanger": "崔敬亭笑了：这份供状，谁画的押？"
+    },
+    {
+      "chapter_id": "ch_011",
+      "title": "无押之状",
+      "chapter_type": "低谷",
+      "word_count": 814,
+      "dramatic_goal": "重录供状因无画押被驳；裴砚被停职待参",
+      "cliffhanger": "沈拂云连夜去了义庄"
+    },
+    {
+      "chapter_id": "ch_012",
+      "title": "第七具的尸格",
+      "chapter_type": "推进",
+      "word_count": 721,
+      "dramatic_goal": "沈拂云找出第七具尸格的原件——上面有崔敬亭亲笔的复核画押",
+      "cliffhanger": "画押的日期，比报案早了一日"
+    },
+    {
+      "chapter_id": "ch_013",
+      "title": "早了一日",
+      "chapter_type": "反转",
+      "word_count": 830,
+      "dramatic_goal": "早一日的画押证明崔敬亭在案发前已知死者身份；灯市与焚尸两案并为一案",
+      "cliffhanger": "崔敬亭主动请见裴砚"
+    },
+    {
+      "chapter_id": "ch_014",
+      "title": "灯下不照",
+      "chapter_type": "卷末",
+      "word_count": 902,
+      "dramatic_goal": "崔敬亭承认锁门，却说下令的另有其人；被押走前把念珠留给裴砚",
+      "cliffhanger": "念珠第三颗撬开，里面是半个礼部的印"
+    }
+  ],
+  "lines_snapshot": {
+    "active": [
+      "GUN-003",
+      "KNO-002",
+      "MIS-002"
+    ],
+    "resolved_in_volume": [
+      "GUN-001",
+      "GUN-002",
+      "GUN-004",
+      "KNO-001",
+      "MIS-001"
+    ]
+  }
+}

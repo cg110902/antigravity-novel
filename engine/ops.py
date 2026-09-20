@@ -463,6 +463,12 @@ def get_beats_scaffold(workspace: Path, chapter_id: str, write_file: bool = True
         for _cat, _label in [("person", "人物"), ("item", "道具"), ("gun", "GUN"), ("kno", "KNO"),
                              ("mis", "MIS"), ("location", "地点"), ("faction", "势力"),
                              ("debt", "恩怨"), ("lock", "锁定事实")]:
+            # v4.3.3 BUG#39：恩怨 ID 自 BUG#6 起改为按（章节+双方+类型）派生的
+            # DEBT-AUTO-<sha1> 稳定幂等键，由引擎自动生成；速查表若仍报 DEBT-001，
+            # 会诱导写手在细纲手填序号 ID，与台账实际格式两套并存。此处如实标注。
+            if _cat == "debt":
+                _id_parts.append(f"{_label}: 引擎自动派生（细纲 debts 无需填 id）")
+                continue
             _id_parts.append(f"{_label}: {_tracker.get_next_id(_cat)}")
         id_cheat_block = "   - " + " ｜ ".join(_id_parts)
     except Exception:
@@ -543,8 +549,53 @@ def get_beats_scaffold(workspace: Path, chapter_id: str, write_file: bool = True
     }
 
 
-def audit_chapter(workspace: Path, chapter_id: str, write_file: bool = True) -> Dict[str, Any]:
-    """运行机械探针生成质检报告骨架 (audit)。"""
+def _audit_has_author_content(text: str) -> bool:
+    """判定审计报告是否已承载 Auditor 的人工成果（配方 / 涌现事实），用于防覆盖守卫。
+
+    判据（任一命中即视为有成果，宁可保守不覆盖）：
+    1. 出现非占位的 TargetContent/ReplacementContent 配方对；
+    2. 第 3 节登记了非占位的涌现事实行（[阵亡]/[新登场]/[道具变动]）。
+    模板自带的示例占位（待修改原句 / 待填写角色名 / 待填写道具名…）一律不算成果。
+    """
+    if not text:
+        return False
+    placeholders = ("待修改原句", "通俗修改后原句", "待填写角色名", "待填写新角色名", "待填写道具名", "待填写")
+
+    for m in re.finditer(
+        r"(?:TargetContent|原句|原文)[:：]\s*```(?:text|markdown|txt)?[ \t]*\r?\n(.*?)\r?\n\s*```",
+        text, flags=re.DOTALL | re.IGNORECASE,
+    ):
+        if m.group(1).strip() and not any(ph in m.group(1) for ph in placeholders):
+            return True
+
+    for raw_line in text.splitlines():
+        line = re.sub(r"^[-*+]\s*", "", raw_line.strip())
+        if not re.match(r"^\[(?:阵亡|死亡|牺牲|新登场|新实体|新角色|新人物|道具变动|道具获得|道具损毁)", line):
+            continue
+        if not any(ph in line for ph in placeholders):
+            return True
+    return False
+
+
+def _is_placeholder_value(value: str) -> bool:
+    """判定审计报告字段值是否为模板占位示例（v4.3.2 缺陷#3）。
+
+    旧版三处分支各自维护精确匹配黑名单，item 分支漏掉「待填写道具名」，
+    导致每跑一次带默认模板的 `proposal auto` 就往 items.json 塞一件
+    `it_00X / 待填写道具名 / holder: 主角` 的幽灵道具。改为统一前缀/关键词判定。
+    """
+    v = str(value or "").strip()
+    if not v or v in ("无", "示例", "略", "-", "N/A", "n/a"):
+        return True
+    return any(v.startswith(k) for k in ("待填写", "待补充", "示例", "如：", "例如"))
+
+
+def audit_chapter(workspace: Path, chapter_id: str, write_file: bool = True,
+                  force: bool = False) -> Dict[str, Any]:
+    """运行机械探针生成质检报告骨架 (audit)。
+
+    v4.3.2：已含 Auditor 人工成果的报告默认拒绝覆盖（--force 重置并留 .bak）。
+    """
     _, vol_id = _find_volume_outline(workspace, chapter_id)
     prose_candidates = [
         workspace / "manuscript" / vol_id / "raw" / f"{chapter_id}_v3.md",
@@ -630,16 +681,60 @@ Stage 5 proposal auto 将自动提取并反向回填至细纲与台账：
 -->
 """
     target_audit = workspace / "log" / "audit" / f"{chapter_id}.md"
+    # v4.3.2 缺陷#5（审计成果被覆盖）：旧版无条件重写 log/audit/ch_XXX.md。
+    # 而 cruise.supervise_once 每章起手就调 audit_chapter(write_file=True)，
+    # 于是 Auditor 已写入的【修补配方】与【正文涌现事实】在 finalize/proposal
+    # 读取之前就被抹掉 ⇒ AGENTS.md 公理一的「意图与实况双向闭环」在巡航路径上失效。
+    # 现对齐 `beats new --write` 的守卫惯例：已有作者成果时拒绝覆盖，--force 才重置并留 .bak。
+    preserved = False
     if write_file:
         _ensure_dir(target_audit.parent)
-        target_audit.write_text(audit_md, encoding="utf-8")
+        if target_audit.exists() and not force and _audit_has_author_content(
+            target_audit.read_text(encoding="utf-8-sig", errors="replace")
+        ):
+            preserved = True
+        else:
+            if force and target_audit.exists():
+                shutil.copy(target_audit, target_audit.with_name(target_audit.name + ".bak"))
+            target_audit.write_text(audit_md, encoding="utf-8")
 
-    return {"chapter_id": chapter_id, "word_count": words, "target_audit": str(target_audit), "probe_results": probe_results}
+    return {
+        "chapter_id": chapter_id,
+        "word_count": words,
+        "target_audit": str(target_audit),
+        "probe_results": probe_results,
+        "preserved": preserved,
+    }
 
 
 def finalize_chapter(workspace: Path, chapter_id: str) -> Dict[str, Any]:
     """吸纳 Auditor 预制修补配方，完成正文替换定稿生成 final/ch_XXX.md。"""
     _, vol_id = _find_volume_outline(workspace, chapter_id)
+
+    # v4.3.2 缺陷#30：槽位闸门必须前移到 finalize。
+    #
+    # 旧版只有 sync 检查细纲残留 {{slot:}}（ops.py sync_chapter 第 1066 行），
+    # finalize 完全不看细纲 —— 实测细纲含 41 处未填槽位时 finalize 仍 exit 0，
+    # 把正文定稿写进 final/，而随后的 sync 永远 exit 1 拒绝入账。
+    # 章节就此卡死在「已定稿但合不了账」的状态：正文已落盘、台账永远缺这一章，
+    # 且 director 的 S5 短路链（finalize && proposal && sync）会在第三步才炸，
+    # 此时 final 已经生成，作者必须手工回删才能重来。
+    # 闸门前移后，未填细纲在第一步就被拦下，不产生任何脏产物。
+    _bf = workspace / "outlines" / vol_id / "beats" / f"{chapter_id}.md"
+    if not _bf.exists():
+        _bf = workspace / "outlines" / f"{chapter_id}.md"
+    if _bf.exists():
+        _hits = _find_unfilled_slots(_bf.read_text(encoding="utf-8-sig", errors="replace"))
+        if _hits:
+            raise GuardError(
+                f"第 {chapter_id} 章细纲仍含 {len(_hits)} 处未填占位符（如 {_hits[0]}），已拒绝定稿。",
+                solution=(
+                    f"请先派发 Stage 1 (novel-screenwriter) 将 {_bf.name} 的全部 {{{{slot:}}}} 槽位填实"
+                    f"（未使用的可选块整段删除或置 []）；确认需推翻重排可运行 "
+                    f"`python studio.py beats new {chapter_id} --write --force` 重新装配。"
+                ),
+            )
+
     manuscript_dir = workspace / "manuscript" / vol_id
     # 严格挑选存在且字数大于 0 的有效稿件（v4.2.4 修复：跳过 0 字节半成品，防止产出空 final）
     candidates = [
@@ -806,7 +901,7 @@ def proposal_auto(workspace: Path, chapter_id: str) -> Dict[str, Any]:
                 cname = kv.get("角色") or kv.get("人物") or kv.get("姓名") or kv.get("名称") or kv.get("name") or (pos[0] if pos else "")
                 desc = kv.get("说明") or kv.get("原因") or kv.get("场景") or kv.get("事实") or kv.get("描述") or (pos[1] if len(pos) > 1 else "正文确认阵亡")
                 cname = cname.strip()
-                if cname and cname not in ("待填写", "示例", "待填写角色名", "无"):
+                if cname and not _is_placeholder_value(cname):
                     emergent_deaths.append({"name": cname, "desc": desc.strip()})
 
             elif cat == "entity":
@@ -814,7 +909,7 @@ def proposal_auto(workspace: Path, chapter_id: str) -> Dict[str, Any]:
                 ename = kv.get("名称") or kv.get("姓名") or kv.get("角色") or kv.get("实体") or kv.get("name") or (pos[0] if pos else "")
                 edesc = kv.get("描述") or kv.get("说明") or kv.get("定位") or kv.get("特征") or (pos[1] if len(pos) > 1 else "")
                 ename = ename.strip()
-                if ename and ename not in ("待填写", "示例", "待填写新角色名", "无"):
+                if ename and not _is_placeholder_value(ename):
                     emergent_entities.append({"type": etype.strip(), "name": ename, "summary": edesc.strip()})
 
             elif cat == "item":
@@ -832,7 +927,7 @@ def proposal_auto(workspace: Path, chapter_id: str) -> Dict[str, Any]:
                         istatus_or_holder = pos[1] if len(pos) > 1 else "active"
                 idesc = kv.get("说明") or kv.get("描述") or (pos[2] if len(pos) > 2 else "")
                 iname = iname.strip()
-                if iname and iname not in ("待填写", "示例", "无"):
+                if iname and not _is_placeholder_value(iname):
                     emergent_items.append({"name": iname, "holder_or_status": istatus_or_holder.strip(), "desc": idesc.strip()})
 
     # 将涌现事实合并至提案与细纲
@@ -921,16 +1016,38 @@ def proposal_auto(workspace: Path, chapter_id: str) -> Dict[str, Any]:
             else:
                 raw_new = fm.setdefault("new_entities", [])
                 if isinstance(raw_new, list):
-                    if not any(x.get("name") == ei["name"] for x in raw_new if isinstance(x, dict)):
+                    val = ei["holder_or_status"]
+                    _is_status = val in ("destroyed", "consumed", "lost", "active")
+                    existing = next(
+                        (x for x in raw_new
+                         if isinstance(x, dict) and x.get("name") == ei["name"]
+                         and str(x.get("type", "item")).lower() in ("item", "weapon", "tool")),
+                        None,
+                    )
+                    if existing is not None:
+                        # v4.3.2 缺陷#17：同章「首次登场 + 当场损毁」的道具（审计手册明确要求
+                        # [新登场] 与 [道具变动] 分行登记）旧版会因 new_entities 已有同名条目
+                        # 而整条跳过后续 [道具变动]，destroyed/持有人静默丢失 —— 道具仍以
+                        # active 入账，直接违背手册「道具损毁必抓」的承诺。改为补写而非跳过。
+                        if _is_status:
+                            if existing.get("status", "active") != val:
+                                existing["status"] = val
+                                updated_beats = True
+                        elif val and existing.get("holder") != val:
+                            existing["holder"] = val
+                            updated_beats = True
+                        if ei["desc"] and not existing.get("summary"):
+                            existing["summary"] = ei["desc"]
+                            updated_beats = True
+                    else:
                         new_iid = tracker.get_next_id("item")
-                        val = ei["holder_or_status"]
-                        default_holder = protagonist if val in ("destroyed", "consumed", "lost", "active") else val
+                        default_holder = protagonist if _is_status else val
                         raw_new.append({
                             "id": new_iid,
                             "type": "item",
                             "name": ei["name"],
                             "holder": default_holder,
-                            "status": val if val in ("destroyed", "consumed", "lost", "active") else "active",
+                            "status": val if _is_status else "active",
                             "summary": ei["desc"],
                         })
                         updated_beats = True
@@ -1037,16 +1154,55 @@ def sync_chapter(workspace: Path, chapter_id: str, force: bool = False, refresh:
     prev = sync_log.get(chapter_id)
     if refresh and prev:
         # v4.2 --refresh：纯文笔修订（beats/deltas 未变），只更新指纹不重复入账
+        # v4.3.2 缺陷#11：旧版只改 sha1，字数全线不更新 ⇒ 润色把 418 字扩到 976 字后，
+        # sync_log / timeline / synopsis / project.total_published_words 仍停留在旧值，
+        # cockpit 字数曲线、配额统计、export 统计集体失真（而字数恰恰是文笔修订最常变的量）。
+        # 字数是正文的派生事实、不是细纲增量，刷新它不违反「不重复入账」的语义。
         prev["final_sha1"] = final_sha1
         prev["refreshed_at"] = datetime.now().isoformat(timespec="seconds")
+        prev["word_count"] = word_count
         _save_json(sync_log_file, sync_log)
+
+        _r_ledger = StateLedger(workspace)
+        # timeline.json：同步该章字数
+        _tl = _r_ledger.get_timeline()
+        _tl_hit = False
+        for _t in _tl:
+            if _t.get("chapter_id") == chapter_id:
+                _t["word_count"] = word_count
+                _tl_hit = True
+        if _tl_hit:
+            _save_json(workspace / "state" / "timeline.json", _tl)
+        # synopsis.json：同步该章字数
+        _syn_file = workspace / "state" / "synopsis.json"
+        _syn = _load_json(_syn_file, default={})
+        if isinstance(_syn, dict) and chapter_id in _syn and isinstance(_syn[chapter_id], dict):
+            _syn[chapter_id]["word_count"] = word_count
+            _save_json(_syn_file, _syn)
+        # project.json：按刷新后的 timeline 重算全书累计字数
+        _proj_file = workspace / "project.json"
+        _pdata = _load_json(_proj_file, default={})
+        if isinstance(_pdata, dict):
+            _pdata.setdefault("current_status", {})
+            _pdata["current_status"]["total_published_words"] = sum(
+                t.get("word_count", 0) or 0 for t in _tl
+            )
+            _save_json(_proj_file, _pdata)
+
         return {
             "chapter_id": chapter_id,
             "title": frontmatter.get("title", ""),
             "word_count": word_count,
             "refreshed": True,
-            "note": "已按修订版正文刷新同步指纹，台账增量未重复入账。",
+            "note": "已按修订版正文刷新同步指纹与字数统计，台账增量未重复入账。",
         }
+    if refresh and not prev:
+        # v4.3.2 缺陷#12：旧版 --refresh 对从未同步过的章会静默穿透成一次完整入账，
+        # 与「只刷新指纹、不入账」的承诺相反，且用户往往是误加了该参数。
+        raise GuardError(
+            f"第 {chapter_id} 章尚未同步过，`--refresh` 无指纹可刷新。",
+            solution=f"首次入账请直接运行 `python studio.py sync {chapter_id}`（不带 --refresh）。",
+        )
     if prev and prev.get("final_sha1") == final_sha1 and not force:
         # v4.2.1: --force 现允许同稿重放（数据层增量已按章幂等，重放不翻倍）
         return {
@@ -1351,7 +1507,13 @@ def reconcile_volume(workspace: Path, volume_id: str, write_file: bool = False) 
     # 伏笔对账（v4.2.4 修复：准确限定为当前卷闭环的伏笔，名副其实）
     lines = ledger.get_lines()
     vol_ch_set = {t.get("chapter_id") for t in vol_timeline if t.get("chapter_id")}
-    active_in_vol = [l for l in lines.values() if l.get("status") == "active"]
+    # v4.3.2 缺陷#7：旧版 active_in_vol 未做任何卷过滤（变量名却带 _in_vol），
+    # 与紧邻的 resolved_in_vol（已按 vol_ch_set 过滤）口径不一致 ⇒ 多卷之后每卷
+    # 对账报告都把全书活跃伏笔重复列一遍。活跃伏笔按「埋设章属于本卷」归属本卷；
+    # 跨卷遗留（埋于前卷、至今未回收）单列，避免既漏报又串卷。
+    _active_all = [l for l in lines.values() if l.get("status") == "active"]
+    active_in_vol = [l for l in _active_all if l.get("planted_ch") in vol_ch_set]
+    active_carried_over = [l for l in _active_all if l.get("planted_ch") not in vol_ch_set]
     resolved_in_vol = [l for l in lines.values() if l.get("status") == "resolved" and l.get("resolved_ch") in vol_ch_set]
 
     def _num(cid: str) -> int:
@@ -1359,8 +1521,9 @@ def reconcile_volume(workspace: Path, volume_id: str, write_file: bool = False) 
         return int(m.group(1)) if m else 0
 
     latest_ch_num = max((_num(t.get("chapter_id", "")) for t in timeline), default=0)
+    # 逾期判定覆盖全部活跃伏笔（含前卷遗留），卷末必清清单不得因归卷而漏报
     overdue_lines = [
-        l for l in active_in_vol
+        l for l in _active_all
         if l.get("target_ch") and _num(l.get("target_ch", "")) < latest_ch_num
     ]
 
@@ -1390,11 +1553,16 @@ def reconcile_volume(workspace: Path, volume_id: str, write_file: bool = False) 
     if not resolved_in_vol:
         report_lines.append("  - (本卷暂无已回收伏笔)")
 
-    report_lines.append(f"\n- **仍活跃待跨卷回收伏笔 ({len(active_in_vol)} 条)**：")
+    report_lines.append(f"\n- **本卷埋设、仍活跃待回收伏笔 ({len(active_in_vol)} 条)**：")
     for a in active_in_vol:
         report_lines.append(f"  - [{a.get('id')}] {a.get('name')} (埋于: {a.get('planted_ch')} ｜ 描述: {a.get('desc')})")
     if not active_in_vol:
-        report_lines.append("  - (全部伏笔已收束平账)")
+        report_lines.append("  - (本卷埋设的伏笔已全部收束平账)")
+
+    if active_carried_over:
+        report_lines.append(f"\n- **前卷遗留、跨卷仍未回收伏笔 ({len(active_carried_over)} 条)**：")
+        for a in active_carried_over:
+            report_lines.append(f"  - [{a.get('id')}] {a.get('name')} (埋于: {a.get('planted_ch')} ｜ 描述: {a.get('desc')})")
 
     if overdue_lines:
         report_lines.append(f"\n- **⛔ 已逾期未回收 ({len(overdue_lines)} 条 · 本卷必清清单)**：")
@@ -1418,6 +1586,34 @@ def reconcile_volume(workspace: Path, volume_id: str, write_file: bool = False) 
     for lf in locked_facts:
         report_lines.append(f"- [{lf.get('id')}] {lf.get('fact')} (第{lf.get('established_ch', '初始')}章确立)")
 
+    # v4.3.2 缺陷#24：台账自洽体检并入卷末对账报告。
+    #
+    # Stage 4D (novel-librarian) 的职责明列「生死矛盾」「法宝归属」「因果断裂」属
+    # Level 2 必须上报，但手册给它的准跑命令只有 evidence candidates 与 reconcile，
+    # 且**明令禁止它运行 check**（"体检由主控统一执行"）。实测注入「齐鸣复活」与
+    # 「道具持有者指向幽灵 p_999」两处冲突后，它这两条命令**全盲**——
+    # evidence 报"台账完备"，reconcile 只字未提。于是 librarian 根本无从发现它
+    # 被要求上报的问题，Level 2 → Stage 4C 的派发链在源头就断了。
+    # 此处复用 check 的台账交叉引用巡检，把结论直接写进它看得到的报告里。
+    _integrity_lines: List[str] = []
+    try:
+        from engine.check import scan_ledger_integrity
+
+        _integrity_lines = scan_ledger_integrity(workspace)
+    except Exception as _e:  # noqa: BLE001
+        _integrity_lines = [f"（台账自洽体检未能执行: {_e}）"]
+
+    report_lines.append(f"\n## 🩺 五、 台账自洽体检（Level 2 靶点预筛）")
+    if _integrity_lines:
+        report_lines.append(
+            f"- ⚠️ 检出 {len(_integrity_lines)} 项台账内部矛盾，"
+            f"**请按 Level 2 标准靶点卡片上报主控，委派 Stage 4C (Evolution) 处置**："
+        )
+        for _il in _integrity_lines:
+            report_lines.append(f"  - {_il}")
+    else:
+        report_lines.append("- ✅ 台账内部交叉引用自洽，未见生死矛盾、归属断裂或伏笔字段残缺。")
+
     report_md = "\n".join(report_lines) + "\n"
 
     target_path = None
@@ -1431,6 +1627,7 @@ def reconcile_volume(workspace: Path, volume_id: str, write_file: bool = False) 
         "chapters_count": len(vol_timeline),
         "total_words": vol_words,
         "active_lines": len(active_in_vol),
+        "active_carried_over": len(active_carried_over),
         "resolved_lines": len(resolved_in_vol),
         "overdue_lines": [l.get("id") for l in overdue_lines],
         "report_file": str(target_path) if target_path else None,
@@ -1500,55 +1697,226 @@ def simulate_impact(workspace: Path, entity: str, action: str = "retcon") -> Dic
             solution="请通过 --entity 指定要测算的实体名称或 ID，例如: python studio.py simulate impact --entity p_001",
         )
 
+    from engine.state import _resolve_person_id, _resolve_item_id
+
     ledger = StateLedger(workspace)
     timeline = ledger.get_timeline()
     lines = ledger.get_lines()
     locked = ledger.get_locked_facts()
     synopses = ledger.get_synopsis()
+    persons = ledger.get_persons()
+    items = ledger.get_items()
+    places = ledger.get_places()
+    debts = ledger.get_debts()
+    relations = ledger.get_relations()
+    ent_timeline = ledger.get_entity_timeline()
+    milestones = _load_json(workspace / "state" / "milestones.json", default=[])
+
+    # v4.3.2 缺陷#19（P0 · 因果测算漏报）：旧版只按「字面子串」扫 timeline/synopsis/
+    # lines/locked 四张表，造成两类致命漏报——
+    #   1) 用物理 ID 测算几乎全盲。timeline.present_characters 存的是人名，
+    #      locked.fact 里写的也是人名，于是 `--entity p_005` 报 LOW·零波及，
+    #      而等价的 `--entity 齐鸣` 报 HIGH·触碰锁定事实。evolution 手册的命令
+    #      示例恰恰写作 `--entity p_001`——照手册跑会拿到「无风险」的假绿灯，
+    #      然后一刀切在法定事实上。这是 Stage 4C 唯一的事前风险闸门，不能瞎。
+    #   2) 漏扫 debts / relations / items / places / entity_timeline / milestones
+    #      六张表，而恩怨链与关系网恰恰是改人设、改生死时最先崩的地方；
+    #      手册还明文要求核对「是否颠覆既定里程碑」，旧版从未读过该表。
+    # 现修正为：先把实体归一到物理 ID（复用既有的 _resolve_person_id/_resolve_item_id），
+    # 再以「ID + 名称 + 别名」别名集合对全部十个维度扫描。
+    aliases: set = {entity}
+    canonical_id = entity
+    canonical_name = entity
+    entity_kind = "unknown"
+
+    def _add(v: Any) -> None:
+        s = str(v or "").strip()
+        if s:
+            aliases.add(s)
+
+    _pid = _resolve_person_id(entity, persons)
+    _iid = _resolve_item_id(entity, items)
+    if _pid:
+        entity_kind, canonical_id = "person", _pid
+        _prec = persons.get(_pid, {})
+        canonical_name = str(_prec.get("name") or _pid)
+        _add(_pid)
+        _add(canonical_name)
+        for _a in (_prec.get("aliases") or []):
+            _add(_a)
+    elif _iid:
+        entity_kind, canonical_id = "item", _iid
+        _irec = items.get(_iid, {})
+        canonical_name = str(_irec.get("name") or _iid)
+        _add(_iid)
+        _add(canonical_name)
+        for _a in (_irec.get("aliases") or []):
+            _add(_a)
+    else:
+        for _db, _kind in ((places, "place"), (lines, "line")):
+            for _k, _v in (_db or {}).items():
+                _nm = str(_v.get("name", "")).strip() if isinstance(_v, dict) else ""
+                if entity == _k or (_nm and entity == _nm):
+                    entity_kind, canonical_id = _kind, _k
+                    canonical_name = _nm or _k
+                    _add(_k)
+                    _add(_nm)
+                    break
+            if entity_kind != "unknown":
+                break
+
+    def _hit(*vals: Any) -> bool:
+        blob = " ".join(str(v) for v in vals if v is not None)
+        return any(a in blob for a in aliases)
 
     affected_chapters: List[str] = []
     affected_lines: List[str] = []
     affected_locked: List[str] = []
+    affected_debts: List[str] = []
+    affected_relations: List[str] = []
+    affected_items: List[str] = []
+    affected_places: List[str] = []
+    affected_milestones: List[str] = []
 
-    # 查时间线与在场记录
+    def _mark_ch(ch: Any) -> None:
+        c = str(ch or "").strip()
+        if c and c not in affected_chapters:
+            affected_chapters.append(c)
+
+    # 1. 时间线与在场记录（present_characters 可能存名、也可能存 ID）
     for t in timeline:
-        ch = t.get("chapter_id", "")
-        chars = t.get("present_characters", [])
-        if any(entity in str(c) for c in chars) or entity in str(t.get("dramatic_goal", "")) or entity in str(t.get("cliffhanger", "")):
-            if ch not in affected_chapters:
-                affected_chapters.append(ch)
+        if _hit(t.get("present_characters"), t.get("dramatic_goal"),
+                t.get("cliffhanger"), t.get("location"), t.get("title")):
+            _mark_ch(t.get("chapter_id"))
 
-    # 查梗概
-    for ch, syn in synopses.items():
-        if entity in str(syn.get("dramatic_goal", "")) or entity in str(syn.get("cliffhanger", "")) or entity in str(syn.get("present_characters", [])):
-            if ch not in affected_chapters:
-                affected_chapters.append(ch)
+    # 2. 章节梗概
+    for ch, syn in (synopses or {}).items():
+        if not isinstance(syn, dict):
+            continue
+        if _hit(syn.get("dramatic_goal"), syn.get("cliffhanger"),
+                syn.get("present_characters"), syn.get("summary"), syn.get("title")):
+            _mark_ch(ch)
 
-    # 查伏笔
-    for lid, l in lines.items():
-        if entity in l.get("name", "") or entity in l.get("desc", ""):
-            affected_lines.append(f"{lid}: {l.get('name')}")
+    # 3. 实体时间线索引（专为「某实体在哪些章出现」而建，旧版完全未用）
+    for _eid, _rec in (ent_timeline or {}).items():
+        _nm = _rec.get("name") if isinstance(_rec, dict) else None
+        if _eid in aliases or (_nm and _hit(_nm)):
+            _chs = _rec.get("chapters") if isinstance(_rec, dict) else None
+            for _c in (_chs or []):
+                _mark_ch(_c.get("chapter_id") if isinstance(_c, dict) else _c)
 
-    # 查锁定事实
-    for lf in locked:
-        if entity in lf.get("fact", ""):
+    # 4. 伏笔（埋设章 / 回收章 / 预定兑现章均计入波及面）
+    for lid, l in (lines or {}).items():
+        if not isinstance(l, dict):
+            continue
+        if lid in aliases or _hit(l.get("name"), l.get("desc")):
+            _tgt = str(l.get("target_ch", "") or "").strip()
+            _pending = l.get("status") == "active" and _tgt
+            affected_lines.append(
+                f"{lid}: {l.get('name')} [{l.get('status')}]"
+                + (f" ⏳预定兑现于 {_tgt}" if _pending else "")
+            )
+            _mark_ch(l.get("planted_ch"))
+            _mark_ch(l.get("resolved_ch"))
+            # v4.3.2 缺陷#23：旧版漏计 target_ch。活跃伏笔的「预定兑现章」是未来
+            # 已排产的剧情承诺——改动该伏笔必然波及那一章，却不出现在波及清单里。
+            # 实测 GUN-002 预定兑现于 ch_012，测算却只报埋设章 ch_003，
+            # evolution 会据此低估改动半径，漏改 ch_012 的规划。
+            if _pending:
+                _mark_ch(_tgt)
+
+    # 5. 锁定事实
+    for lf in (locked or []):
+        if not isinstance(lf, dict):
+            continue
+        if lf.get("id") in aliases or _hit(lf.get("fact")):
             affected_locked.append(f"{lf.get('id')}: {lf.get('fact')}")
+            _mark_ch(lf.get("established_ch"))
 
-    # 风险评估
+    # 6. 恩怨链（改人设/改生死时最易崩的一环）
+    for d in (debts or []):
+        if not isinstance(d, dict):
+            continue
+        if _hit(d.get("source_char"), d.get("target_char"), d.get("desc")):
+            affected_debts.append(
+                f"{d.get('id', 'DEBT')}: {d.get('source_char')} ➔ {d.get('target_char')}"
+                f" [{d.get('type', '恩怨')}] {d.get('desc', '')}"
+            )
+            _mark_ch(d.get("created_ch"))
+
+    # 7. 关系网
+    for pair, r in (relations or {}).items():
+        if not isinstance(r, dict):
+            continue
+        if pair in aliases or _hit(r.get("source_id"), r.get("target_id"), r.get("dynamic_label")):
+            affected_relations.append(
+                f"{r.get('source_id')}➔{r.get('target_id')}: {r.get('dynamic_label', '')}"
+                f" (张力 {r.get('tension')})"
+            )
+            for h in (r.get("history") or []):
+                if isinstance(h, dict):
+                    _mark_ch(h.get("chapter"))
+
+    # 8. 道具归属（改角色会牵连其随身物）
+    for iid, irec in (items or {}).items():
+        if not isinstance(irec, dict):
+            continue
+        if iid in aliases or _hit(irec.get("name"), irec.get("holder"), irec.get("summary")):
+            affected_items.append(
+                f"{iid}: {irec.get('name')} (持有: {irec.get('holder')} ｜ 状态: {irec.get('status')})"
+            )
+
+    # 9. 地点
+    for _lid, prec in (places or {}).items():
+        if not isinstance(prec, dict):
+            continue
+        if _lid in aliases or _hit(prec.get("name"), prec.get("summary")):
+            affected_places.append(f"{_lid}: {prec.get('name')}")
+
+    # 10. 里程碑（手册要求核对「是否颠覆既定里程碑」）
+    for ms in (milestones or []):
+        if not isinstance(ms, dict):
+            continue
+        if ms.get("id") in aliases or _hit(ms.get("title"), ms.get("desc")):
+            affected_milestones.append(
+                f"{ms.get('id')}: {ms.get('title')} (目标第 {ms.get('target_ch')} 章 ｜ {ms.get('status')})"
+            )
+
+    affected_chapters.sort(key=lambda c: (len(c), c))
+
+    # 风险评估（纳入新增维度）
+    _breadth = (len(affected_chapters) + len(affected_lines) + len(affected_debts)
+                + len(affected_relations) + len(affected_milestones))
+    _active_hit = [l for l in affected_lines if "[active]" in l]
     if affected_locked:
         risk_level = "HIGH (高风险 · 触碰已锁定法定事实)"
-    elif len(affected_chapters) >= 5 or len(affected_lines) >= 2:
+    elif affected_milestones:
+        risk_level = "HIGH (高风险 · 颠覆已排产里程碑)"
+    elif _active_hit and len(affected_chapters) >= 3:
+        risk_level = "HIGH (高风险 · 撞击活跃伏笔生命周期且跨多章)"
+    elif len(affected_chapters) >= 5 or len(affected_lines) >= 2 or _breadth >= 6:
         risk_level = "MEDIUM (中风险 · 跨多章因果网络，需建立快照精确修补)"
     else:
         risk_level = "LOW (低风险 · 局部微创修改)"
 
+    if entity_kind == "unknown":
+        risk_level += " ⚠️ 未在台账解析到该实体（拼写不符或尚未建档，结论仅供参考）"
+
     return {
         "entity": entity,
+        "resolved_id": canonical_id,
+        "resolved_name": canonical_name,
+        "entity_kind": entity_kind,
         "action": action,
         "risk_level": risk_level,
         "affected_chapters": affected_chapters,
         "affected_lines": affected_lines,
         "affected_locked_facts": affected_locked,
+        "affected_debts": affected_debts,
+        "affected_relations": affected_relations,
+        "affected_items": affected_items,
+        "affected_places": affected_places,
+        "affected_milestones": affected_milestones,
         "recommendation": "修改前必须运行 `python studio.py snapshot create` 建立快照备份！",
     }
 
@@ -1579,6 +1947,27 @@ def milestone_add(workspace: Path, title: str, target_ch: int, desc: str) -> Dic
     """新增里程碑。"""
     ms_file = workspace / "state" / "milestones.json"
     milestones = _load_json(ms_file, default=[])
+
+    # v4.3.2 缺陷#25：入口校验。milestone add 是 Stage 0B/0E (Architect) 唯一的写命令，
+    # 旧版对 target_ch 零校验——实测 `--target-ch 0` 与指向已定稿章次均被静默接受，
+    # 落盘后 cockpit 永远显示「⏳ 待达成」，成为一张永不兑现的空头支票。
+    if not isinstance(target_ch, int) or target_ch < 1:
+        raise GuardError(
+            f"里程碑目标章非法: --target-ch {target_ch}（必须为 >= 1 的整数）。"
+            "\n      💡 方案：里程碑用于排产未来主线节点，请填写真实章号（如 --target-ch 20）。"
+        )
+    try:
+        _cur_raw = _load_json(workspace / "state" / "current.json", default={}).get("current_ch", "")
+        _cm = re.search(r"(\d+)$", str(_cur_raw))
+        _cur_num = int(_cm.group(1)) if _cm else 0
+    except Exception:
+        _cur_num = 0
+    if _cur_num and target_ch <= _cur_num:
+        raise GuardError(
+            f"里程碑目标章已被剧情甩在身后: --target-ch {target_ch}，但全书已推进至 {_cur_raw}。"
+            "\n      💡 方案：里程碑只能排产未来章次。若该节点已在剧情中兑现，"
+            "请改用 `python studio.py milestone achieve <ms_id>` 登记达成。"
+        )
     # v4.2.1 缺陷#14：按现存最大编号 +1 发号（旧版 len+1，删除后补建会撞号）
     max_n = 0
     for m0 in milestones:
@@ -1634,11 +2023,25 @@ def snapshot_rollback(workspace: Path, name_or_file: str) -> Dict[str, Any]:
     snap_dir = workspace / "snapshots"
     target_zip: Optional[Path] = None
 
+    # v4.3.3 安全带 0：快照必须来自本工作区 snapshots/ 目录。
+    # 否则外部任意 zip 可被解包覆盖工作区，并触发"清除快照外文件"造成全书删除。
+    def _inside_snapdir(cand: Path) -> bool:
+        try:
+            return cand.resolve().parent == snap_dir.resolve()
+        except OSError:
+            return False
+
     if Path(name_or_file).exists() and name_or_file.endswith(".zip"):
-        target_zip = Path(name_or_file)
-    elif (snap_dir / name_or_file).exists():
+        cand = Path(name_or_file)
+        if not _inside_snapdir(cand):
+            raise BusinessError(
+                f"拒绝加载工作区外的快照文件: '{name_or_file}'",
+                solution=f"快照只能取自 {snap_dir}/ 目录。请运行 `python studio.py snapshot list` 查看可用快照。",
+            )
+        target_zip = cand
+    elif (snap_dir / name_or_file).exists() and _inside_snapdir(snap_dir / name_or_file):
         target_zip = snap_dir / name_or_file
-    elif (snap_dir / f"{name_or_file}.zip").exists():
+    elif (snap_dir / f"{name_or_file}.zip").exists() and _inside_snapdir(snap_dir / f"{name_or_file}.zip"):
         target_zip = snap_dir / f"{name_or_file}.zip"
     else:
         # 模糊匹配最新一个包含该名字的快照
@@ -1670,6 +2073,13 @@ def snapshot_rollback(workspace: Path, name_or_file: str) -> Dict[str, Any]:
                     solution="该快照压缩包可能损坏或包含非法路径，请选用其他快照或联系系统管理员。",
                 )
         zip_names = {info.filename.replace("\\", "/") for info in zf.infolist()}
+        # v4.3.3 安全带 3：合法工作区快照必含 project.json。缺失即判为非快照压缩包，
+        # 若放行，后续"快照域全量对齐"会把全书文件当作未来文件清除。
+        if "project.json" not in zip_names:
+            raise GuardError(
+                f"该压缩包缺少 project.json，不是合法的工作区快照: {target_zip.name}",
+                solution="请运行 `python studio.py snapshot list` 选用由 snapshot create 生成的快照。",
+            )
         zf.extractall(workspace)
 
     # v4.3 缺陷#A4 修复（回滚残留未来章节）：

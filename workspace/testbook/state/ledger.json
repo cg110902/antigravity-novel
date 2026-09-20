@@ -1,0 +1,22 @@
+{
+  "pools": {
+    "现金": 300
+  },
+  "pools_baseline": {
+    "现金": 0
+  },
+  "transactions": [
+    {
+      "chapter": "ch_001",
+      "pool": "现金",
+      "delta": -200,
+      "reason": "塞给拆迁楼看门人的封口费"
+    },
+    {
+      "chapter": "ch_002",
+      "pool": "现金",
+      "delta": 500,
+      "reason": "变卖旧表"
+    }
+  ]
+}

@@ -49,11 +49,26 @@ description: Universal dramatic beat screenwriter and fine outline architect for
 - `present_characters`：确认在场人物名单（严禁填入已死角色），填实各自本章的 `want`（利益诉求）、`fear`（软肋）与 `status_in`（入场状态）；
 - `epistemology`：锁定认知界限（明确主角知晓什么、对手知晓什么、对手绝对不知晓什么，**严禁全知天眼穿帮**）；
 - `foreshadowing_deltas`：参考简报中的伏笔雷达，若本章有推进或回收，声明 `id` 与 `action`（`plant`/`reveal`/`resolve`），无变动可留空；
-- `state_deltas`：简要声明角色出场状态（`character_status`）与新结成的恩怨情仇（`debts`），后续由 Stage 5 `sync` 自动合账；
+- `state_deltas`：本章一切**可量化台账变动**的唯一入口，后续由 Stage 5 `sync` 自动合账。含四个子块：
+  - `character_status`：角色出场/离场状态（生死翻转也在此声明 `life_status: deceased`）；
+  - `debts`：新结成或了结的恩怨情仇；
+  - ⚠️ `items`：**道具充能消耗 / 持有者流转 / 损毁遗失**。脚手架中该块默认是注释状态，需要时**必须取消注释并填实**；
+  - ⚠️ `ledger`：**经济流水增减**（`pool` / `delta` / `reason`）。同样默认注释，需要时必须启用；
+- `relation_deltas`：双向关系张力（`tension` 0~100）、关系定性（`dynamic`）与潜台词（`subtext`）。本章若有人物关系升温/恶化/破裂，必须声明，否则关系网与 cockpit 张力雷达将停留在旧值；
 - ⚡ **【触发式强约束必填原则】**：
   - **死亡与不可逆事实触发必填**：若本章剧情规划了**“杀人、处决、重大角色死亡、宗门覆灭、立下誓约”**，编剧**必须**在 `locked_facts` 显式写入（例如：`- "p_002 王莽 阵亡"`），并在 `character_status` 声明 `life_status: deceased`！**绝对严禁在剧情大纲里写了某人被杀，而在 Frontmatter 里却留空！**
   - **核心新实体触发必填**：若本章主角获得核心专属装备/法宝，或本卷核心新角色首次登场，**必须**在 `new_entities` 显式建档声明（取用简报给出的下一可用 ID）。
   - **常规章节免填**：若本章无新实体、无重大死亡，保留 `new_entities: []` 与 `locked_facts: []` 即可，**严禁凭空胡编无意义路人甲**。
+  - 🔴 **【正文与台账同源铁律 · v4.3.2】**：**凡是你在剧情脉络里写出来的可量化变动，都必须在 `state_deltas` 里有对应声明**。引擎只认 Frontmatter，不会去读你的剧情正文——细纲里写了"耗尽一次充能""花掉五百灵石""刀断了""从此反目"，而 `items`/`ledger`/`relation_deltas` 却留空或仍是注释状态，台账就会**静默停留在旧值且全链路零告警**（`sync` 成功、`check` 0 errors），直到几十章后道具充能对不上账才爆发，且极难回溯。逐项自查：
+    | 剧情里写了… | 必须声明 |
+    |---|---|
+    | 用掉/充能/消耗法宝次数 | `state_deltas.items[].charges_delta` |
+    | 道具易主、被夺、赠予 | `state_deltas.items[].holder_change` |
+    | 兵器折断、法宝损毁、丢失 | `state_deltas.items[].status` |
+    | 收钱/花钱/赏金/赔款 | `state_deltas.ledger`（`pool`/`delta`/`reason`） |
+    | 结仇、欠人情、立誓约 | `state_deltas.debts` |
+    | 关系升温、翻脸、决裂 | `relation_deltas` |
+    | 角色死亡/重伤/突破 | `state_deltas.character_status` |
 
 ### 2. Markdown 剧情脉络编排
 - 填实 **一、 核心戏剧目标与爽点**（明确戏眼、破局套路、三大负向红线）；

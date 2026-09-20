@@ -13,6 +13,7 @@
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -102,9 +103,50 @@ def is_deceased(char_data: Any) -> bool:
         return True
     if life in ("dead", "deceased") or status in ("dead", "deceased"):
         return True
+    # L1 兼容层：历史工作区的 condition 可能承载死亡语义而无 life_status。
+    # 新数据由 sync 落账时自动升格（见 _infer_life_status），此处仅兜底旧档。
+    # 关键：**已有显式生死契约时绝不让 condition 文本翻案**——否则
+    # life_status="alive" + condition="气绝身亡"（如假死、诈尸、复活桥段）
+    # 会被词表反判为死亡，作者的显式声明形同虚设。
+    if life in _LIFE_STATUS_NORM or status in _LIFE_STATUS_NORM:
+        return False
     if any(k in cond for k in ("阵亡", "永久湮灭", "身死", "气绝身亡", "被斩杀")):
         return True
     return False
+
+
+def _infer_life_status(text: str) -> str:
+    """从自由文本推断生死枚举（L2 语义线索 → L1 契约的升格通道）。
+
+    返回 "deceased" / "missing" / "" （空串表示无法判定，交由调用方决定）。
+    仅在 sync 落账时调用一次，把模糊文本**固化**成结构化契约；此后所有硬裁决
+    只读 life_status，不再重复猜测。这样同一段文字的解释在全生命周期内唯一，
+    不会出现"这次判死、下次判活"的漂移。
+    """
+    s = str(text or "").strip()
+    if not s:
+        return ""
+    low = s.lower()
+    if low in _LIFE_STATUS_NORM:
+        return _LIFE_STATUS_NORM[low]
+    # 反事实/假设语境守卫：先排除再匹配，避免「几乎死了」「以为他死了」误判
+    for g in _NON_DEATH_GUARD_PATTERNS:
+        if re.search(g, s):
+            return ""
+    if any(k in s for k in _DEATH_KEYWORDS):
+        return "deceased"
+    if any(k in s for k in ("失踪", "下落不明", "失联", "生死不明")):
+        return "missing"
+    return ""
+
+
+# L2 反事实语境守卫：命中任一即放弃推断（宁可不判，不可错判）
+_NON_DEATH_GUARD_PATTERNS = (
+    r"几乎[^。；]{0,4}死", r"差点[^。；]{0,4}死", r"险些[^。；]{0,4}死",
+    r"以为[^。；]{0,6}死", r"若是[^。；]{0,6}死", r"如果[^。；]{0,6}死",
+    r"仿佛[^。；]{0,4}死", r"好像[^。；]{0,4}死", r"装死", r"假死",
+    r"死[^。；]{0,4}(?:里逃生|而复生)", r"被救回", r"救了回来", r"没有死", r"未死", r"不曾死",
+)
 
 
 def _chapter_num(chapter_id: str) -> int:
@@ -113,17 +155,73 @@ def _chapter_num(chapter_id: str) -> int:
     return int(m.group(1)) if m else 0
 
 
+# ============================================================================
+# v4.3.3 BUG#47 · 生死判定的分层治理
+# ----------------------------------------------------------------------------
+# 【问题】汉语死亡表述无法穷举。旧实现把「是否死亡」这一**必须准确**的判定
+#   建立在关键词枚举上，两类错误必然同时存在：
+#     · 漏判：「倒在雪地里再没起来」「那盏灯，灭了」——真死判活 ⇒ 死者复活失控；
+#     · 误判：「重伤，几乎死了，被救回」——没死判死 ⇒ 活人被封进黑名单。
+#   每补一个词都在扩大误判面，每加一条守卫都在扩大漏判面，本质是拿模糊手段
+#   去做确定性裁决。
+#
+# 【方案】按「判定后果」分层，而不是继续堆词表：
+#   L1 结构化契约（唯一权威 · 确定性）：life_status / status 的法定枚举值。
+#      只有它能把角色置为 deceased，供死者复活阻断等**硬裁决**使用。
+#   L2 语义线索（仅用于提醒 · 不做裁决）：自由文本里的死亡措辞。命中后
+#      **不改台账**，只提示作者「疑似死亡描写，请补 life_status 显式声明」。
+#      词表在这一层永远是"够用就好"，漏了不造成事故，多了只是一句提醒。
+#   L3 兜底：契约缺失且语义存疑时，宁可报"需要澄清"，也不替作者做决定。
+#
+# 这样汉语的模糊性被隔离在 L2，不再污染 L1 的确定性裁决。
+# ============================================================================
+
+# L2 语义线索词表：**仅用于生成提醒**，严禁用于 is_deceased 等硬裁决。
+_DEATH_KEYWORDS = (
+    "阵亡", "永久湮灭", "身死", "气绝身亡", "被斩杀", "deceased", "dead",
+    # v4.3.2 缺陷#15：旧词表过窄，漏掉中文最常见的死亡表述。实测「为掩护沈决死于
+    # 档案室火场」整条不命中 ⇒ 回落到 last_seen_ch，把死于 ch_004 的齐鸣判成
+    # 「已于 ch_003 阵亡」，于是他真正的牺牲章 ch_004 被反诬为「死者复活」，
+    # 全书体检对一本完全正常的书常驻 1 条阻断错误。
+    "死于", "牺牲", "殒命", "丧生", "身亡", "毙命", "战死", "烧死", "溺亡", "自尽", "遇害",
+    # v4.3.2 补遗：病故/猝死等"非暴力死亡"同样是常见写法，回归测试中由
+    # 「病故于旧货店」一例暴露——旧词表偏战斗向，日常题材的死亡会整条漏判。
+    "病故", "病逝", "猝死", "离世", "过世", "去世", "咽了气", "断气", "殉职", "殉难",
+    "圆寂", "仙逝", "长眠", "命丧", "毙于", "死在", "死了",
+)
+
+
+def _ch_order(cid: str) -> int:
+    m = re.search(r"(\d+)", str(cid or ""))
+    return int(m.group(1)) if m else -1
+
+
 def get_death_chapter(char_data: Any) -> str:
-    """获取角色的阵亡章节。"""
+    """获取角色的阵亡章节。
+
+    v4.3.2 缺陷#15：取 arc_history 中命中死亡语义的**最晚**一章，而非首个命中项
+    —— arc_history 不保证按章序排列（实测实际为倒序），首命中会给出错误章号。
+    """
     if not isinstance(char_data, dict):
         return ""
+    hits = []
     for a in char_data.get("arc_history", []):
         if not isinstance(a, dict):
             continue
         s_out = str(a.get("status_out", "")).lower()
-        if any(k in s_out for k in ("阵亡", "永久湮灭", "身死", "气绝身亡", "被斩杀", "deceased", "dead")):
-            return str(a.get("chapter", ""))
-    return str(char_data.get("last_seen_ch", ""))
+        if any(k in s_out for k in _DEATH_KEYWORDS):
+            hits.append(str(a.get("chapter", "")))
+    if hits:
+        return max(hits, key=_ch_order)
+
+    # 未命中语义关键词但已登记为 deceased（如通过 life_status 显式声明）：
+    # 取「最后露面章」与「弧光轨迹最晚一章」中较晚者，避免把死亡当章误判成复活。
+    cands = [str(char_data.get("last_seen_ch", "") or "")]
+    for a in char_data.get("arc_history", []):
+        if isinstance(a, dict) and a.get("chapter"):
+            cands.append(str(a["chapter"]))
+    cands = [c for c in cands if c]
+    return max(cands, key=_ch_order) if cands else ""
 
 
 def _ensure_dir(p: Path) -> Path:
@@ -138,6 +236,25 @@ def _load_json(p: Path, default: Any = None) -> Any:
       （旧版静默返回 {}，下一次保存会用空表覆盖真实台账，造成无痕数据蒸发）。
     """
     if not p.exists():
+        # v4.3.2 缺陷#13（P0 · 静默空表放行）：损坏隔离把坏表 rename 成 *.corrupt-<ts> 后，
+        # 原路径就此消失。下一条命令走到这里只看到「文件不存在」，当成合法首跑返回空表 ——
+        # 于是第 1 次 exit 4 停机，第 2 次同一命令 exit 0 若无其事，发号器按空表重新发
+        # it_001（实测 `id next item` 从 it_003 退回、`id list` 显示台账为空），
+        # 真实台账被无声抹掉，正好撞穿本函数 docstring 承诺的「绝不静默以空表继续」。
+        # 修正：只要同目录留有该表的隔离残骸且正主缺席，一律持续硬失败直到人工处置。
+        try:
+            leftovers = sorted(q.name for q in p.parent.glob(p.name + ".corrupt-*"))
+        except OSError:
+            leftovers = []
+        if leftovers:
+            raise RuntimeError(
+                f"状态文件缺失但存在损坏隔离残骸: {p.name} 已于此前损坏并被隔离为 "
+                f"{', '.join(leftovers[-3:])}，而正主文件至今未恢复。"
+                f"引擎拒绝以空表继续运行（否则发号器会重发已占 ID、台账将被空表覆盖）。"
+                f"请用 `python studio.py snapshot list` + `snapshot rollback <快照名>` 恢复，"
+                f"或修复隔离文件后改名还原为 {p.name}；确认该表本就应为空时，"
+                f"可手工写入空表（{{}} 或 []）并清理残骸。"
+            )
         return default if default is not None else {}
     try:
         with open(p, "r", encoding="utf-8-sig") as f:
@@ -346,6 +463,15 @@ class StateManager:
                 ename = str(ne.get("name", "")).strip()
                 if not eid:
                     continue
+                # v4.3.3 BUG#46：细纲 new_entities 中残留的模板占位条目
+                # （name 为「待填写道具名」「待填写新角色名」等）此前被当作真实实体入账，
+                # 在 items/persons 表里留下幽灵记录，并占住 ID 让同号真实实体被丢弃
+                # （实测 workspace/testbook 的 it_002 占位条挤掉了真正的「旧手表」）。
+                # ops._is_placeholder_value 只守 proposal auto 路径，细纲直投无人拦截。
+                _en = ename
+                if (not _en) or _en in ("无", "示例", "略", "-", "N/A", "n/a") or any(
+                        _en.startswith(_k) for _k in ("待填写", "待补充", "示例", "如：", "例如")):
+                    continue
                 if etype in ("person", "character"):
                     if eid not in persons_db:
                         persons_db[eid] = {
@@ -404,13 +530,25 @@ class StateManager:
                             "established_ch": ch_id,
                         }
                         new_ent_count += 1
-            _save_json(self.persons_file, persons_db)
-            _save_json(self.items_file, items_db)
-            _save_json(self.places_file, places_db)
-            _save_json(self.factions_file, factions_db)
+            # v4.3.2 缺陷#18（P0 · 阻断章仍污染台账）：旧版在此立即落盘 new_entities，
+            # 而事务预检（死者登场 / 充能透支）在下方第 2 节才执行 —— 一旦预检 raise，
+            # 本章的新人物/新道具/新地点/新势力已经写进台账且无人回滚。
+            # 实测：cruise 在 ch_016 因充能透支刹车，p_017「守关人16」与 loc_016 仍被建档，
+            # 于是台账里躺着一个"从未出现在任何已封存章"的幽灵人物，且占用了 ID 水位。
+            # 修正：新实体只在内存中暂存，推迟到预检通过后（第 1 节起始处）统一落盘，
+            # 与「事务预检先于任何写盘」的设计不变量对齐。
+            _pending_entity_writes = [
+                (self.persons_file, persons_db),
+                (self.items_file, items_db),
+                (self.places_file, places_db),
+                (self.factions_file, factions_db),
+            ]
+        else:
+            _pending_entity_writes = []
+            persons_db = self.get_persons()
 
         # 1. 同步人物与心理状态
-        persons_db = self.get_persons()
+        # 注意：此处不可重新 get_persons()——新实体尚未落盘，需沿用上方内存态。
         raw_pres = frontmatter.get("present_characters")
         raw_list = [raw_pres] if isinstance(raw_pres, (str, dict)) else (raw_pres if isinstance(raw_pres, list) else [])
         # v4.3 缺陷#B1：列表级归一化前移——字符串紧凑形态（present_characters: [p_001, p_003]）
@@ -526,6 +664,16 @@ class StateManager:
                     _d = int(it.get("charges_delta", 0))
                 except (ValueError, TypeError):
                     continue
+                # v4.3.2 缺陷#1：预检与应用侧口径必须一致——本章已入账的旧 delta 先冲销，
+                # 否则同章 --force 重放会被自己上一次的扣减误判为透支。
+                _prev_d = 0
+                for _h in _rec.get("transfer_history", []) or []:
+                    if isinstance(_h, dict) and _h.get("chapter") == ch_id:
+                        try:
+                            _prev_d += int(_h.get("charges_delta", 0) or 0)
+                        except (ValueError, TypeError):
+                            pass
+                _d = _d - _prev_d
                 if _rec.get("charges", -1) >= 0 and _rec.get("charges", 0) + _d < 0:
                     _fatal.append(
                         f"道具规则阻断：道具 [{it.get('name') or _iid}] ({_iid}) 充能已耗尽 "
@@ -533,8 +681,12 @@ class StateManager:
                         f"💡 方案：请在细纲 state_deltas.items 中调整 charges_delta 扣减值，或在前置剧情安排充能。"
                     )
         if _fatal:
+            # 预检不通过：此刻尚未发生任何写盘，新实体随内存一并丢弃（零污染）。
             raise GuardError("\n".join(_fatal))
 
+        # 预检通过，方可落盘本章新实体（v4.3.2 缺陷#18）
+        for _pf, _pdb in _pending_entity_writes:
+            _save_json(_pf, _pdb)
 
         for c in present_chars:
             # 字符串紧凑形态已在函数首部列表级归一化，此处仅剩 dict 形态
@@ -609,14 +761,22 @@ class StateManager:
                     if cond_text:
                         persons_db[target_pid]["condition"] = cond_text
                     if explicit_life in _LIFE_STATUS_NORM:
+                        # 显式契约最高优先级，直接采信
                         persons_db[target_pid]["life_status"] = _LIFE_STATUS_NORM[explicit_life]
-                    elif cond_text.lower() in _LIFE_STATUS_NORM:
-                        persons_db[target_pid]["life_status"] = _LIFE_STATUS_NORM[cond_text.lower()]
+                    else:
+                        _inf2 = _infer_life_status(cond_text)
+                        if _inf2:
+                            persons_db[target_pid]["life_status"] = _inf2
                 else:
                     s_desc = str(s_val).strip()
                     persons_db[target_pid]["condition"] = s_desc
-                    if s_desc.lower() in _LIFE_STATUS_NORM:
-                        persons_db[target_pid]["life_status"] = _LIFE_STATUS_NORM[s_desc.lower()]
+                    # v4.3.3 BUG#47：旧版只认精确枚举，作者写「重伤·气绝身亡」这类
+                    # 自由文本时 life_status 永远不被写入，死亡只能靠下游词表反复猜测，
+                    # 同一段文字在不同调用点可能得出不同结论。此处一次性升格为契约：
+                    # 推断成功即固化进 life_status，此后所有硬裁决只读契约不再猜。
+                    _inferred = _infer_life_status(s_desc)
+                    if _inferred:
+                        persons_db[target_pid]["life_status"] = _inferred
 
         _save_json(self.persons_file, persons_db)
 
@@ -668,8 +828,20 @@ class StateManager:
                     delta_int = int(c_delta)
                 except (ValueError, TypeError):
                     delta_int = 0
+                # v4.3.2 缺陷#1（充能重放非幂等）：本章若已入账过 charges_delta，
+                # 必须先冲销旧值再应用新值——否则 `sync --force` 每重放一次就真扣一次，
+                # 连扣数次后引擎反被自己的透支守卫阻断（实测 3→2→1→0→GuardError）。
+                # transfer_history 是同章唯一流水凭据（同章记录已按 chapter 去重替换）。
+                _prev_delta = 0
+                for _h in irecord.get("transfer_history", []) or []:
+                    if isinstance(_h, dict) and _h.get("chapter") == ch_id:
+                        try:
+                            _prev_delta += int(_h.get("charges_delta", 0) or 0)
+                        except (ValueError, TypeError):
+                            pass
+                _net_delta = delta_int - _prev_delta
                 if irecord.get("charges", -1) >= 0:
-                    new_charges = irecord["charges"] + delta_int
+                    new_charges = irecord["charges"] + _net_delta
                     if new_charges >= 0:
                         irecord["charges"] = new_charges
 
@@ -757,6 +929,16 @@ class StateManager:
                 lrecord = lines_db.get(fid, LineRecord(id=fid, name=fname or fid).to_dict())
                 if fname:
                     lrecord["name"] = fname
+                # v4.3.2 缺陷#2（伏笔分类恒为 GUN）：LineRecord.type 默认 "GUN"，且旧版
+                # 既不读细纲显式 type、也不按 ID 前缀推断 ⇒ KNO-001/MIS-001 全被记成 GUN，
+                # schema 承诺的 GUN/KNO/MIS 三分类形同虚设（trace 报告同步误导）。
+                _explicit_type = str(fd.get("type", "") or "").upper().strip()
+                if _explicit_type in ("GUN", "KNO", "MIS"):
+                    lrecord["type"] = _explicit_type
+                else:
+                    _m_pref = re.match(r"^(GUN|KNO|MIS)-", fid.upper())
+                    if _m_pref:
+                        lrecord["type"] = _m_pref.group(1)
                 if fdesc:
                     lrecord["desc"] = fdesc
 
@@ -837,7 +1019,14 @@ class StateManager:
                 d_type = str(dd.get("type", "grudge")).strip()
                 d_desc = str(dd.get("desc", "")).strip()
                 d_action = str(dd.get("action", "record")).strip().lower()
-                d_id = str(dd.get("id", f"DEBT-{len(debts_db)+1:03d}")).strip()
+                # v4.3.2 缺陷#6（恩怨重放膨胀）：缺省 id 旧版按 len(debts_db)+1 发号，
+                # 随表长漂移 ⇒ 同章 --force 重放每次都算「新恩怨」，实测三次重放出
+                # DEBT-001/002/003 三条相同记录。templates/beats.md 默认就不带 id，
+                # 这条路径是常态而非边角。改为按（章节+双方+类型）派生稳定幂等键。
+                d_id = str(dd.get("id", "") or "").strip()
+                if not d_id:
+                    _seed = f"{ch_id}|{d_source}|{d_target}|{d_type}"
+                    d_id = "DEBT-AUTO-" + hashlib.sha1(_seed.encode("utf-8")).hexdigest()[:8]
 
                 if d_action == "record":
                     # v4.2 幂等数据层：同 id 恩怨替换而非追加（--force 重放不翻倍）
@@ -1108,6 +1297,46 @@ class StateManager:
                             "remaining_charges": i_rec.get("charges", -1),
                         })
         _save_json(self.entity_timeline_file, timeline_db)
+
+        # 10.5 细纲正文 ⇄ state_deltas 声明漂移探针（v4.3.2 缺陷#21）
+        #
+        # 背景：Stage 1 编剧手册此前只点名 chapter_type/present_characters/
+        # epistemology/foreshadowing_deltas/state_deltas 五项，对 items/ledger/
+        # relation_deltas 全程零提及；而脚手架里 items 与 ledger 两块默认是
+        # **注释状态**。于是编剧在剧情脉络里写了「耗尽一次充能」「花掉五百灵石」，
+        # Frontmatter 却没有对应声明——引擎只认 Frontmatter，台账静默停留在旧值，
+        # 且 sync 成功、check 0 errors，全链路零告警（实测复现）。
+        # 这类漏账往往几十章后才在充能对不上时爆发，且极难回溯到具体哪一章。
+        # 此处做一次廉价的关键词比对，命中即 warning 提示补声明（只提醒，不猜数改账）。
+        try:
+            if beats_body:
+                _body = re.sub(r"<!--.*?-->", "", beats_body, flags=re.DOTALL)
+                _probes = (
+                    ("items", bool(item_deltas),
+                     ("充能", "耗尽", "用掉", "点燃", "折断", "碎裂", "损毁", "夺走",
+                      "易主", "赠予", "交给", "丢失", "遗失", "报废", "熔毁"),
+                     "state_deltas.items（charges_delta / holder_change / status）"),
+                    ("ledger", bool(state_deltas.get("ledger")),
+                     ("灵石", "银两", "赏金", "花掉", "花光", "买下", "赔款", "报酬",
+                      "酬金", "付了", "收入", "进账", "债务"),
+                     "state_deltas.ledger（pool / delta / reason）"),
+                    ("relations", bool(raw_rels),
+                     ("反目", "决裂", "翻脸", "结盟", "和解", "背叛", "生分", "交心"),
+                     "relation_deltas（tension / dynamic / subtext）"),
+                )
+                for _name, _declared, _kws, _field in _probes:
+                    if _declared:
+                        continue
+                    _hits = sorted({k for k in _kws if k in _body})
+                    if _hits:
+                        warnings.append(
+                            f"细纲正文提到「{'、'.join(_hits[:4])}」等{_name}相关变动，"
+                            f"但 Frontmatter 未作任何声明，本章台账不会发生对应变更。"
+                            f"\n      💡 方案：若确有变动，请在细纲补写 {_field}"
+                            f"（脚手架中该块默认为注释状态，需取消注释）；若属误报可忽略。"
+                        )
+        except Exception:
+            pass
 
         # 11. 自动持久化当章全时空全息历史快照切片 (history/ch_XXX.json)
         self.save_chapter_snapshot(ch_id)
