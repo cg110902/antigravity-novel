@@ -1,0 +1,128 @@
+[
+  {
+    "id": "DEBT-AUTO-341e7dc1",
+    "source_char": "p_001",
+    "target_char": "萧烜",
+    "type": "grudge",
+    "desc": "灯火司以「走火」草草结案，陆离把这笔人命账记在司正萧烜头上——尽管他还不曾见过此人",
+    "status": "unpaid",
+    "created_ch": "ch_002"
+  },
+  {
+    "id": "DEBT-AUTO-6d411f9e",
+    "source_char": "p_002",
+    "target_char": "陆离",
+    "type": "grudge",
+    "desc": "萧烜当众把陆离的追问摁回封档，并讥他「打更人管好梆子」",
+    "status": "unpaid",
+    "created_ch": "ch_004"
+  },
+  {
+    "id": "DEBT-AUTO-2c0516a3",
+    "source_char": "p_004",
+    "target_char": "陆离",
+    "type": "favor",
+    "desc": "苏青灯相助掩护陆离脱出黑市，陆离欠她一个照面不说破的人情",
+    "status": "unpaid",
+    "created_ch": "ch_005"
+  },
+  {
+    "id": "DEBT-AUTO-e8cc4197",
+    "source_char": "p_004",
+    "target_char": "陆离",
+    "type": "promise",
+    "desc": "陆离应下与青灯共查灯母残页与灯脉之秘的誓约",
+    "status": "unpaid",
+    "created_ch": "ch_006"
+  },
+  {
+    "id": "DEBT-AUTO-b9e347fc",
+    "source_char": "p_001",
+    "target_char": "萧烜",
+    "type": "grudge",
+    "desc": "档案房被烧、底账被毁，陆离把废灯之账加到萧烜头上",
+    "status": "unpaid",
+    "created_ch": "ch_007"
+  },
+  {
+    "id": "DEBT-AUTO-10959151",
+    "source_char": "p_001",
+    "target_char": "洛照离",
+    "type": "grudge",
+    "desc": "洛家当街灭口洛三，陆离把这笔账记在洛家掌权人洛照离头上",
+    "status": "unpaid",
+    "created_ch": "ch_008"
+  },
+  {
+    "id": "DEBT-AUTO-4a69f4b5",
+    "source_char": "p_001",
+    "target_char": "萧烜",
+    "type": "grudge",
+    "desc": "萧烜以盗火案栽赃通缉，陆离把这笔诬陷记在他账上",
+    "status": "unpaid",
+    "created_ch": "ch_009"
+  },
+  {
+    "id": "DEBT-AUTO-64534815",
+    "source_char": "p_003",
+    "target_char": "陆离",
+    "type": "promise",
+    "desc": "顾伯以性命起誓：若自己再瞒十年，下辈子替陆离当牛做马",
+    "status": "unpaid",
+    "created_ch": "ch_010"
+  },
+  {
+    "id": "DEBT-AUTO-b2b4b487",
+    "source_char": "p_001",
+    "target_char": "萧烜",
+    "type": "grudge",
+    "desc": "萧烜当面以妹妹下落相激，血仇坐实",
+    "status": "unpaid",
+    "created_ch": "ch_011"
+  },
+  {
+    "id": "DEBT-AUTO-6cff2a01",
+    "source_char": "p_002",
+    "target_char": "陆离",
+    "type": "grudge",
+    "desc": "萧烜当堂翻供，把两案栽成黑市内讧，陆离把这场堂审的帐记下",
+    "status": "unpaid",
+    "created_ch": "ch_012"
+  },
+  {
+    "id": "DEBT-AUTO-c84a261e",
+    "source_char": "p_001",
+    "target_char": "萧烜",
+    "type": "grudge",
+    "desc": "灯会当众对赌，萧烜仍以民情压案，陆离把这口恶气记下",
+    "status": "unpaid",
+    "created_ch": "ch_013"
+  },
+  {
+    "id": "DEBT-AUTO-3754146e",
+    "source_char": "p_001",
+    "target_char": "萧烜",
+    "type": "grudge",
+    "desc": "萧烜被迫松口放人，旧账未清，梁子越结越深",
+    "status": "unpaid",
+    "created_ch": "ch_014"
+  },
+  {
+    "id": "DEBT-AUTO-3fbbb1b1",
+    "source_char": "p_001",
+    "target_char": "苏青灯",
+    "type": "promise",
+    "desc": "陆离接下查灯令，应下灯阁三个月探明灯脉之约",
+    "status": "unpaid",
+    "created_ch": "ch_015"
+  },
+  {
+    "id": "DEBT-AUTO-479aab26",
+    "source_char": "p_002",
+    "target_char": "顾伯",
+    "type": "grudge",
+    "desc": "萧烜焚档后密令心腹对顾伯下手，阴手伸向收留陆离之人",
+    "status": "unpaid",
+    "created_ch": "ch_016"
+  }
+]

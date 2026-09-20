@@ -1,0 +1,103 @@
+{
+  "chapter_id": "ch_001",
+  "frontmatter": {
+    "chapter_id": "ch_001",
+    "volume_id": "vol_01",
+    "title": "灯下寻尸（起）",
+    "chapter_type": "破局",
+    "timeline": "灯历戌寅年·十月初九·亥时",
+    "location": "灯末巷·巡夜道",
+    "narrative_spine": {
+      "thread": "主线·巫灯余响案",
+      "volume_phase": "阶段一：起（ch_001~ch_004）",
+      "macro_goal": "以「灯下寻尸」带出妹妹亡音、真灯语代价与走火案第一环"
+    },
+    "present_characters": [
+      {
+        "id": "p_001",
+        "name": "陆离",
+        "role": "protagonist",
+        "want": "查清巷尾浮尸怀里那盏灭灯的来路",
+        "fear": "灯里那个声音，自己此生再也不敢听第二遍",
+        "status_in": "完好·隐忍戒备"
+      },
+      {
+        "id": "p_003",
+        "name": "顾伯",
+        "role": "supporting",
+        "want": "护住陆离，把尸身按行规处置干净",
+        "fear": "这具浮尸与十年前那夜有关",
+        "status_in": "完好·惊疑"
+      }
+    ],
+    "epistemology": {
+      "known": {
+        "p_001": [
+          "死者不是溺毙——巷尾无水，怀里抱灯，灯却灭得蹊跷",
+          "灯中亡者余响是十年前大火里未寻回的妹妹"
+        ],
+        "p_003": [
+          "今夜三更前后巷口无外人进出"
+        ]
+      },
+      "blind_spots": {
+        "p_003": [
+          "陆离是能读懂灯中余响的真灯语者"
+        ],
+        "p_001": [
+          "顾伯年轻时亲眼见过十年前那夜的更多事"
+        ]
+      }
+    },
+    "foreshadowing_deltas": [
+      {
+        "id": "GUN-001",
+        "name": "灯中妹妹的亡音",
+        "action": "plant",
+        "desc": "将熄命灯里传出十年前大火中失踪妹妹的哭声，全城却无人记得她的名字"
+      },
+      {
+        "id": "MIS-001",
+        "name": "殉灯自愿的集体误信",
+        "action": "plant",
+        "desc": "百姓笃信冬至殉灯是至亲自愿的善举，官府借此遮掩灭口真相"
+      }
+    ],
+    "state_deltas": {
+      "character_status": {
+        "p_001": "完好·心神剧震"
+      },
+      "items": [
+        {
+          "id": "it_003",
+          "name": "被掉包的灯油罐",
+          "holder_change": "-> p_001",
+          "status": "active",
+          "durability": "罐底残油掺着一撮黑灰"
+        }
+      ],
+      "debts": []
+    },
+    "relation_deltas": [
+      {
+        "source": "p_001",
+        "target": "p_003",
+        "tension": "30",
+        "dynamic": "师徒守望·各怀心事",
+        "subtext": "陆离瞒着灯语之秘，顾伯瞒着十年前所见"
+      }
+    ],
+    "new_entities": [
+      {
+        "id": "it_003",
+        "type": "item",
+        "name": "被掉包的灯油罐",
+        "role": "supporting",
+        "tier_name": "凡灯灯油（掺熄灰）",
+        "summary": "浮尸怀中所抱之灯的灯油罐，罐底残油掺着一撮黑灰，是走火案第一物证",
+        "sensory_anchor": "黑陶罐，罐口缠三道褪色的红麻绳"
+      }
+    ],
+    "locked_facts": []
+  }
+}

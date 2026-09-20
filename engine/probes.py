@@ -127,12 +127,16 @@ def _secret_keywords(secret: str) -> Tuple[List[str], List[str]]:
     - weak：3 字头/尾碎片（如"十分钟""段记忆"）——通用性太强，只允许触发
       疑似级提醒，防止盲区角色说一句日常台词就被判"确认泄露"阻断流水线。
     """
-    runs = re.findall(r"[\u4e00-\u9fff]{2,}", secret)
+    runs = re.findall(r"[\u4e00-\u9fff]{1,}", secret)
     strong: List[str] = []
     weak: List[str] = []
     for run in runs:
         strong.append(run)
-        if len(run) >= 5:
+        # v4.4.0 FIND-O：4 字滑窗只在**长机密**（≥8 字）上才有辨识度。旧版对 5~7 字
+        # 的短机密也切 4 字窗，把「他其实不是人」切成「他其实不/其实不是/实不是人」
+        # 等公共短语，盲区角色一句「他其实不是故意的」就被判成确认级泄露（error
+        # 阻断）。短机密只有全串才是强证据；同义改写降级 suspected 交 Auditor 复核。
+        if len(run) >= 8:
             for i in range(len(run) - 3):
                 strong.append(run[i:i + 4])
         if len(run) > 3:
@@ -504,9 +508,14 @@ def probe_unregistered_fatalities(
 
     # 已声明死亡的角色（在 locked_facts、character_status 或 audit_text 中）
     acknowledged_deaths = set()
+    # v4.4.0 FIND-R：'死' 单字对 locked_facts 的**真死亡**判定过于宽泛——「死不承认」
+    # 的修辞义会命中，把活人误吞进 acknowledged_deaths，从而对其真正的死亡描写永久静默。
+    # 该判定现在是「是否已登记死亡」的确定性闸门，须收敛为明确的死亡措辞 + 角色名共现。
     for lf in (frontmatter.get("locked_facts") or []):
         lf_str = str(lf)
-        if any(k in lf_str for k in ("阵亡", "死亡", "身亡", "击杀", "被杀", "死")):
+        # 明确的死亡/灭失措辞（去掉宽泛的 '死' 单字；「已死/死因/死于」这类明确语义另行收容）
+        _death_phrase = any(k in lf_str for k in ("阵亡", "死亡", "身亡", "击杀", "被杀", "已死", "毙命", "殒命"))
+        if _death_phrase:
             for cname, bases in name_to_bases.items():
                 if any(len(b) >= 2 and b in lf_str for b in bases):
                     acknowledged_deaths.add(cname)

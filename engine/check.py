@@ -82,10 +82,10 @@ def scan_ledger_integrity(workspace: Path) -> List[str]:
         _places = _sm.get_places()
         _debts = _sm.get_debts()
         _relations = _sm.get_relations()
-        # 复用 state.py 的唯一死亡语义词表——切勿在此内联复制一份，
+        # 复用 state.py 的唯一死亡语义判断——切勿在此内联复制一份，
         # 两处词表漂移正是缺陷#15 的成因（回归测试中「病故于旧货店」一例即因
         # check 侧内联词表未同步而漏判）。
-        from engine.state import is_deceased, get_death_chapter, _DEATH_KEYWORDS
+        from engine.state import is_deceased, get_death_chapter
 
         # 引擎内置的泛指占位（pack.py/ops.py 均按此识别主角持有物），不算断裂引用
         _generic_refs = {"主角", "protagonist", "未知", "无", "-"}
@@ -113,10 +113,10 @@ def scan_ledger_integrity(workspace: Path) -> List[str]:
         for _pid, _pr in _persons.items():
             if not isinstance(_pr, dict):
                 continue
-            _death_ch = get_death_chapter(_pr) if any(
-                any(k in str(a.get("status_out", "")).lower() for k in _DEATH_KEYWORDS)
-                for a in (_pr.get("arc_history") or []) if isinstance(a, dict)
-            ) else ""
+            # v4.4.0 FIND-N：死亡弧光判据与 get_death_chapter 同源（该函数只把
+            # 真·死亡语义 / 显式 deceased 契约对应的章节列为死亡章），不在外面
+            # 再用裸词表预筛——预筛自身就是 FIND-N 假阳性的来源（「几乎死了」误判）。
+            _death_ch = get_death_chapter(_pr)
             if _death_ch and not is_deceased(_pr):
                 _out.append(
                     f"台账生死状态自相矛盾: 角色 [{_pr.get('name') or _pid}] ({_pid}) 的 "
@@ -240,6 +240,23 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
                 warnings.append("project.json 中主角名 protagonist 为空。\n      💡 方案：请在 project.json 中补齐 protagonist 字段。")
         except Exception as e:
             errors.append(f"project.json 解析失败: {e}。\n      💡 方案：请检查 project.json 的语法格式，或从快照恢复。")
+
+    # 1.5 sync 事务哨兵巡检（v4.3.3 FIND-SYNC）
+    # sync 入账是一次多表非事务写；哨兵若残留，说明上次 sync 在写盘中途
+    # 中断/崩溃，台账可能处于跨表不一致状态。此时任何下游消费都可能读到
+    # 半写数据，必须显著报错并给出补救命令。
+    try:
+        from engine.state import read_sync_sentinel as _rd_sent
+        _sent = _rd_sent(workspace)
+        if _sent is not None:
+            _sent_ch = str(_sent.get("chapter_id", "未知"))
+            errors.append(
+                f"上次同步未完成：检测到 sync 中断哨兵残留（章节: {_sent_ch}，进程 {_sent.get('pid')}）。"
+                f"台账可能处于跨表不一致的中间态。\n      💡 方案：请补跑 `python studio.py sync {_sent_ch} --force`（幂等重放）"
+                f"完成入账；若该章已不需入账，可直接删除 state/ 下的哨兵文件。"
+            )
+    except Exception:
+        pass
 
     # 2. 未填占位符闸门（此前 templates/README 承诺但未实现，v4.1 落地）
     slot_count = _scan_unfilled_slots(workspace, warnings)
@@ -371,6 +388,10 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
         "attitude": {"hostile", "neutral", "friendly", "allied"},
     }
     try:
+        # v4.4.0 FIND-L3：显式生死契约经 L1 归一化，`_LIFE_STATUS_NORM` 是「中文显式
+        # 声明 → 法定枚举」的唯一映射。用它识别「显式契约拼写非法」——与把自由文本
+        # 误写进 life_status 的灰区口径区分开，给作者精确的修复提示。
+        from engine.state import _LIFE_STATUS_NORM as _LSN
         for _tname, _tbl, _keys in (
             ("persons", state_mgr.get_persons(), ("type", "role", "status", "life_status", "attitude")),
             ("items", state_mgr.get_items(), ("type", "status")),
@@ -384,19 +405,28 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
                     _v = _rec.get(_k)
                     if _v in (None, ""):
                         continue
-                    if str(_v).strip().lower() not in _ENUMS[_k]:
+                    _v_key = str(_v).strip().lower()
+                    if _v_key not in _ENUMS[_k]:
                         _extra = ""
+                        _tip = f"请在 state/{_tname}.json 中改为法定枚举值。"
                         if _k == "life_status":
-                            _extra = (
-                                "（⚠️ 该字段被死亡探针按 deceased/dead 精确匹配消费，"
-                                "非法值会让已故角色被当作在世，持续触发死亡误报）"
-                            )
-                        if _k == "attitude" and str(_v).strip().lower() == "disposition":
+                            if str(_v).strip() in _LSN and _LSN[str(_v).strip()] in _ENUMS[_k]:
+                                # 中文显式声明未被归一化直接落库——sync 之外的旧档
+                                _extra = (
+                                    "（该值属显式生死契约的中文写法，但未归一化为法定枚举——"
+                                    "死亡相关硬裁决将按 **deceased** 生效，建议手工改为 'deceased' 或重跑 sync 归一）"
+                                )
+                            else:
+                                _extra = (
+                                    "（⚠️ 该字段被死亡探针按 deceased/dead 精确匹配消费，"
+                                    "非法值会让已故角色被当作在世，持续触发死亡误报）"
+                                )
+                        if _k == "attitude" and _v_key == "disposition":
                             _extra = "（templates/README 明令严禁使用 `disposition`）"
                         warnings.append(
                             f"强类型枚举越界: {_tname}/{_eid} 的 {_k} = {_v!r} 不在法定白名单 "
                             f"{sorted(_ENUMS[_k])} 内{_extra}。"
-                            f"\n      💡 方案：请在 state/{_tname}.json 中改为法定枚举值。"
+                            f"\n      💡 方案：{_tip}"
                         )
     except Exception:
         pass

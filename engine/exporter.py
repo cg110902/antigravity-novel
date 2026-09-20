@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from engine.errors import BusinessError
-from engine.ops import _count_words, _ensure_dir, _load_json
+from engine.ops import _count_words, _ensure_dir, _load_json, count_prose_words
 
 
 def _safe_filename(name: str) -> str:
@@ -200,7 +200,16 @@ def export_book(
             else:
                 book.append(f"\n【{chapter_title}】\n")
                 book.append("\n".join(body_lines).strip())
-            total_words += _count_words("\n".join(body_lines))
+            # v4.4.0 BUG#35：export 不再重算正文字数，改为**引用 sync_log 的入账
+            # 字数**（单真值）——sync 入账时已按统一净字数口径统计，展示侧照读即可。
+            # 旧版 export 自算一遍、sync 又算一遍，两套输入域必然差出标题行字数，
+            # 是 BUG#35 的根因。现在 export/rollup/cockpit/project 全部同源派生，
+            # 任何存量工作区（含旧口径入账的历史章）都会天然一致。
+            _entry = sync_log.get(cf.stem, {}) if isinstance(sync_log, dict) else {}
+            try:
+                total_words += int(_entry.get("word_count", 0) or 0)
+            except (TypeError, ValueError):
+                pass
             total_chapters += 1
 
     if total_chapters == 0:

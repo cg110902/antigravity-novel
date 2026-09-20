@@ -31,6 +31,33 @@ def _count_words(text: str) -> int:
     return chinese_chars + english_words + numbers
 
 
+def count_prose_words(text: str) -> int:
+    """统一「正文净字数」口径（v4.4.0 BUG#35 收尾）。
+
+    这是全书唯一合法的字数口径，sync / export / rollup / cockpit / reconcile 共用：
+    - 剥离 YAML front-matter；
+    - 剥离 Markdown 章节标题行（`# 第N章 标题` 等 1~6 级井号标题，以及成书里的 `## vol_XX`）；
+    - 再按 `_count_words` 计量。
+
+    旧口径 bug：sync 用全文计数（含标题行）、export 剥标题后重排目录计数，
+    同一章在 cockpit（12667）与 export（12570）相差 97 字，对账时被误判漂移。
+    """
+    stripped = _strip_frontmatter(text)
+    lines = []
+    for ln in stripped.splitlines():
+        s = ln.strip()
+        if s.startswith("#"):
+            continue  # Markdown 标题行不计入正文净字数
+        lines.append(ln)
+    return _count_words("\n".join(lines))
+
+
+def _strip_frontmatter(text: str) -> str:
+    """剥离 YAML front-matter（与 exporter 语义一致）。"""
+    m = re.match(r"^---\s*\r?\n.*?\r?\n---\s*(.*)$", text, flags=re.DOTALL)
+    return m.group(1) if m else text
+
+
 def _chapter_num(chapter_id: str) -> int:
     m = re.search(r"(\d+)$", chapter_id)
     return int(m.group(1)) if m else 0
@@ -611,7 +638,7 @@ def audit_chapter(workspace: Path, chapter_id: str, write_file: bool = True,
         )
 
     prose = raw_v3.read_text(encoding="utf-8-sig", errors="replace")
-    words = _count_words(prose)
+    words = count_prose_words(prose)
 
 
     cfg = load_config(workspace)
@@ -748,7 +775,7 @@ def finalize_chapter(workspace: Path, chapter_id: str) -> Dict[str, Any]:
     for cand in candidates:
         if cand.exists():
             cand_text = cand.read_text(encoding="utf-8-sig", errors="replace")
-            if _count_words(cand_text) > 0:
+            if count_prose_words(cand_text) > 0:
                 target_raw = cand
                 prose = cand_text
                 break
@@ -818,7 +845,7 @@ def finalize_chapter(workspace: Path, chapter_id: str) -> Dict[str, Any]:
     return {
         "chapter_id": chapter_id,
         "final_file": str(final_file),
-        "word_count": _count_words(prose),
+        "word_count": count_prose_words(prose),
         "replacements_applied": replacements_count,
         "recipes_total": recipes_total,
         "recipes_missed": len(missed_targets),
@@ -1116,7 +1143,10 @@ def sync_chapter(workspace: Path, chapter_id: str, force: bool = False, refresh:
     final_file = workspace / "manuscript" / vol_id / "final" / f"{chapter_id}.md"
     word_count = 0
     if final_file.exists():
-        word_count = _count_words(final_file.read_text(encoding="utf-8-sig", errors="replace"))
+        # v4.4.0 BUG#35：改用统一「正文净字数」口径（剥标题行/front-matter），
+        # 与 export/rollup/cockpit 对齐。旧版全文计数把 `# 第N章 标题` 行并入，
+        # 每章比 export 多 7~10 字，对账时被误判漂移。
+        word_count = count_prose_words(final_file.read_text(encoding="utf-8-sig", errors="replace"))
 
     # v4.2.4 修复（P1-1 死锁消除）：若 final 缺失或虽存在但为空稿 (0 字)，自动回退寻找非空 raw 草稿并补齐定稿
     if word_count <= 0:
@@ -1128,7 +1158,7 @@ def sync_chapter(workspace: Path, chapter_id: str, force: bool = False, refresh:
         for rc in raw_candidates:
             if rc.exists():
                 text = rc.read_text(encoding="utf-8-sig", errors="replace")
-                cnt = _count_words(text)
+                cnt = count_prose_words(text)
                 if cnt > 0:
                     _ensure_dir(final_file.parent)
                     final_file.write_text(text, encoding="utf-8")
@@ -1244,7 +1274,27 @@ def sync_chapter(workspace: Path, chapter_id: str, force: bool = False, refresh:
                     fm_items.append(it)
 
     ledger = StateLedger(workspace)
-    sync_report = ledger.apply_chapter_delta(frontmatter, word_count=word_count, beats_body=body_text)
+    # v4.3.3 FIND-SYNC：入账是一次多表非事务写，写前立哨兵；正常完成收尾清除。
+    # 关键语义：**只有零写盘的业务阻断（GuardError/BusinessError）才清哨兵**——
+    # 那意味着没有任何台账表被改动，中间态不存在；而写盘中途意外中断（如
+    # KeyboardInterrupt 落盘到一半），哨兵必须保留，供 check 与下次命令识别
+    # 「上次同步未完成」并在补跑 --force 后复原（幂等重放兜底）。
+    from engine.state import (
+        write_sync_sentinel as _wsent, clear_sync_sentinel as _csent,
+        _save_count, _save_count_reset,
+    )
+    _save_count_reset()
+    _wsent(workspace, chapter_id)
+    try:
+        sync_report = ledger.apply_chapter_delta(frontmatter, word_count=word_count, beats_body=body_text)
+    except BaseException:
+        # v4.3.3 FIND-SYNC：任何异常中断都统一按「是否已有写盘」决定哨兵去留——
+        #   零写盘（预检业务阻断如死者复活/充能透支，或坏表隔离的系统故障）⇒ 无
+        #   中间态，清哨兵；已有写盘后中断（如 Ctrl-C 落盘到一半）⇒ 有中间态，
+        #   哨兵保留，供 check 识别 + 补跑 --force 复原。
+        if _save_count() == 0:
+            _csent(workspace)
+        raise
     sync_log[chapter_id] = {
         "final_sha1": final_sha1,
         "synced_at": datetime.now().isoformat(timespec="seconds"),
@@ -1273,6 +1323,8 @@ def sync_chapter(workspace: Path, chapter_id: str, force: bool = False, refresh:
         sync_report.setdefault("warnings", []).append(
             f"本章正文仅 {word_count} 字，低于标准下限（{wc_min} 字）的一半，请确认是否为有意短章。"
         )
+    # v4.3.3 FIND-SYNC：全部写盘完成，清除哨兵（幂等）。
+    _csent(workspace)
     return sync_report
 
 
@@ -1636,7 +1688,12 @@ def reconcile_volume(workspace: Path, volume_id: str, write_file: bool = False) 
 
 
 def rollup_volume(workspace: Path, volume_id: str) -> Dict[str, Any]:
-    """分卷归档 (state rollup)：把时间线按卷折叠为 rollup JSON，供长篇防膨胀与跨卷总览。"""
+    """分卷归档 (state rollup)：把时间线按卷折叠为 rollup JSON 副本，供跨卷总览与封存。
+
+    注意：rollup 是**只读归档副本**，从不删减 timeline.json——时间线仍是
+    ask/trace/cockpit/export 的活动数据源，日志（sync_log/history）也不随归档移除，
+    故「防膨胀」指「追加式归档不受台账活动膨胀影响」，而非「压缩 timeline 体积」。
+    """
     ledger = StateLedger(workspace)
     timeline = ledger.get_timeline()
     vol_entries = sorted(
@@ -1985,8 +2042,14 @@ def milestone_add(workspace: Path, title: str, target_ch: int, desc: str) -> Dic
     return item
 
 
-def milestone_achieve(workspace: Path, milestone_id: str) -> Optional[Dict[str, Any]]:
-    """标记里程碑达成。"""
+def milestone_achieve(workspace: Path, milestone_id: str, chapter: str = "") -> Optional[Dict[str, Any]]:
+    """标记里程碑达成。
+
+    v4.3.3 FIND-D：修复 `achieved_ch` 字段永远缺失的问题——CLI 定义了
+    -c/--chapter 参数却从未传入，写盘字段 (achieved_ch) 与 trace 读取字段
+    (achieved_ch) 因此始终对不上。现落盘达成章号，供 `trace ms_XXX` 展示
+    「已于第 X 章兑现」。
+    """
     ms_file = workspace / "state" / "milestones.json"
     milestones = _load_json(ms_file, default=[])
     target = None
@@ -1994,6 +2057,12 @@ def milestone_achieve(workspace: Path, milestone_id: str) -> Optional[Dict[str, 
         if m.get("id") == milestone_id or m.get("title") == milestone_id:
             m["status"] = "achieved"
             m["achieved_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            if str(chapter).strip():
+                # 兼容 ch_010 与裸数字两种写法，归一为 ch_XXX 形态
+                _cc = str(chapter).strip()
+                if not _cc.lower().startswith("ch_"):
+                    _cc = f"ch_{int(_cc):03d}" if _cc.isdigit() else _cc
+                m["achieved_ch"] = _cc
             target = m
             break
     if target:

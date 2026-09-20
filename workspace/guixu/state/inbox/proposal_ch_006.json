@@ -1,0 +1,112 @@
+{
+  "chapter_id": "ch_006",
+  "frontmatter": {
+    "chapter_id": "ch_006",
+    "volume_id": "vol_01",
+    "title": "灯阁鸣灯（承）",
+    "chapter_type": "爆发",
+    "timeline": "灯历戌寅年·十月十三·寅时",
+    "location": "黑市灯笼铺·后巷夹道",
+    "narrative_spine": {
+      "thread": "主线·巫灯余响案",
+      "volume_phase": "阶段二：承（ch_005~ch_008）",
+      "macro_goal": "青灯亮明灯阁巡查使身份，点破陆离真灯语者宿命，递出灯母残页残句；灯母遥相「鸣灯」"
+    },
+    "present_characters": [
+      {
+        "id": "p_001",
+        "name": "陆离",
+        "role": "protagonist",
+        "want": "弄明白苏青灯到底是谁，又凭什么一眼看穿自己能读灯",
+        "fear": "真灯语者的身份一旦传开，灯火司必先下手除他",
+        "status_in": "完好·警觉"
+      },
+      {
+        "id": "p_004",
+        "name": "苏青灯",
+        "role": "deuteragonist",
+        "want": "拉灯末巷这个「能读灯」的人入局，共查灯母残页与灯脉转暗之秘",
+        "fear": "陆离不肯信她，或信了也护不住灯母的秘密",
+        "status_in": "完好·亮明身份前的紧绷"
+      }
+    ],
+    "epistemology": {
+      "known": {
+        "p_001": [
+          "苏青灯来自灯阁，为灯母而来",
+          "灯母残页缺字，指向灯穹"
+        ],
+        "p_004": [
+          "陆离能读灯、会烧记忆，是真灯语者",
+          "官家批号灯油正流向洛家掌控的黑市"
+        ]
+      },
+      "blind_spots": {
+        "p_001": [
+          "灯母残页与自己的真灯语同源于灯母遗失的心焰"
+        ],
+        "p_004": [
+          "灯母心焰很可能就系在陆离身上"
+        ]
+      }
+    },
+    "foreshadowing_deltas": [
+      {
+        "id": "GUN-002",
+        "name": "灯母残页现世",
+        "action": "reveal",
+        "desc": "青灯取出灯母残页拓片，缺字半句直指灯穹；陆离一触，脑中嗡响，隐约闻到十年前火场的气味"
+      },
+      {
+        "id": "KNO-001",
+        "name": "萧烜的知情差",
+        "action": "reveal",
+        "desc": "青灯坦言：灯阁早知悬灯城出了个真灯语者，也早知灯火司在暗查此人——陆离这才明白萧烜那日的了然并非多疑"
+      }
+    ],
+    "state_deltas": {
+      "character_status": {
+        "p_001": "完好·灯母残页共鸣"
+      },
+      "items": [
+        {
+          "id": "it_005",
+          "name": "灯母残页拓片",
+          "holder_change": "p_004 -> p_001",
+          "status": "active",
+          "durability": "残句缺字，无人可补全"
+        }
+      ],
+      "debts": [
+        {
+          "source": "p_004",
+          "target": "陆离",
+          "type": "promise",
+          "desc": "陆离应下与青灯共查灯母残页与灯脉之秘的誓约",
+          "action": "record"
+        }
+      ]
+    },
+    "relation_deltas": [
+      {
+        "source": "p_001",
+        "target": "p_004",
+        "tension": "28",
+        "dynamic": "破冰·共守秘密",
+        "subtext": "结盟成形，但陆离仍没把妹妹的事说出口"
+      }
+    ],
+    "new_entities": [
+      {
+        "id": "it_005",
+        "type": "item",
+        "name": "灯母残页拓片",
+        "role": "supporting",
+        "tier_name": "神品残卷",
+        "summary": "记载灯母最初之语的残页拓片，缺字半句直指灯穹；真灯语者触之可共鸣",
+        "sensory_anchor": "半张焦边拓片，字如灯焰，触手微温"
+      }
+    ],
+    "locked_facts": []
+  }
+}
