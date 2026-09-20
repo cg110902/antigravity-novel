@@ -1,0 +1,89 @@
+{
+  "it_001": {
+    "id": "it_001",
+    "name": "旧梆子",
+    "type": "item",
+    "holder": "p_001",
+    "status": "active",
+    "charges": -1,
+    "grade": "信物",
+    "desc": "陆离打更巡夜的旧梆子，梆槌中空，暗藏一节灯芯",
+    "durability": "浸透灯油味，梆面磨出凹痕"
+  },
+  "it_002": {
+    "id": "it_002",
+    "name": "半截红头绳",
+    "type": "item",
+    "holder": "p_001",
+    "status": "active",
+    "charges": -1,
+    "grade": "遗物",
+    "desc": "妹妹葬身大火时留下的半截红头绳，陆离贴身系在腕上",
+    "durability": "褪色但未断"
+  },
+  "it_003": {
+    "id": "it_003",
+    "name": "被掉包的灯油罐",
+    "holder": "p_001",
+    "charges": -1,
+    "status": "active",
+    "durability": "罐底黑灰与死者灯芯黑灰为一物，物证链闭合",
+    "sensory_anchor": "黑陶罐，罐口缠三道褪色的红麻绳",
+    "location": "随身",
+    "summary": "浮尸怀中所抱之灯的灯油罐，罐底残油掺着一撮黑灰，是走火案第一物证",
+    "established_ch": "ch_001",
+    "last_seen_ch": "ch_002",
+    "transfer_history": [
+      {
+        "chapter": "ch_001",
+        "holder_change": "-> p_001",
+        "charges_delta": 0,
+        "remaining_charges": -1,
+        "status": "active"
+      },
+      {
+        "chapter": "ch_002",
+        "holder_change": "p_001 -> p_001",
+        "charges_delta": 0,
+        "remaining_charges": -1,
+        "status": "active"
+      }
+    ]
+  },
+  "it_005": {
+    "id": "it_005",
+    "name": "灯母残页拓片",
+    "holder": "p_001",
+    "charges": -1,
+    "status": "active",
+    "durability": "残句缺字，无人可补全",
+    "sensory_anchor": "半张焦边拓片，字如灯焰，触手微温",
+    "location": "随身",
+    "summary": "记载灯母最初之语的残页拓片，缺字半句直指灯穹；真灯语者触之可共鸣",
+    "established_ch": "ch_006",
+    "last_seen_ch": "ch_006",
+    "transfer_history": [
+      {
+        "chapter": "ch_006",
+        "holder_change": "p_004 -> p_001",
+        "charges_delta": 0,
+        "remaining_charges": -1,
+        "status": "active"
+      }
+    ]
+  },
+  "it_006": {
+    "id": "it_006",
+    "name": "查灯令",
+    "holder": "主角",
+    "charges": -1,
+    "status": "active",
+    "durability": "完好",
+    "sensory_anchor": "铁牌冰手，牌背阴刻一盏未点亮的灯，边角磨得发亮",
+    "location": "随身",
+    "summary": "灯阁铁牌，持之可于三坊查灯而不受灯火司辖，牌面一道浅缝",
+    "established_ch": "ch_015",
+    "last_seen_ch": "ch_015",
+    "transfer_history": []
+  }
+}

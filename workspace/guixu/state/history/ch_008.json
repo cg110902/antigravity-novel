@@ -1,0 +1,674 @@
+{
+  "chapter_id": "ch_008",
+  "timestamp": "2026-09-20T01:29:16.027960",
+  "current": {
+    "current_vol": "vol_01",
+    "current_ch": "ch_008",
+    "last_timeline": "灯历戌寅年·十月十五·申时",
+    "last_location": "黑市灯笼铺·前巷",
+    "last_chapter_type": "爆发",
+    "present_characters": [
+      "陆离",
+      "苏青灯",
+      "洛三"
+    ],
+    "active_foreshadowings": [
+      "GUN-001",
+      "MIS-001",
+      "KNO-001",
+      "GUN-002"
+    ],
+    "latest_word_count": 1035,
+    "last_dramatic_goal": "洛家管事洛三投诚求活，正欲供出「灯原本不是他的」的下半句内情，却被暗处以「熄灯」手法当街灭口；陆离看清了洛家的手段，也听清了临死余响。",
+    "last_cliffhanger": "洛三临死前瞪大的眼睛，死死定在陆离脸上。他呛着血，吐出半句灯语——「灯……原来的……不是我的——」话没说完，声音就断了。"
+  },
+  "persons": {
+    "p_001": {
+      "id": "p_001",
+      "name": "陆离",
+      "type": "person",
+      "role": "protagonist",
+      "aliases": [
+        "陆更夫",
+        "阿离"
+      ],
+      "card": "characters/protagonist.md",
+      "summary": "下九坊打更人，真灯语者，十年前灯市大火幸存遗孤",
+      "tier_rank": 2,
+      "tier_name": "灯徒（身负真灯语）",
+      "power_benchmark": "一拳裂木门；护身灯火可挡普通刀剑一记（真灯语异能另计：读灯必烧记忆）",
+      "status": "active",
+      "life_status": "alive",
+      "condition": "完好·悲愤难平",
+      "injury_level": 0,
+      "injury_desc": "无伤",
+      "location": "loc_001",
+      "faction": "灯末巷打更人",
+      "attitude": "neutral",
+      "sensory_anchor": "腰间一柄浸透灯油味的旧梆子，右眼角一块被火光映亮的旧疤",
+      "address_matrix": {
+        "顾伯": "顾伯",
+        "萧烜": "萧大人",
+        "苏青灯": "苏姑娘"
+      },
+      "want": "拿到洛三口中「灯原本不是他的」的下半句",
+      "fear": "最后一个证人也死在眼前，案子彻底断线",
+      "need": "放下独自扛下全部真相的执念",
+      "lie": "独自查到底就是对死者最好的交代",
+      "quirk": "看人先看对方的灯，思考时摩挲梆锤",
+      "taboo": "拿妹妹的事与那盏碎命灯开玩笑者绝不放过",
+      "last_seen_ch": "ch_008",
+      "arc_history": [
+        {
+          "chapter": "ch_001",
+          "want": "查清巷尾浮尸怀里那盏灭灯的来路",
+          "fear": "灯里那个声音，自己此生再也不敢听第二遍",
+          "latent_mood": "",
+          "physiological_leak": "",
+          "status_in": "完好·隐忍戒备",
+          "status_out": "完好·心神剧震"
+        },
+        {
+          "chapter": "ch_002",
+          "want": "在官府把尸体拉走之前，从灯芯里再取出一点东西",
+          "fear": "妹妹的亡音是只有他一个人听得见的疯话，说出去也没人信",
+          "latent_mood": "",
+          "physiological_leak": "",
+          "status_in": "完好·一夜未眠",
+          "status_out": "完好·握有黑灰物证"
+        },
+        {
+          "chapter": "ch_003",
+          "want": "从周瘸子的命灯里读出他临死前最后一个念想",
+          "fear": "读灯会烧记忆，今晚过后他怕自己连妹妹的脸都想不起",
+          "latent_mood": "",
+          "physiological_leak": "",
+          "status_in": "完好·攥着黑灰物证",
+          "status_out": "完好·读灯烧去一段守夜记忆"
+        },
+        {
+          "chapter": "ch_004",
+          "want": "从萧烜口中套出「走火案」为何急着封档",
+          "fear": "被萧烜看穿自己听得出灯中残响",
+          "latent_mood": "",
+          "physiological_leak": "",
+          "status_in": "完好·强装不动声色",
+          "status_out": "完好·锁定萧烜黑纱"
+        },
+        {
+          "chapter": "ch_005",
+          "want": "找到会往灯油里掺熄灰的那家铺子、那截货源",
+          "fear": "黑市的人认出他打更人的底，消息传到灯火司",
+          "latent_mood": "",
+          "physiological_leak": "",
+          "status_in": "完好·微伤（夜行刮伤）",
+          "status_out": "完好·收获货源线索"
+        },
+        {
+          "chapter": "ch_006",
+          "want": "弄明白苏青灯到底是谁，又凭什么一眼看穿自己能读灯",
+          "fear": "真灯语者的身份一旦传开，灯火司必先下手除他",
+          "latent_mood": "",
+          "physiological_leak": "",
+          "status_in": "完好·警觉",
+          "status_out": "完好·灯母残页共鸣"
+        },
+        {
+          "chapter": "ch_007",
+          "want": "赶在灯火司把底账转走之前调出周瘸子案对应的灯油批号",
+          "fear": "夜入衙署东窗事发，连累灯末巷与顾伯",
+          "latent_mood": "",
+          "physiological_leak": "",
+          "status_in": "完好·紧绷",
+          "status_out": "完好·受灼（虎口烫伤）"
+        },
+        {
+          "chapter": "ch_008",
+          "want": "拿到洛三口中「灯原本不是他的」的下半句",
+          "fear": "最后一个证人也死在眼前，案子彻底断线",
+          "latent_mood": "",
+          "physiological_leak": "",
+          "status_in": "完好·伤愈大半",
+          "status_out": "完好·悲愤难平"
+        }
+      ]
+    },
+    "p_002": {
+      "id": "p_002",
+      "name": "萧烜",
+      "type": "person",
+      "role": "antagonist",
+      "aliases": [
+        "萧司正"
+      ],
+      "card": "characters/antagonist.md",
+      "summary": "灯火司司正，明面护灯、暗里吞灯油的灯使",
+      "tier_rank": 5,
+      "tier_name": "灯使（灯火司司正）",
+      "power_benchmark": "一击洞穿石墙；灯障可困住寻常灯师",
+      "status": "active",
+      "life_status": "alive",
+      "condition": "完好·居高临下",
+      "injury_level": 0,
+      "injury_desc": "无伤",
+      "location": "loc_003",
+      "faction": "灯火司",
+      "attitude": "hostile",
+      "sensory_anchor": "官袍袖口熏着上品灯油的冷香，左手无名指常年缠一圈黑纱",
+      "address_matrix": {
+        "陆离": "陆更夫"
+      },
+      "want": "当着下九坊的面把走火案钉死，并试探陆离到底「听见」了什么",
+      "fear": "陆离这条暗线一旦烧起来，会燎到他十年前的旧账",
+      "need": "笃信有人必须烧成灯油，才能让更多人的灯亮下去",
+      "lie": "仁慈即渎职",
+      "quirk": "笑的时候眼里像在称秤",
+      "taboo": "最恨人提起十年前他签的那道封档",
+      "last_seen_ch": "ch_004",
+      "arc_history": [
+        {
+          "chapter": "ch_004",
+          "want": "当着下九坊的面把走火案钉死，并试探陆离到底「听见」了什么",
+          "fear": "陆离这条暗线一旦烧起来，会燎到他十年前的旧账",
+          "latent_mood": "",
+          "physiological_leak": "",
+          "status_in": "完好·居高临下",
+          "status_out": ""
+        }
+      ]
+    },
+    "p_003": {
+      "id": "p_003",
+      "name": "顾伯",
+      "type": "person",
+      "role": "supporting",
+      "aliases": [
+        "老更夫"
+      ],
+      "card": "characters/顾伯.md",
+      "summary": "灯末巷打更行老行首，看着陆离长大，十年前那夜的目击更夫",
+      "tier_rank": 1,
+      "tier_name": "灯徒（老更夫）",
+      "power_benchmark": "点燃自身命灯；巡夜辨声数十年不误",
+      "status": "active",
+      "life_status": "alive",
+      "condition": "完好·强作镇定",
+      "injury_level": 0,
+      "injury_desc": "无伤",
+      "location": "loc_001",
+      "faction": "灯末巷打更人",
+      "attitude": "friendly",
+      "sensory_anchor": "一盏磨得发亮的提灯，右边袖管空空垂着",
+      "address_matrix": {
+        "陆离": "阿离"
+      },
+      "want": "按行规把周瘸子的身后事办得不留话柄",
+      "fear": "官府的人认出尸体与十年前旧事有关",
+      "need": "看着陆离放下孤身寻仇的执念",
+      "lie": "有些真相带进棺材更好",
+      "quirk": "敲梆三更必停一停，往巷西张望一眼",
+      "taboo": "谁动陆离的命灯，他这条老命也不留",
+      "last_seen_ch": "ch_002",
+      "arc_history": [
+        {
+          "chapter": "ch_001",
+          "want": "护住陆离，把尸身按行规处置干净",
+          "fear": "这具浮尸与十年前那夜有关",
+          "latent_mood": "",
+          "physiological_leak": "",
+          "status_in": "完好·惊疑",
+          "status_out": ""
+        },
+        {
+          "chapter": "ch_002",
+          "want": "按行规把周瘸子的身后事办得不留话柄",
+          "fear": "官府的人认出尸体与十年前旧事有关",
+          "latent_mood": "",
+          "physiological_leak": "",
+          "status_in": "完好·强作镇定",
+          "status_out": ""
+        }
+      ]
+    },
+    "p_004": {
+      "id": "p_004",
+      "name": "苏青灯",
+      "type": "person",
+      "role": "deuteragonist",
+      "aliases": [
+        "灯阁巡查使"
+      ],
+      "card": "characters/苏青灯.md",
+      "summary": "灯阁巡查使，乔装市井查掉包灯油，与陆离刀口相抵后结盟",
+      "tier_rank": 6,
+      "tier_name": "灯使（灯阁巡查使）",
+      "power_benchmark": "一击洞穿石墙；可携灯闪身隔街取物",
+      "status": "active",
+      "life_status": "alive",
+      "condition": "完好·追踪中",
+      "injury_level": 0,
+      "injury_desc": "无伤",
+      "location": "loc_005",
+      "faction": "灯阁",
+      "attitude": "friendly",
+      "sensory_anchor": "灰扑扑的斗篷，左腕一串系着半张灯符的铜铃",
+      "address_matrix": {
+        "陆离": "陆更夫"
+      },
+      "want": "锁定洛家私运官家灯油的把柄",
+      "fear": "洛三一死，洛家金蝉脱壳",
+      "need": "找到一个能一起守住灯母秘密的人",
+      "lie": "灯阁的人不该与外人交底",
+      "quirk": "说话前先摇一下腕上的铜铃",
+      "taboo": "有人在她面前灭灯——那比杀人更令她无法容忍",
+      "last_seen_ch": "ch_008",
+      "arc_history": [
+        {
+          "chapter": "ch_005",
+          "want": "顺官家批号灯油查到它流向黑市的道口",
+          "fear": "灯母心焰当真落进了坊市黑商手里",
+          "latent_mood": "",
+          "physiological_leak": "",
+          "status_in": "完好·戒备",
+          "status_out": ""
+        },
+        {
+          "chapter": "ch_006",
+          "want": "拉灯末巷这个「能读灯」的人入局，共查灯母残页与灯脉转暗之秘",
+          "fear": "陆离不肯信她，或信了也护不住灯母的秘密",
+          "latent_mood": "",
+          "physiological_leak": "",
+          "status_in": "完好·亮明身份前的紧绷",
+          "status_out": ""
+        },
+        {
+          "chapter": "ch_007",
+          "want": "拿到官家批号灯油流向黑市的完整底账",
+          "fear": "底账一灭，追查灯脉转暗的线就断了",
+          "latent_mood": "",
+          "physiological_leak": "",
+          "status_in": "完好·谨慎",
+          "status_out": "完好·受灼（斗篷焦边）"
+        },
+        {
+          "chapter": "ch_008",
+          "want": "锁定洛家私运官家灯油的把柄",
+          "fear": "洛三一死，洛家金蝉脱壳",
+          "latent_mood": "",
+          "physiological_leak": "",
+          "status_in": "完好·追踪中",
+          "status_out": ""
+        }
+      ]
+    },
+    "p_005": {
+      "id": "p_005",
+      "name": "周瘸子",
+      "role": "supporting",
+      "tier_name": "灯徒（老更夫）",
+      "condition": "溺毙·灯芯掺熄灰",
+      "sensory_anchor": "后腰一道烙状旧烫伤，像一只掌印",
+      "address_matrix": {},
+      "want": "未锁定",
+      "fear": "未锁定",
+      "summary": "灯末巷当夜轮值更夫，两日前曾与人说要去上三坊，死于灯末巷水沟",
+      "established_ch": "ch_002",
+      "last_seen_ch": "ch_002",
+      "life_status": "deceased",
+      "arc_history": []
+    },
+    "p_006": {
+      "id": "p_006",
+      "name": "洛三",
+      "role": "supporting",
+      "tier_name": "灯徒（洛家管事）",
+      "condition": "被熄灯灭口，命丧灯末巷前巷",
+      "sensory_anchor": "缺了半颗门牙，说话漏风，腰间别一把废灯匙",
+      "address_matrix": {},
+      "want": "用「半句内情」换陆离保他一条命",
+      "fear": "洛家灭口的刀已经在路上",
+      "summary": "洛家管灯的管事，手里捏着黑市放货的账眼，想反水逃命却被当街灭口",
+      "established_ch": "ch_008",
+      "last_seen_ch": "ch_008",
+      "life_status": "deceased",
+      "arc_history": [
+        {
+          "chapter": "ch_008",
+          "want": "用「半句内情」换陆离保他一条命",
+          "fear": "洛家灭口的刀已经在路上",
+          "latent_mood": "",
+          "physiological_leak": "",
+          "status_in": "完好·仓皇",
+          "status_out": "被熄灯灭口，命丧灯末巷前巷"
+        }
+      ]
+    }
+  },
+  "items": {
+    "it_001": {
+      "id": "it_001",
+      "name": "旧梆子",
+      "type": "item",
+      "holder": "p_001",
+      "status": "active",
+      "charges": -1,
+      "grade": "信物",
+      "desc": "陆离打更巡夜的旧梆子，梆槌中空，暗藏一节灯芯",
+      "durability": "浸透灯油味，梆面磨出凹痕"
+    },
+    "it_002": {
+      "id": "it_002",
+      "name": "半截红头绳",
+      "type": "item",
+      "holder": "p_001",
+      "status": "active",
+      "charges": -1,
+      "grade": "遗物",
+      "desc": "妹妹葬身大火时留下的半截红头绳，陆离贴身系在腕上",
+      "durability": "褪色但未断"
+    },
+    "it_003": {
+      "id": "it_003",
+      "name": "被掉包的灯油罐",
+      "holder": "p_001",
+      "charges": -1,
+      "status": "active",
+      "durability": "罐底黑灰与死者灯芯黑灰为一物，物证链闭合",
+      "sensory_anchor": "黑陶罐，罐口缠三道褪色的红麻绳",
+      "location": "随身",
+      "summary": "浮尸怀中所抱之灯的灯油罐，罐底残油掺着一撮黑灰，是走火案第一物证",
+      "established_ch": "ch_001",
+      "last_seen_ch": "ch_002",
+      "transfer_history": [
+        {
+          "chapter": "ch_001",
+          "holder_change": "-> p_001",
+          "charges_delta": 0,
+          "remaining_charges": -1,
+          "status": "active"
+        },
+        {
+          "chapter": "ch_002",
+          "holder_change": "p_001 -> p_001",
+          "charges_delta": 0,
+          "remaining_charges": -1,
+          "status": "active"
+        }
+      ]
+    },
+    "it_005": {
+      "id": "it_005",
+      "name": "灯母残页拓片",
+      "holder": "p_001",
+      "charges": -1,
+      "status": "active",
+      "durability": "残句缺字，无人可补全",
+      "sensory_anchor": "半张焦边拓片，字如灯焰，触手微温",
+      "location": "随身",
+      "summary": "记载灯母最初之语的残页拓片，缺字半句直指灯穹；真灯语者触之可共鸣",
+      "established_ch": "ch_006",
+      "last_seen_ch": "ch_006",
+      "transfer_history": [
+        {
+          "chapter": "ch_006",
+          "holder_change": "p_004 -> p_001",
+          "charges_delta": 0,
+          "remaining_charges": -1,
+          "status": "active"
+        }
+      ]
+    }
+  },
+  "lines": {
+    "GUN-001": {
+      "id": "GUN-001",
+      "name": "灯中妹妹的亡音",
+      "type": "GUN",
+      "tier": "A",
+      "status": "active",
+      "planted_ch": "ch_001",
+      "target_ch": "",
+      "revealed_chs": [
+        "ch_002",
+        "ch_003",
+        "ch_004",
+        "ch_005",
+        "ch_008"
+      ],
+      "resolved_ch": "",
+      "desc": "洛三临死前的余响里，陆离「听」到一句半截的话：「灯……原来不是我的……是灯阁……还……」，与妹妹亡音混在一起",
+      "evidence": ""
+    },
+    "MIS-001": {
+      "id": "MIS-001",
+      "name": "殉灯自愿的集体误信",
+      "type": "MIS",
+      "tier": "A",
+      "status": "active",
+      "planted_ch": "ch_001",
+      "target_ch": "",
+      "revealed_chs": [
+        "ch_002",
+        "ch_003",
+        "ch_008"
+      ],
+      "resolved_ch": "",
+      "desc": "洛三当街毙命，路人却叹「又是殉灯的，今年灯会怕是又得添几盏」——灭口被百姓自动解读为殉灯",
+      "evidence": ""
+    },
+    "KNO-001": {
+      "id": "KNO-001",
+      "name": "萧烜的知情差",
+      "type": "KNO",
+      "tier": "A",
+      "status": "active",
+      "planted_ch": "ch_004",
+      "target_ch": "",
+      "revealed_chs": [
+        "ch_006",
+        "ch_007"
+      ],
+      "resolved_ch": "",
+      "desc": "档案房被烧成一空，独独陆离想查的那一格抽屉门开着——萧烜对他的一举一动了如指掌",
+      "evidence": ""
+    },
+    "GUN-002": {
+      "id": "GUN-002",
+      "name": "灯母残页现世",
+      "type": "GUN",
+      "tier": "A",
+      "status": "active",
+      "planted_ch": "ch_005",
+      "target_ch": "",
+      "revealed_chs": [
+        "ch_006",
+        "ch_007"
+      ],
+      "resolved_ch": "",
+      "desc": "火烧档案房的烟气里，陆离随身灯母残页拓片隐隐发烫，仿佛在示警",
+      "evidence": ""
+    }
+  },
+  "relations": {
+    "p_001->p_003": {
+      "pair": "p_001->p_003",
+      "source_id": "p_001",
+      "target_id": "p_003",
+      "affinity": 0,
+      "trust": 50,
+      "tension": 35,
+      "dynamic_label": "师徒携手·各怀隐痛",
+      "unspoken_subtext": "一个要查，一个要护，谁也说服不了谁",
+      "history": [
+        {
+          "chapter": "ch_001",
+          "dynamic": "师徒守望·各怀心事",
+          "subtext": "陆离瞒着灯语之秘，顾伯瞒着十年前所见",
+          "affinity": 0,
+          "tension": 30
+        },
+        {
+          "chapter": "ch_002",
+          "dynamic": "师徒携手·各怀隐痛",
+          "subtext": "一个要查，一个要护，谁也说服不了谁",
+          "affinity": 0,
+          "tension": 35
+        }
+      ],
+      "last_updated_ch": "ch_002"
+    },
+    "p_001->p_002": {
+      "pair": "p_001->p_002",
+      "source_id": "p_001",
+      "target_id": "p_002",
+      "affinity": 0,
+      "trust": 50,
+      "tension": 78,
+      "dynamic_label": "刀光藏于客套",
+      "unspoken_subtext": "一个在验对方的黑纱，一个在验对方的底细",
+      "history": [
+        {
+          "chapter": "ch_004",
+          "dynamic": "刀光藏于客套",
+          "subtext": "一个在验对方的黑纱，一个在验对方的底细",
+          "affinity": 0,
+          "tension": 78
+        }
+      ],
+      "last_updated_ch": "ch_004"
+    },
+    "p_001->p_004": {
+      "pair": "p_001->p_004",
+      "source_id": "p_001",
+      "target_id": "p_004",
+      "affinity": 0,
+      "trust": 50,
+      "tension": 22,
+      "dynamic_label": "并肩追凶·同仇敌忾",
+      "unspoken_subtext": "一个要护证人，一个要抢证据，终究是慢了一步",
+      "history": [
+        {
+          "chapter": "ch_005",
+          "dynamic": "刀口相抵·同查油线",
+          "subtext": "彼此都看出对方有事，谁也不敢先把底交出来",
+          "affinity": 0,
+          "tension": 42
+        },
+        {
+          "chapter": "ch_006",
+          "dynamic": "破冰·共守秘密",
+          "subtext": "结盟成形，但陆离仍没把妹妹的事说出口",
+          "affinity": 0,
+          "tension": 28
+        },
+        {
+          "chapter": "ch_007",
+          "dynamic": "同船共济·扑空后的默契",
+          "subtext": "一起经历过火场，谁也没抛下谁",
+          "affinity": 0,
+          "tension": 25
+        },
+        {
+          "chapter": "ch_008",
+          "dynamic": "并肩追凶·同仇敌忾",
+          "subtext": "一个要护证人，一个要抢证据，终究是慢了一步",
+          "affinity": 0,
+          "tension": 22
+        }
+      ],
+      "last_updated_ch": "ch_008"
+    }
+  },
+  "debts": [
+    {
+      "id": "DEBT-AUTO-341e7dc1",
+      "source_char": "p_001",
+      "target_char": "萧烜",
+      "type": "grudge",
+      "desc": "灯火司以「走火」草草结案，陆离把这笔人命账记在司正萧烜头上——尽管他还不曾见过此人",
+      "status": "unpaid",
+      "created_ch": "ch_002"
+    },
+    {
+      "id": "DEBT-AUTO-6d411f9e",
+      "source_char": "p_002",
+      "target_char": "陆离",
+      "type": "grudge",
+      "desc": "萧烜当众把陆离的追问摁回封档，并讥他「打更人管好梆子」",
+      "status": "unpaid",
+      "created_ch": "ch_004"
+    },
+    {
+      "id": "DEBT-AUTO-2c0516a3",
+      "source_char": "p_004",
+      "target_char": "陆离",
+      "type": "favor",
+      "desc": "苏青灯相助掩护陆离脱出黑市，陆离欠她一个照面不说破的人情",
+      "status": "unpaid",
+      "created_ch": "ch_005"
+    },
+    {
+      "id": "DEBT-AUTO-e8cc4197",
+      "source_char": "p_004",
+      "target_char": "陆离",
+      "type": "promise",
+      "desc": "陆离应下与青灯共查灯母残页与灯脉之秘的誓约",
+      "status": "unpaid",
+      "created_ch": "ch_006"
+    },
+    {
+      "id": "DEBT-AUTO-b9e347fc",
+      "source_char": "p_001",
+      "target_char": "萧烜",
+      "type": "grudge",
+      "desc": "档案房被烧、底账被毁，陆离把废灯之账加到萧烜头上",
+      "status": "unpaid",
+      "created_ch": "ch_007"
+    },
+    {
+      "id": "DEBT-AUTO-10959151",
+      "source_char": "p_001",
+      "target_char": "洛家",
+      "type": "grudge",
+      "desc": "洛家当街灭口洛三，陆离把这笔账记在洛家头上",
+      "status": "unpaid",
+      "created_ch": "ch_008"
+    }
+  ],
+  "locked_facts": [
+    {
+      "id": "LOCK-001",
+      "fact": "周瘸子于灯历戌寅年十月初九夜死于灯末巷，死前怀里抱一盏不属于他的青瓷命灯，灯油掺熄灰",
+      "domain": "plot",
+      "established_ch": "ch_002"
+    },
+    {
+      "id": "LOCK-002",
+      "fact": "灯历戌寅年十月十四夜，灯火司档案房失火，灯油底账与暗账一并被毁，火起时底账已先一步失窃",
+      "domain": "plot",
+      "established_ch": "ch_007"
+    },
+    {
+      "id": "LOCK-003",
+      "fact": "灯历戌寅年十月十五申时，洛家管事洛三于灯末巷前巷被「熄灯」手法当街灭口，死前未及供出黑市内情全貌",
+      "domain": "plot",
+      "established_ch": "ch_008"
+    }
+  ],
+  "synopsis": {
+    "chapter_id": "ch_008",
+    "volume_id": "vol_01",
+    "title": "洛家管事（承）",
+    "timeline": "灯历戌寅年·十月十五·申时",
+    "location": "黑市灯笼铺·前巷",
+    "chapter_type": "爆发",
+    "dramatic_goal": "洛家管事洛三投诚求活，正欲供出「灯原本不是他的」的下半句内情，却被暗处以「熄灯」手法当街灭口；陆离看清了洛家的手段，也听清了临死余响。",
+    "cliffhanger": "洛三临死前瞪大的眼睛，死死定在陆离脸上。他呛着血，吐出半句灯语——「灯……原来的……不是我的——」话没说完，声音就断了。",
+    "word_count": 1035,
+    "present_characters": [
+      "陆离",
+      "苏青灯",
+      "洛三"
+    ]
+  }
+}

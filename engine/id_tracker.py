@@ -325,14 +325,32 @@ def trace_id(workspace: Path, target_id: str) -> Dict[str, Any]:
         if p_data:
             report["found"] = True
             report["id"] = tid
+            # v4.4.0 FIND-M：trace profile 与 human_readable 补齐「细纲声明、sync 落账」
+            # 的全部 schema 契约字段——旧版 realm 竟被 `tier_name or realm` 抢占（FIND-L
+            # 已让 realm 真正落账却查不到），aliases/attitude/faction/tier_rank/need/lie/
+            # micro_actions/injury/renown/power_benchmark/dossier 落账后零展示。现按
+            # 「有值才显」，不造噪音也不漏实质。
             report["profile"] = {
                 "name": p_data.get("name", ""),
                 "role": p_data.get("role", "supporting"),
-                "realm": p_data.get("tier_name") or p_data.get("realm") or "凡阶",
+                "realm": p_data.get("realm") or p_data.get("tier_name") or "凡阶",
+                "tier_name": p_data.get("tier_name", ""),
+                "tier_rank": p_data.get("tier_rank", 1),
+                "power_benchmark": p_data.get("power_benchmark", ""),
                 "life_status": p_data.get("life_status", "alive"),
                 "condition": p_data.get("condition", "正常"),
+                "injury_level": p_data.get("injury_level", 0),
+                "injury_desc": p_data.get("injury_desc", "无伤"),
+                "renown": p_data.get("renown", 0),
+                "faction": p_data.get("faction", ""),
+                "attitude": p_data.get("attitude", "neutral"),
+                "aliases": p_data.get("aliases", []),
+                "micro_actions": p_data.get("micro_actions", []),
+                "dossier": p_data.get("dossier", ""),
                 "want": p_data.get("want", "无"),
                 "fear": p_data.get("fear", "无"),
+                "need": p_data.get("need", ""),
+                "lie": p_data.get("lie", ""),
                 "latent_mood": p_data.get("latent_mood", "无"),
                 "physiological_leak": p_data.get("physiological_leak", "无"),
                 "vulnerability": p_data.get("vulnerability", "无"),
@@ -381,15 +399,38 @@ def trace_id(workspace: Path, target_id: str) -> Dict[str, Any]:
             report["related_entities"]["relations"] = relations_list
 
             # 组织终端文本
+            _pf = report["profile"]
+            _extras = []
+            if _pf.get("need"):
+                _extras.append(f"深层需求 [{_pf['need']}]")
+            if _pf.get("lie"):
+                _extras.append(f"自我谎言 [{_pf['lie']}]")
             lines = [
                 f"👤 【ID 深度追踪报告：{tid} · {p_data.get('name')}】",
-                f"   - 角色定位：{report['profile']['role']} ｜ 境界：{report['profile']['realm']}",
-                f"   - 生死与状态：{report['profile']['life_status']} (肉身: {report['profile']['condition']})",
-                f"   - 核心心理：渴望 [{report['profile']['want']}] ｜ 恐惧 [{report['profile']['fear']}]",
-                f"   - 隐性底色：当前情绪荷载 [{report['profile']['latent_mood']}] ｜ 应激动作 [{report['profile']['physiological_leak']}]",
-                f"   - 心理软肋：破防触点 [{report['profile']['vulnerability']}]",
-                f"   - 反常刺点：怪癖 [{report['profile']['quirk']}] ｜ 雷区 [{report['profile']['taboo']}]",
-                f"   - 登场履历：共登场 {len(traj)} 次，最近现身于第 {report['profile']['last_seen_ch']} 章",
+                f"   - 角色定位：{_pf['role']} ｜ 境界：{_pf['realm']}"
+                + (f" ｜ 品阶：{_pf['tier_name']} (T{_pf['tier_rank']})" if _pf.get("tier_name") else ""),
+                f"   - 生死与状态：{_pf['life_status']} (肉身: {_pf['condition']})"
+                + (f" ｜ 伤势：{_pf['injury_level']} 级 ({_pf['injury_desc']})" if _pf.get("injury_level") or _pf.get("injury_desc") != "无伤" else ""),
+            ]
+            if _pf.get("faction"):
+                lines.append(f"   - 阵营与态度：{_pf['faction']} ｜ {_pf.get('attitude') or 'neutral'}")
+            if _pf.get("aliases"):
+                lines.append(f"   - 别名：{'、'.join(_pf['aliases'])}")
+            if _pf.get("renown"):
+                lines.append(f"   - 声望：{_pf['renown']}")
+            if _pf.get("power_benchmark"):
+                lines.append(f"   - 战力标尺：{_pf['power_benchmark']}")
+            if _pf.get("micro_actions"):
+                lines.append(f"   - 微动作库：{'、'.join(_pf['micro_actions'])}")
+            if _pf.get("dossier"):
+                lines.append(f"   - 档案：{_pf['dossier']}")
+            lines += [
+                f"   - 核心心理：渴望 [{_pf['want']}] ｜ 恐惧 [{_pf['fear']}]"
+                + (" ｜ " + " ｜ ".join(_extras) if _extras else ""),
+                f"   - 隐性底色：当前情绪荷载 [{_pf['latent_mood']}] ｜ 应激动作 [{_pf['physiological_leak']}]",
+                f"   - 心理软肋：破防触点 [{_pf['vulnerability']}]",
+                f"   - 反常刺点：怪癖 [{_pf['quirk']}] ｜ 雷区 [{_pf['taboo']}]",
+                f"   - 登场履历：共登场 {len(traj)} 次，最近现身于第 {_pf['last_seen_ch']} 章",
             ]
             if traj:
                 lines.append("   - 章节心境与隐性情绪演化轨迹：")
@@ -421,10 +462,16 @@ def trace_id(workspace: Path, target_id: str) -> Dict[str, Any]:
         if it_data:
             report["found"] = True
             report["id"] = tid
+            # v4.4.0 FIND-M：补 max_charges/cost_per_use/tier_rank/tier_name——sync 已落账、
+            # 但旧版 trace 零展示的 schema 承诺字段。
             report["profile"] = {
                 "name": it_data.get("name", ""),
                 "holder": it_data.get("holder", "未知"),
                 "charges": it_data.get("charges", -1),
+                "max_charges": it_data.get("max_charges", -1),
+                "cost_per_use": it_data.get("cost_per_use", ""),
+                "tier_rank": it_data.get("tier_rank", 1),
+                "tier_name": it_data.get("tier_name", ""),
                 "condition": it_data.get("condition", "完好"),
                 "summary": it_data.get("summary", ""),
                 "last_seen_ch": it_data.get("last_seen_ch", "初始"),
@@ -442,10 +489,22 @@ def trace_id(workspace: Path, target_id: str) -> Dict[str, Any]:
             lines = [
                 f"⚔️ 【ID 深度追踪报告：{tid} · {it_data.get('name')}】",
                 f"   - 道具定位：{it_data.get('summary') or '核心道具/法宝'}",
-                f"   - 当前支配者：{report['profile']['holder']}",
-                f"   - 充能与耐久：剩余可用 {report['profile']['charges']} 次 (物理状态: {report['profile']['condition']})",
-                f"   - 活跃记录：最近现身于第 {report['profile']['last_seen_ch']} 章 ｜ 历史流转变动 {len(traj)} 次",
             ]
+            if report["profile"].get("tier_name") or (report["profile"].get("tier_rank") or 1) != 1:
+                _tname = report["profile"].get("tier_name")
+                _trank = report["profile"].get("tier_rank") or 1
+                lines.append(f"   - 品阶：{_tname or ('Tier ' + str(_trank))}")
+            lines += [
+                f"   - 当前支配者：{report['profile']['holder']}",
+            ]
+            _c = report["profile"]["charges"]
+            _mc = report["profile"]["max_charges"]
+            _chg_line = f"   - 充能与耐久：剩余可用 {_c} 次" + (f" / 上限 {_mc}" if _mc and _mc >= 0 else "")
+            if report["profile"].get("cost_per_use"):
+                _chg_line += f" ｜ 单次代价: {report['profile']['cost_per_use']}"
+            _chg_line += f" (物理状态: {report['profile']['condition']})"
+            lines.append(_chg_line)
+            lines.append(f"   - 活跃记录：最近现身于第 {report['profile']['last_seen_ch']} 章 ｜ 历史流转变动 {len(traj)} 次")
             if traj:
                 lines.append("   - 全生命周期流转与消耗轨迹：")
                 for t in traj:
@@ -526,8 +585,14 @@ def trace_id(workspace: Path, target_id: str) -> Dict[str, Any]:
             lines = [
                 f"🗺️ 【ID 深度追踪报告：{tid} · {pl_data.get('name')}】",
                 f"   - 地点简介：{pl_data.get('summary') or '无特殊说明'}",
-                f"   - 发生章节：共在此展开 {len(v_chs)} 次剧情 ({', '.join(v_chs) if v_chs else '暂无历史记录'})",
             ]
+            # v4.4.0 FIND-M：补危险层级与感官物象（sync 可落账，旧版无展示）。
+            if pl_data.get("danger_level") or (pl_data.get("danger_tier") or 1) > 1:
+                lines.append(f"   - 危险度：{pl_data.get('danger_level') or 'Tier ' + str(pl_data.get('danger_tier'))}"
+                             + (f" (T{pl_data.get('danger_tier')})" if pl_data.get("danger_tier") else ""))
+            if pl_data.get("sensory_anchor"):
+                lines.append(f"   - 感官物象：{pl_data['sensory_anchor']}")
+            lines.append(f"   - 发生章节：共在此展开 {len(v_chs)} 次剧情 ({', '.join(v_chs) if v_chs else '暂无历史记录'})")
             report["human_readable"] = "\n".join(lines)
             return report
 
@@ -590,6 +655,16 @@ def trace_id(workspace: Path, target_id: str) -> Dict[str, Any]:
             lines = [
                 f"🏴 【ID 深度追踪报告：{tid} · {fc_data.get('name')}】",
                 f"   - 势力领袖：{fc_data.get('leader', '未知')} ｜ 本部坐标：{fc_data.get('headquarters', '未知')}",
+            ]
+            # v4.4.0 FIND-M：scale_tier/core_assets/diplomacy 已有值才显（sync 可落账）。
+            if (fc_data.get("scale_tier") or 0) > 1:
+                lines.append(f"   - 规模层级：{fc_data.get('scale_tier')}")
+            if fc_data.get("core_assets"):
+                lines.append(f"   - 核心资产：{'、'.join(fc_data['core_assets'])}")
+            if fc_data.get("diplomacy"):
+                _dip = "；".join(f"{k}→{v}" for k, v in fc_data["diplomacy"].items())
+                lines.append(f"   - 外交网络：{_dip}")
+            lines += [
                 f"   - 设定卡片：{fc_data.get('card') or '未建档'}",
                 f"   - 在编成员：共 {len(members)} 人" + (f"（{', '.join(members[:8])}）" if members else ""),
             ]

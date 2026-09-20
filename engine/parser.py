@@ -13,17 +13,115 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 def _strip_quotes(val: str) -> str:
     val = val.strip()
     if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
-        return val[1:-1]
+        return _unescape_quoted(val[1:-1])
     return val
+
+
+def _unescape_quoted(s: str) -> str:
+    """反转义 _yaml_str/_yaml_key 输出的双引号内转义，与其成为互逆对。
+
+    v4.3.3 FIND-B：serializer 严格转义（`\\\"`、`\\\\`、`\\n`→`\\\\n`），旧的
+    `_strip_quotes` 只剥离引号不做反转义，导致含双引号 / 反斜杠 / 换行的字符串
+    经 dump→parse 往返后带字面反斜杠，锁定事实 / 伏笔 desc / 称谓被污染。
+    """
+    out: List[str] = []
+    i = 0
+    while i < len(s):
+        ch = s[i]
+        if ch == "\\" and i + 1 < len(s):
+            nxt = s[i + 1]
+            if nxt == "n":
+                out.append("\n")
+                i += 2
+                continue
+            if nxt == "t":
+                out.append("\t")
+                i += 2
+                continue
+            if nxt in ('"', "'", "\\"):
+                out.append(nxt)
+                i += 2
+                continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def _split_flow_items(inner: str) -> List[str]:
+    """按顶层逗号分割 flow 形态内容，尊重引号内逗号与嵌套花括号/方括号。"""
+    items: List[str] = []
+    depth = 0
+    in_quote = False
+    quote_char = ""
+    cur: List[str] = []
+    i = 0
+    while i < len(inner):
+        ch = inner[i]
+        if in_quote:
+            cur.append(ch)
+            if ch == quote_char and (i == 0 or inner[i - 1] != "\\"):
+                in_quote = False
+                quote_char = ""
+            i += 1
+            continue
+        if ch in ('"', "'"):
+            in_quote = True
+            quote_char = ch
+            cur.append(ch)
+        elif ch in ("{", "["):
+            depth += 1
+            cur.append(ch)
+        elif ch in ("}", "]"):
+            depth -= 1
+            cur.append(ch)
+        elif ch == "," and depth == 0:
+            items.append("".join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+        i += 1
+    if cur:
+        items.append("".join(cur))
+    return items
+
+
+def parse_flow_mapping(s: str) -> Dict[str, Any]:
+    """解析单行 flow mapping（如 `{life_status: deceased, condition: "病故"}`）。
+
+    v4.3.3 FIND-G：mini-YAML 此前把花括号整串当标量，导致 state_deltas 里
+    `\"p_005\": {\"life_status\": \"deceased\"}` 的显式生死契约被当成字符串，
+    `isinstance(s_val, dict)` 分支永不可达。此处补上 flow mapping 支持，
+    使显式契约通道真正生效。
+    """
+    s = s.strip()
+    if not (s.startswith("{") and s.endswith("}")):
+        return {}
+    inner = s[1:-1].strip()
+    if not inner:
+        return {}
+    result: Dict[str, Any] = {}
+    for part in _split_flow_items(inner):
+        part = part.strip()
+        if not part:
+            continue
+        # 兼容全角冒号与半角冒号（先按全角切，再按半角切）
+        if "：" in part:
+            k, v = part.split("：", 1)
+        elif ":" in part:
+            k, v = part.split(":", 1)
+        else:
+            continue
+        result[_strip_quotes(k.strip())] = _parse_scalar(v.strip())
+    return result
 
 
 def _parse_scalar(val: str) -> Any:
     val = val.strip()
     if not val:
         return ""
-    # 去除两端引号
+    # 去除两端引号并反转义（v4.3.3 FIND-B：与 _yaml_str 严格转义互为逆运算）
     if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
-        return val[1:-1]
+        return _unescape_quoted(val[1:-1])
     # 布尔值
     if val.lower() == "true":
         return True
@@ -48,6 +146,9 @@ def _parse_scalar(val: str) -> Any:
         return []
     if val == "{}":
         return {}
+    # v4.3.3 FIND-G：单行 flow mapping（原名「inline dict」）支持
+    if val.startswith("{") and val.endswith("}"):
+        return parse_flow_mapping(val)
     if val.startswith("[") and val.endswith("]"):
         try:
             return json.loads(val)
@@ -57,12 +158,45 @@ def _parse_scalar(val: str) -> Any:
     return val
 
 
+def _find_unescaped(s: str, ch: str, start: int = 0) -> int:
+    """返回 s 中从 start 起第一个**未转义**的字符 ch 的位置；找不到返回 -1。
+
+    v4.3.3 FIND-B(fuzz)：引号边界扫描此前用 str.find，会把序列化器转义出的
+    `\\\"` / `\\'` 误当真正的闭合引号（`"尸瘸'\\\\\\":"` 里的 `\\\"` 被当结尾，
+    整串被误判为 `key: value` 的 dict-item 而拦腰截断）。转义引号前面有奇数个
+    反斜杠，不算字符串边界。
+    """
+    i = start
+    n = len(s)
+    while i < n:
+        if s[i] == ch:
+            bs = 0
+            j = i - 1
+            while j >= 0 and s[j] == "\\":
+                bs += 1
+                j -= 1
+            if bs % 2 == 0:
+                return i
+        i += 1
+    return -1
+
+
 def _strip_comment(line: str) -> str:
     """去除行内注释，保留引号内的 #。"""
     in_quote = False
     quote_char = ""
     res = []
-    for i, ch in enumerate(line):
+    i = 0
+    while i < len(line):
+        ch = line[i]
+        # v4.3.3 FIND-B(fuzz)：序列化器用 `\"` 转义引号，旧逻辑把转义出的 `"` 误当
+        # 引号边界切换状态——`"语头\"b#照"` 里的 `#` 因此被误判为行外注释而截断，
+        # 硅失数据。遇到反斜杠时,把其与下一字符一并原样保留,不改变引号跟踪状态。
+        if ch == "\\" and i + 1 < len(line):
+            res.append(ch)
+            res.append(line[i + 1])
+            i += 2
+            continue
         if ch in ('"', "'"):
             if not in_quote:
                 in_quote = True
@@ -75,6 +209,7 @@ def _strip_comment(line: str) -> str:
             break
         else:
             res.append(ch)
+        i += 1
     return "".join(res).rstrip()
 
 
@@ -85,7 +220,7 @@ def _split_key_value(line: str) -> Tuple[str, str]:
         return _strip_quotes(s[:-1].strip()), ""
     if s.startswith(('"', "'")):
         q = s[0]
-        end_q = s.find(q, 1)
+        end_q = _find_unescaped(s, q, 1)
         if end_q != -1:
             rest = s[end_q + 1:].strip()
             if rest.startswith(":"):
@@ -120,7 +255,7 @@ def parse_mini_yaml(text: str) -> Dict[str, Any]:
             return {}, start_idx
 
         curr_indent, curr_line = cleaned_lines[start_idx]
-        is_list = curr_line.startswith("- ")
+        is_list = curr_line.startswith("- ") or curr_line == "-"
 
         if is_list:
             result_list: List[Any] = []
@@ -129,17 +264,25 @@ def parse_mini_yaml(text: str) -> Dict[str, Any]:
                 ind, line = cleaned_lines[idx]
                 if ind < min_indent:
                     break
+                # v4.3.3 FIND-B(fuzz)：dump 对「嵌套 dict/list 复合项」输出裸 `-` 标记行，
+                # 旧版只认 `- `（startswith），strip 后的单字符 `-` 匹配不到，导致该复合
+                # 项的子结构被静默丢弃、或与后续 list 项错位（写入侧宽容、消费侧无感）。
+                if line == "-":
+                    sub_obj, idx = _parse_block(idx + 1, ind + 2)
+                    result_list.append(sub_obj)
+                    continue
                 if line.startswith("- "):
                     item_content = line[2:].strip()
                     if not item_content:  # 复合对象，下一行开始
                         sub_obj, idx = _parse_block(idx + 1, ind + 2)
                         result_list.append(sub_obj)
+                        continue
                     is_dict_item = False
                     dict_k, dict_v = "", ""
                     if not item_content.startswith("{"):
                         if item_content.startswith(('"', "'")):
                             q = item_content[0]
-                            end_q = item_content.find(q, 1)
+                            end_q = _find_unescaped(item_content, q, 1)
                             if end_q != -1 and item_content[end_q + 1:].strip().startswith(":"):
                                 is_dict_item = True
                                 dict_k = item_content[1:end_q]
@@ -152,14 +295,25 @@ def parse_mini_yaml(text: str) -> Dict[str, Any]:
 
                     if is_dict_item:
                         # 字典列表项: - id: "p_001"
-                        entry_dict: Dict[str, Any] = {dict_k: _parse_scalar(dict_v)}
                         idx += 1
+                        entry_dict: Dict[str, Any] = {}
+                        # v4.3.3 FIND-B(fuzz)：`- k:`（行内值为空、值在下一层缩进块）时，
+                        # 旧版把 "" 当值，嵌套块随后被 `startswith("- ")` 的 break 拦腰截断。
+                        # 此处行内值为空则递归解析嵌套块作为该键的值。
+                        # 下界须为 ind + 4：dict 项初键在 ind+2、同级的 rem 键也在 ind+2，
+                        # 初键的值块子键在 ind+4 —— 若用 ind+2 会把 rem 同级键误吞进初键
+                        # 值块（fuzz 实锤），用 ind+4 才能停在与初键同层的兄弟键之前。
+                        if dict_v == "" and idx < len(cleaned_lines) and cleaned_lines[idx][0] > ind:
+                            sub_obj, idx = _parse_block(idx, ind + 4)
+                            entry_dict[dict_k] = sub_obj
+                        else:
+                            entry_dict[dict_k] = _parse_scalar(dict_v)
                         # 收集该条目下相同或更深缩进的子字段
                         while idx < len(cleaned_lines):
                             sub_ind, sub_line = cleaned_lines[idx]
                             if sub_ind <= ind:
                                 break
-                            if sub_line.startswith("- "):
+                            if sub_line.startswith("- ") or sub_line == "-":
                                 break
                             if ":" in sub_line:
                                 sub_k, sub_v = _split_key_value(sub_line)
@@ -358,6 +512,10 @@ def dump_mini_yaml(data: Any, indent: int = 0) -> str:
                 lines.append(f"{prefix}- {item}")
             elif isinstance(item, bool):
                 lines.append(f"{prefix}- {'true' if item else 'false'}")
+            elif item is None:
+                # v4.3.3 FIND-B(fuzz)：None 落进 else 分支会被 dump 成裸 `-`（值丢失），
+                # parse 后变成空结构；显式 dump 为 `- null` 保证往返一致。
+                lines.append(f"{prefix}- null")
             else:
                 lines.append(f"{prefix}-")
                 lines.append(dump_mini_yaml(item, indent + 2))

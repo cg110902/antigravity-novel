@@ -589,11 +589,15 @@ sync 报「因果冲突阻断：角色 [周伯] (p_004) 已于第 ch_006 章阵�
 
 ---
 
-## BUG#35 【P3 已记录】export 与 sync 字数口径不一致
+## BUG#35 【P3 已修】export 与 sync 字数口径不一致
 - **现象**：`workspace/lantern` 第一卷 14 章，`sync_log.json` 累计 12667 字，`export` 报 12570 字，差 97。
-- **根因**：`sync` 的 `word_count` 统计整份 final 正文（含 `# 第N章 标题` 行）；`exporter.py:189` 在剥离标题行后重排目录，只统计 `body_lines`。两者共用 `_count_words` 但输入域不同。
+- **根因**：`sync` 的 `word_count` 统计整份 final 正文（含 `# 第N章 标题` 行）；`exporter.py` 在剥离标题行后重排目录，只统计 body 行。两者输入域不同。
 - **影响**：不影响数据正确性，但「总字数」在 cockpit / reconcile / export 三处口径不一，对账时易被误判为漂移。
-- **建议**：统一以正文体（不含标题）为准，或在 export 输出中标注口径。
+- **处置（v4.4.0）**：
+  1. 新增 `ops.count_prose_words`（单一口径：剥 front-matter、剥 Markdown 标题行后计量），sync/audit/finalize 入账统一走它；
+  2. `exporter.py` 改为**引用 sync_log 入账字数**（单真值派生，不再重算正文），export/rollup/cockpit/project 全部同源。
+  3. 实测三书（guixu/lantern/testbook）project == timeline == export **三处完全一致**（如 guixu 17282/17282/17282）。
+
 
 ## BUG#36 【P0 已修已验】snapshot rollback 接受工作区外任意 zip，导致全书删除 + 任意文件写入
 - **现象**：`studio.py snapshot rollback /tmp/evil/payload.zip -w workspace/lantern` 执行成功。该 zip 仅含一个 `state.json`（内容 "PWNED"）。结果：

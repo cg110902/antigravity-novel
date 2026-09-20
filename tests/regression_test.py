@@ -599,9 +599,14 @@ locked_facts: []
               all(v["total_co_occurrences"] == 1 for v in cl("indices/co_occurrence.json").values()))
         _arc = cl("persons.json")["p_001"]["arc_history"]
         check("长程弧光按章去重", len(_arc) == 10 and len({a["chapter"] for a in _arc}) == 10)
-        check("长程总字数一致",
+        check("长程总字数一致(BUG#35 统一净字数口径)",
               json.loads((cw / "project.json").read_text(encoding="utf-8"))
-              ["current_status"]["total_published_words"] == 1830)
+              ["current_status"]["total_published_words"] == 1790)
+        # BUG#35 收尾：export 引用 sync_log 入账字数，三处口径同源（不重算正文）。
+        _synclog_wc = sum(int(v.get("word_count", 0) or 0)
+                          for v in cl("sync_log.json").values() if isinstance(v, dict))
+        _proj_wc = json.loads((cw / "project.json").read_text(encoding="utf-8"))["current_status"]["total_published_words"]
+        check("BUG#35 sync_log 字数和 == project 总数", _synclog_wc == _proj_wc, f"{_synclog_wc} vs {_proj_wc}")
 
         before = {p2.name: p2.read_bytes() for p2 in sorted((cw / "state").rglob("*.json"))
                   if p2.name != "rollup_vol_01.json"}
@@ -932,6 +937,305 @@ locked_facts: []
         check("BUG#36 拒绝缺 project.json 的伪快照", r.returncode != 0)
         check("BUG#36 伪快照拒绝后正文零损失",
               len(list((ws / "manuscript").rglob("*.md"))) == n_before)
+
+        print("\n=== 13. parser 往返一致性（FIND-B/H/I/J/K 回归锁）===")
+        from engine.parser import parse_mini_yaml as _pmy, dump_mini_yaml as _dmy
+        _rt_cases = [
+            {"a": '半枚"灯签"'},
+            {"a": '反斜杠\\路径'},
+            {"a": '换行\n第二行'},
+            {"a": ["x", "y"]},
+            {"nested": {"x": {"y": '深"层"'}, "z": "尾"}},
+            {"list_of_dict": [{"id": "p_001", "name": '陆"离'}]},
+            {"复合列表项": [1, {"k": "v"}, None, [True, "x"]]},
+            {"转义注释": {'a': '语头"b#照'}},
+            {"转义引号判dict": {"_子灯离c": ["尸瘸'\\\":" ]}},
+            {"flow_mapping": {"p_005": {"life_status": "死亡", "condition": "病故"}}},
+        ]
+        for _idx, _c in enumerate(_rt_cases):
+            check(f"FIND-B 往返一致 #{_idx}", _pmy(_dmy(_c)) == _c, repr(_c)[:60])
+        # flow mapping 解析：显式生死契约通道
+        _fm_g = _pmy('character_status:\n  "p_005": {life_status: deceased, condition: "溺毙"}\n')
+        check("FIND-G flow mapping 解析为 dict",
+              isinstance(_fm_g["character_status"]["p_005"], dict)
+              and _fm_g["character_status"]["p_005"]["life_status"] == "deceased",
+              repr(_fm_g))
+        # 模板兼容：引号数值保持字符串
+        _fm_t = _pmy('relation_deltas:\n  - tension: "30"\n')
+        check("FIND-G 引号数值模板不改推断类型",
+              _fm_t["relation_deltas"][0]["tension"] == "30" and isinstance(_fm_t["relation_deltas"][0]["tension"], str))
+
+        print("\n=== 14. milestone achieve -c 落盘 achieved_ch（FIND-D 回归锁）===")
+        from engine.ops import milestone_add as _madd, milestone_achieve as _mach
+        _madd(ws, "FIND-D 验证", 20, "验证 achieved_ch 落盘")
+        _ms_all = load(ws, "state/milestones.json")
+        _m_id = next(m["id"] for m in _ms_all if m["title"] == "FIND-D 验证")
+        _mach(ws, _m_id, "ch_014")
+        _ms_after = {m["id"]: m for m in load(ws, "state/milestones.json")}
+        check("FIND-D achieved_ch 落盘 ch_014", _ms_after[_m_id].get("achieved_ch") == "ch_014")
+        _mach(ws, _m_id, "15")
+        _ms_after2 = {m["id"]: m for m in load(ws, "state/milestones.json")}
+        check("FIND-D 裸数字回车归一为 ch_015", _ms_after2[_m_id].get("achieved_ch") == "ch_015")
+
+        print("\n=== 15. FIND-C is_deceased 单一真值（回归锁）===")
+        from engine.state import is_deceased as _isd_c, get_death_chapter as _gdc_c
+        check("FIND-C 旧档「病故」判死", _isd_c({"condition": "病故于旧货店"}))
+        check("FIND-C 旧档「牺牲」判死", _isd_c({"condition": "为掩护同伴牺牲"}))
+        check("FIND-C 反事实守卫不误判", not _isd_c({"condition": "重伤，几乎死了，被救回"}))
+        check("FIND-C 与死亡章判定口径一致",
+              _gdc_c({"condition": "病故于旧货店", "arc_history": [{"chapter": "ch_004", "status_out": "病故"}]}) == "ch_004")
+
+        print("\n=== 16. sync 事务哨兵三态（FIND-SYNC 回归锁）===")
+        from engine.state import write_sync_sentinel as _wsnt, clear_sync_sentinel as _csnt, read_sync_sentinel as _rsnt
+        _ss_ws = tmp / "sentinel_probe"
+        _ss_ws.mkdir()
+        # 1. 立哨兵 → check 检出中间态
+        _wsnt(_ss_ws, "ch_003")
+        check("FIND-SYNC 哨兵可检出", any("上次同步未完成" in e for e in
+              __import__("engine.check", fromlist=["run_full_check"]).run_full_check(_ss_ws)["errors"]))
+        # 2. 清哨兵 → check 不再报
+        _csnt(_ss_ws)
+        check("FIND-SYNC 哨兵清除后恢复", not any("上次同步未完成" in e for e in
+              __import__("engine.check", fromlist=["run_full_check"]).run_full_check(_ss_ws)["errors"]))
+        # 3. 读哨兵内容
+        _wsnt(_ss_ws, "ch_005")
+        _sdata = _rsnt(_ss_ws)
+        check("FIND-SYNC 哨兵内容含章号", _sdata and _sdata.get("chapter_id") == "ch_005")
+        _csnt(_ss_ws)
+
+        print("\n=== 17. FIND-L 字段透传（schema 契约字段不静默丢失 回归锁）===")
+        _fl_ws = tmp / "fieldpact"
+        check("FIND-L init", run(_fl_ws, "init", "-t", "字段契约", "-g", "都市", "-p", "沈决").returncode == 0)
+        (_fl_ws / "outlines/vol_01/outline.md").write_text("# 第1卷\n\n### ch_001: 字段契约\n\n- 核心事件：开场。\n", encoding="utf-8")
+        (_fl_ws / "outlines/vol_01/beats/ch_001.md").write_text("""---
+chapter_id: "ch_001"
+volume_id: "vol_01"
+title: "字段契约"
+location: "旧楼"
+present_characters:
+  - id: "p_001"
+    name: "沈决"
+    want: "求真"
+    fear: "失忆"
+    status_in: "旧伤"
+    realm: "炼气"
+    tier_rank: 3
+    faction: "悬灯盟"
+new_entities:
+  - id: "p_008"
+    type: "character"
+    name: "开篇死者"
+    life_status: "deceased"
+    realm: "元婴"
+    faction: "灯火司"
+  - id: "it_006"
+    type: "item"
+    name: "古灯"
+    max_charges: 10
+    tier_name: "法宝"
+  - id: "fac_004"
+    type: "faction"
+    name: "灯火司"
+    leader: "萧烜"
+    headquarters: "悬灯城"
+foreshadowing_deltas:
+  - id: "GUN-001"
+    name: "灯底刻痕"
+    action: "plant"
+    desc: "灯底有字"
+    evidence: "灯底刻着'归墟'二字"
+state_deltas:
+  debts:
+    - source: "p_002"
+      target: "p_001"
+      type: "favor"
+      desc: "前史已清"
+      status: "settled"
+relation_deltas:
+  - source: "p_001"
+    target: "p_002"
+    tension: 75
+    affinity: -40
+    trust: 10
+locked_facts: []
+---
+""", encoding="utf-8")
+        (_fl_ws / "manuscript/vol_01/raw/ch_001_v1.md").write_text("沈决按下了打火机。\n", encoding="utf-8")
+        check("FIND-L sync 入账", run(_fl_ws, "sync", "ch_001").returncode == 0)
+
+        _fl_persons = load(_fl_ws, "state/persons.json")
+        check("FIND-L present 透传 realm", _fl_persons["p_001"].get("realm") == "炼气", str(_fl_persons["p_001"].get("realm")))
+        check("FIND-L present 透传 tier_rank", _fl_persons["p_001"].get("tier_rank") == 3, str(_fl_persons["p_001"].get("tier_rank")))
+        check("FIND-L present 透传 faction", _fl_persons["p_001"].get("faction") == "悬灯盟", str(_fl_persons["p_001"].get("faction")))
+        check("FIND-L new_entities life_status 落账", _fl_persons["p_008"].get("life_status") == "deceased", str(_fl_persons["p_008"].get("life_status")))
+        check("FIND-L new_entities faction 落账", _fl_persons["p_008"].get("faction") == "灯火司", str(_fl_persons["p_008"].get("faction")))
+
+        _fl_items = load(_fl_ws, "state/items.json")
+        check("FIND-L item max_charges 落账", _fl_items["it_006"].get("max_charges") == 10, str(_fl_items["it_006"].get("max_charges")))
+        check("FIND-L item tier_name 落账", _fl_items["it_006"].get("tier_name") == "法宝", str(_fl_items["it_006"].get("tier_name")))
+
+        _fl_factions = load(_fl_ws, "state/factions.json")
+        check("FIND-L faction leader 落账", _fl_factions["fac_004"].get("leader") == "萧烜", str(_fl_factions["fac_004"].get("leader")))
+
+        _fl_lines = load(_fl_ws, "state/lines.json")
+        check("FIND-L 伏笔 evidence 落账", _fl_lines["GUN-001"].get("evidence") == "灯底刻着'归墟'二字", str(_fl_lines["GUN-001"].get("evidence")))
+
+        _fl_debts = load(_fl_ws, "state/debts.json")
+        check("FIND-L 恩怨 status 透传 settled", _fl_debts[0].get("status") == "settled", str(_fl_debts[0].get("status")))
+
+        _fl_rels = load(_fl_ws, "state/relations.json")
+        _fl_rel = _fl_rels.get("p_001->p_002", {})
+        check("FIND-L 情感 affinity 透传", _fl_rel.get("affinity") == -40, str(_fl_rel.get("affinity")))
+        check("FIND-L 情感 trust 透传", _fl_rel.get("trust") == 10, str(_fl_rel.get("trust")))
+
+        # 死亡契约跨章生效：p_008 已 deceased，次章登场必须阻断
+        (_fl_ws / "outlines/vol_01/beats/ch_002.md").write_text("""---
+chapter_id: "ch_002"
+volume_id: "vol_01"
+title: "复活测试"
+location: "旧楼"
+present_characters:
+  - id: "p_001"
+    name: "沈决"
+  - id: "p_008"
+    name: "开篇死者"
+locked_facts: []
+---
+""", encoding="utf-8")
+        (_fl_ws / "manuscript/vol_01/raw/ch_002_v1.md").write_text("死者又出现了。\n", encoding="utf-8")
+        _fl_r = run(_fl_ws, "sync", "ch_002")
+        check("FIND-L 显式 deceased 死亡契约跨章阻断", _fl_r.returncode == 1 and "阵亡" in _fl_r.stderr, _fl_r.stderr[-120:])
+
+        print("\n=== 18. FIND-N 死里逃生不误报 + FIND-O 短机密泄密防误报 ===")
+        from engine.state import get_death_chapter as _gdc_n, is_deceased as _isd_n
+        # FIND-N：反事实守卫下「几乎死了/假死/装死」不得被判为死亡章
+        check("FIND-N「几乎死了」不死判死",
+              _gdc_n({"life_status": "alive",
+                      "arc_history": [{"chapter": "ch_001", "status_out": "重伤，几乎死了，被救回"}]}) == "")
+        check("FIND-N「装死」不死判死",
+              _gdc_n({"life_status": "alive",
+                      "arc_history": [{"chapter": "ch_002", "status_out": "装死骗过追兵"}]}) == "")
+        check("FIND-N 真死仍取死亡章",
+              _gdc_n({"arc_history": [{"chapter": "ch_004", "status_out": "为掩护主角死于火场"}]}) == "ch_004")
+        check("FIND-N deceased 契约兜底取最晚露面章",
+              _gdc_n({"life_status": "deceased", "last_seen_ch": "ch_003",
+                      "arc_history": [{"chapter": "ch_005", "status_out": "倒下"}]}) == "ch_005")
+        check("FIND-N 活人 arc_history 无兜底章",
+              _gdc_n({"life_status": "alive", "last_seen_ch": "ch_003",
+                      "arc_history": [{"chapter": "ch_005", "status_out": "起身离开"}]}) == "")
+
+        # FIND-O：短机密 4 字滑窗不再制造确认级假阳性
+        from engine.probes import probe_epistemology_leaks as _pel, _secret_keywords as _sk
+        _sk_short, _ = _sk("他其实不是人")
+        check("FIND-O 短机密不产 4 字滑窗强证据",
+              all(len(k) < 4 or k == "他其实不是人" for k in _sk_short),
+              str(_sk_short))
+        _r_o = _pel("沈拂云说：“他其实不是故意的，你别怪他。”",
+                    {"p_003": ["他其实不是人"]}, {"p_003": "沈拂云"}, ["p_001", "p_003"])
+        check("FIND-O 共享公共短语不判确认级",
+              _r_o["confirmed_count"] == 0, str(_r_o))
+        _r_o2 = _pel("沈拂云说：“我知道，他其实不是人，是妖。”",
+                     {"p_003": ["他其实不是人"]}, {"p_003": "沈拂云"}, ["p_001", "p_003"])
+        check("FIND-O 短机密原文直说仍判确认级",
+              _r_o2["confirmed_count"] >= 1, str(_r_o2))
+
+        print("\n=== 19. FIND-P 实体演化入账 + FIND-Q force 不回退 ===")
+        _pq_ws = tmp / "entity_evolution"
+        check("FIND-P init", run(_pq_ws, "init", "-t", "演化", "-g", "都市", "-p", "沈决").returncode == 0)
+        (_pq_ws / "outlines/vol_01/outline.md").write_text("# v\n", encoding="utf-8")
+        def _pq_beats(cid, leader, holder, charges):
+            return f'''---
+chapter_id: "{cid}"
+volume_id: "vol_01"
+title: "t"
+location: "旧楼"
+present_characters:
+  - id: "p_001"
+    name: "沈决"
+new_entities:
+  - id: "fac_004"
+    type: "faction"
+    name: "灯火司"
+    leader: "{leader}"
+  - id: "it_006"
+    type: "item"
+    name: "长明灯"
+    holder: "{holder}"
+    charges: {charges}
+locked_facts: []
+---
+'''
+        (_pq_ws / "outlines/vol_01/beats/ch_001.md").write_text(_pq_beats("ch_001", "萧烜", "沈决", 10), encoding="utf-8")
+        (_pq_ws / "manuscript/vol_01/raw/ch_001_v1.md").write_text("一。\n", encoding="utf-8")
+        check("FIND-P 建档入账", run(_pq_ws, "sync", "ch_001").returncode == 0)
+        check("FIND-P 建档 leader=萧烜", load(_pq_ws, "state/factions.json")["fac_004"]["leader"] == "萧烜")
+        # ch_003 势力易主
+        (_pq_ws / "outlines/vol_01/beats/ch_003.md").write_text(_pq_beats("ch_003", "裴照", "沈决", 10), encoding="utf-8")
+        (_pq_ws / "manuscript/vol_01/raw/ch_003_v1.md").write_text("三。\n", encoding="utf-8")
+        check("FIND-P 演化入账", run(_pq_ws, "sync", "ch_003").returncode == 0)
+        check("FIND-P 势力易主 萧烜→裴照", load(_pq_ws, "state/factions.json")["fac_004"]["leader"] == "裴照")
+        # force 重放旧章 ch_001（声明 leader=萧烜，不得回退）
+        check("FIND-Q force 重放旧章", run(_pq_ws, "sync", "ch_001", "--force").returncode == 0)
+        check("FIND-Q 势力领袖不被旧章回退", load(_pq_ws, "state/factions.json")["fac_004"]["leader"] == "裴照")
+
+        print("\n=== 20. FIND-R 认知/死亡边界判定（假阴性防线）===")
+        from engine.probes import probe_unregistered_fatalities as _prf_r
+        _fm_r = {"present_characters": [{"id": "p_001", "name": "沈决"}],
+                 "new_entities": [], "state_deltas": {}}
+        # 单字机密：显式 seed 不得从完全静默转为有提醒
+        r_r1 = _pel("沈决说：“灯！就是那盏灯！”", {"p_003": ["灯"]}, {"p_003": "沈决"}, ["p_001", "p_003"])
+        check("FIND-R 单字机密不再完全静默", (r_r1["confirmed_count"] + r_r1["suspected_count"]) >= 1, str(r_r1))
+        # locked_facts 修辞义『死不承认』不得吞掉真死亡
+        _fm_ra = dict(_fm_r); _fm_ra["locked_facts"] = [{"id": "LOCK-001", "fact": "沈决发誓死不承认那笔旧账", "domain": "plot"}]
+        r_ra = _prf_r("沈决最终倒在大雨里，气绝身亡。", _fm_ra, {"p_001": {"name": "沈决", "life_status": "alive"}})
+        check("FIND-R 修辞义不吞真死亡", len(r_ra["misses"]) >= 1, r_ra["detail"][:60])
+
+        print("\n=== 21. FIND-L3 生死灰区反馈（死板词表治理·不静默不误判）===")
+        _l3_ws = tmp / "lifegray"
+        check("FIND-L3 init", run(_l3_ws, "init", "-t", "生死灰区", "-g", "都市", "-p", "沈决").returncode == 0)
+        (_l3_ws / "outlines/vol_01/outline.md").write_text("# v\n", encoding="utf-8")
+        def _l3_beats(cid, st):
+            return f'''---
+chapter_id: "{cid}"
+volume_id: "vol_01"
+title: "t"
+location: "旧楼"
+present_characters:
+  - id: "p_001"
+    name: "沈决"
+    want: "求真"
+    fear: "失忆"
+state_deltas:
+  character_status:
+    "p_001": "{st}"
+new_entities: []
+locked_facts: []
+---
+'''
+        (_l3_ws / "outlines/vol_01/beats/ch_001.md").write_text(_l3_beats("ch_001", "倒在雪地里再没起来"), encoding="utf-8")
+        (_l3_ws / "manuscript/vol_01/raw/ch_001_v1.md").write_text("第1章正文内容足够长。\n", encoding="utf-8")
+        _l3_r = run(_l3_ws, "sync", "ch_001")
+        check("FIND-L3 灰区隐喻落账不判死",
+              load(_l3_ws, "state/persons.json")["p_001"].get("life_status") == "alive",
+              str(load(_l3_ws, "state/persons.json")["p_001"].get("life_status")))
+        # 反事实：命中词表+守卫拦截 → 提示且不判死
+        (_l3_ws / "outlines/vol_01/beats/ch_002.md").write_text(_l3_beats("ch_002", "重伤，几乎死了，被救回"), encoding="utf-8")
+        (_l3_ws / "manuscript/vol_01/raw/ch_002_v1.md").write_text("第2章正文内容足够长。\n", encoding="utf-8")
+        _l3_r2 = run(_l3_ws, "sync", "ch_002")
+        check("FIND-L3 反事实不判死并提示",
+              load(_l3_ws, "state/persons.json")["p_001"].get("life_status") == "alive"
+              and any("未死亡" in w or "反事实" in w for w in _l3_r2.stdout.splitlines()),
+              _l3_r2.stdout[-200:])
+
+        print("\n=== 22. FIND-M trace 读到落账字段（声明即可查）===")
+        from engine.id_tracker import trace_id as _trace_m
+        # 复用 FIND-L 的 fieldpact 工作区（已含 realm/tier_rank/faction/aliases/伏笔 evidence 落账）
+        _tm_p = _trace_m(_fl_ws, "p_001")
+        check("FIND-M trace realm 与 tier_rank 分别可读",
+              _tm_p["profile"].get("realm") == "炼气" and _tm_p["profile"].get("tier_rank") == 3,
+              str(_tm_p["profile"].get("realm")) + " / " + str(_tm_p["profile"].get("tier_rank")))
+        check("FIND-M trace faction 可读", _tm_p["profile"].get("faction") == "悬灯盟", str(_tm_p["profile"].get("faction")))
+        check("FIND-M trace need/lie/micro_actions 键存在", all(k in _tm_p["profile"] for k in ("need", "lie", "micro_actions", "aliases")), str(sorted(_tm_p["profile"].keys())))
 
         print("\n" + "=" * 60)
         print(f"通过 {len(PASS)} 项 ｜ 失败 {len(FAIL)} 项")

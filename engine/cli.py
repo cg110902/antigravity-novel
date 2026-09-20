@@ -124,7 +124,7 @@ def _build_help_data() -> dict:
             "ask": {"usage": "python studio.py ask \"<关键词>\" -w <工作区>", "desc": "跨章与设定事实查证"},
             "evidence candidates": {"usage": "python studio.py evidence candidates <ch_XXX> -w <工作区>", "desc": "实体候选打捞（扫描当章细纲 frontmatter 声明，发现未登记实体；正文检索请用 ask）"},
             "reconcile": {"usage": "python studio.py reconcile [vol_XX] --write -w <工作区>", "desc": "卷末对账与长程审计（含逾期伏笔必清清单）"},
-            "state rollup": {"usage": "python studio.py state rollup [vol_XX] -w <工作区>", "desc": "分卷归档：折叠时间线为 rollup JSON 防长篇膨胀"},
+            "state rollup": {"usage": "python studio.py state rollup [vol_XX] -w <工作区>", "desc": "分卷归档：折叠时间线为 rollup JSON 副本（供跨卷总览与保存，不删 timeline 原文）"},
             "simulate impact": {"usage": "python studio.py simulate impact --entity <实体名> --action <动作> -w <工作区>", "desc": "剧情波及测算"},
             "snapshot create": {"usage": "python studio.py snapshot create <快照名> -w <工作区>", "desc": "创建安全备份快照（含 log/ 与 pack.md）"},
             "snapshot list": {"usage": "python studio.py snapshot list -w <工作区>", "desc": "查看历史安全快照清单"},
@@ -580,7 +580,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 m = milestone_add(ws, args.title, args.target_ch, args.desc)
                 print(f"🚩 里程碑已添加: [{m['id']}] 《{m['title']}》 目标章: 第 {m['target_ch']} 章")
             else:
-                m = milestone_achieve(ws, args.milestone_id)
+                m = milestone_achieve(ws, args.milestone_id, getattr(args, "chapter", "") or "")
                 if m:
                     print(f"🚩 里程碑已标记达成: [{m['id']}] 《{m['title']}》 (达成时间: {m.get('achieved_at')})")
                 else:

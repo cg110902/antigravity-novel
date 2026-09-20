@@ -33,6 +33,120 @@ from engine.schema import (
     LockedFactRecord,
 )
 
+# ── v4.3.3 FIND-SYNC：sync 跨表事务哨兵（A4 方案 1）──
+# sync 是十几次独立的单文件原子写，不是一个跨表事务。中断在任何两次写盘之间，
+# 台账会处于跨表不一致状态；此前唯一兜底是「sync_log 恰好在最后写」这一顺序巧合，
+# 而非机制保证。哨兵文件把一个隐式巧合升级为显式契约：
+#   · sync 入账开始前创建 state/.sync_pending，全部完成（含异常路径）后删除；
+#   · 任何命令启动时若发现哨兵存在，说明上次 sync 未完成（中断/崩溃），
+#     可据此硬失败或显著提示，避免在中间态上输出误导性数据。
+# 落盘顺序仍是幂等重放的第二道防线，由 tests/regression_test.py 的
+# ``test_sync_log_is_last_table_write`` 锁定为显式断言。
+_SYNC_SENTINEL_NAME = ".sync_pending"
+
+# 写盘计数（v4.3.3 FIND-SYNC）：sync 入账链路由 ops.sync_chapter 显式 reset，
+# 用于区分「预检业务阻断（零写盘，可清哨兵）」与「写盘中途中断（已有表落盘，
+# 哨兵必须保留）」。只允许 sync 事务窗口内读取，其它调用不依赖此计数。
+_SAVE_COUNTER = {"n": 0}
+
+
+def _save_count() -> int:
+    return _SAVE_COUNTER["n"]
+
+
+def _save_count_reset() -> None:
+    _SAVE_COUNTER["n"] = 0
+
+
+def write_sync_sentinel(workspace: Path, chapter_id: str) -> None:
+    """在 state/ 下创建 sync 进行中哨兵（含章号/pid/时间戳，便于人工诊断）。"""
+    _sd = Path(workspace) / "state"
+    _ensure_dir(_sd)
+    sentinel = _sd / _SYNC_SENTINEL_NAME
+    _save_json(sentinel, {
+        "chapter_id": str(chapter_id),
+        "pid": os.getpid(),
+        "started_at": datetime.now().isoformat(timespec="seconds"),
+    })
+
+
+def clear_sync_sentinel(workspace: Path) -> None:
+    """删除 sync 哨兵（正常完成或异常兜底时调用；幂等）。"""
+    sentinel = Path(workspace) / "state" / _SYNC_SENTINEL_NAME
+    try:
+        sentinel.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def read_sync_sentinel(workspace: Path) -> Optional[Dict[str, Any]]:
+    """读取哨兵内容；不存在返回 None。"""
+    sentinel = Path(workspace) / "state" / _SYNC_SENTINEL_NAME
+    if not sentinel.exists():
+        return None
+    data = _load_json(sentinel, default=None)
+    return data if isinstance(data, dict) else None
+
+
+# ── v4.4.0 FIND-L：schema 契约字段透传白名单 ──
+# 历史缺陷：sync 只把细纲 frontmatter 的子集写入台账（new_entities 硬编码十余字段、
+# present_characters 硬编码约 14 字段），schema.py 承诺的其余契约字段
+# （aliases/attitude/faction/realm/need/lie/micro_actions/danger_tier/leader/evidence…）
+# 被**静默丢弃**——作者在细纲声明 life_status: deceased，落账却恒为 alive；
+# 声明 faction: 灯火司，落账 None；声明 leader: 萧烜，落账 None。更危险的是 check
+# 全程放行（假阳性），长篇一致性在「录入→存储」第一跳就断裂。
+# 修复：按 schema 逐表建立白名单，细纲**显式声明过**的键一律透传落账；
+# 未声明的键仍走产品默认，绝不凭空造字段、也绝不用默认值覆盖作者的显式声明。
+_PERSON_FM_FIELDS: Tuple[str, ...] = (
+    "aliases", "attitude", "faction", "tier_rank", "tier_name", "realm",
+    "power_benchmark", "status", "injury_level", "injury_desc", "renown",
+    "location", "card", "micro_actions", "dossier", "need", "lie", "summary",
+)
+_ITEM_FM_FIELDS: Tuple[str, ...] = (
+    "card", "summary", "tier_rank", "tier_name", "condition", "max_charges",
+    "cost_per_use", "faction", "location", "sensory_anchor",
+)
+_PLACE_FM_FIELDS: Tuple[str, ...] = ("card", "summary", "danger_tier", "sensory_anchor")
+_FACTION_FM_FIELDS: Tuple[str, ...] = (
+    "card", "scale_tier", "leader", "headquarters", "core_assets", "diplomacy",
+)
+
+
+def _paste_declared(rec: Dict[str, Any], src: Dict[str, Any], fields: Tuple[str, ...]) -> None:
+    """把 src 中**显式声明过且非 None**的契约字段透传到 rec（FIND-L 核心通道）。
+
+    用 ``in`` 判断而非 ``get(默认)``：只有细纲真实写出的键才落地，
+    绝不替作者补默认值、也不让 None（YAML ``key:`` 留空）覆盖产品默认。
+    """
+    for _k in fields:
+        if _k in src and src[_k] is not None:
+            rec[_k] = src[_k]
+    # v4.4.0 FIND-L：列表契约字段抗单值误写——作者写 aliases: 决哥（单值字符串）时，
+    # 下游 for/集合推导会迭代出单个字符。统一包成单元素列表，保 list 契约。
+    for _k in ("aliases", "micro_actions", "core_assets"):
+        _v = rec.get(_k)
+        if isinstance(_v, str):
+            rec[_k] = [_v] if _v.strip() else []
+
+
+def _entity_update_guard(rec: Dict[str, Any], ch_id: str) -> bool:
+    """FIND-P/Q：实体「字段演化」的章序单调守卫。
+
+    判据：当前章号不得早于该实体上次字段演化章（``updated_ch``，老数据回退
+    ``established_ch``）。这样 ``--force`` 重放旧章时，旧章 new_entities 里
+    携带的历史字段值不会把后续章节的演化（势力易主/道具易主/境界突破）覆盖回退。
+    """
+    _mut = str(rec.get("updated_ch", "") or rec.get("established_ch", "") or "")
+    if not _mut:
+        return True  # 老数据无水位，视为可更新（首次演化直接落地）
+    return _chapter_num(ch_id) >= _chapter_num(_mut)
+
+
+def _mark_updated(rec: Dict[str, Any], ch_id: str) -> None:
+    """写入实体字段演化水位（FIND-P/Q）。"""
+    rec["updated_ch"] = ch_id
+
+
 # 标准生命状态枚举映射（Schema 归一化：支持显式英文与官方标准中文枚举值）
 _LIFE_STATUS_NORM: Dict[str, str] = {
     "deceased": "deceased",
@@ -110,9 +224,11 @@ def is_deceased(char_data: Any) -> bool:
     # 会被词表反判为死亡，作者的显式声明形同虚设。
     if life in _LIFE_STATUS_NORM or status in _LIFE_STATUS_NORM:
         return False
-    if any(k in cond for k in ("阵亡", "永久湮灭", "身死", "气绝身亡", "被斩杀")):
-        return True
-    return False
+    # v4.3.3 FIND-C：无契约兜底与 L2 升格通道共用单一真值函数，消除「同一段
+    # 文字三个入口三种结论」的词表漂移。旧版此处只枚举 5 个关键词，「病故于
+    # 旧货店」这类非战斗死亡被 is_deceased 判活、get_death_chapter/_infer_life_status
+    # 同判死。复用后可判定与 L2 完全一致（含反事实守卫）。
+    return _infer_life_status(str(char_data.get("condition", "")).strip()) == "deceased"
 
 
 def _infer_life_status(text: str) -> str:
@@ -201,6 +317,11 @@ def get_death_chapter(char_data: Any) -> str:
 
     v4.3.2 缺陷#15：取 arc_history 中命中死亡语义的**最晚**一章，而非首个命中项
     —— arc_history 不保证按章序排列（实测实际为倒序），首命中会给出错误章号。
+    v4.4.0 FIND-N：死亡语义判定统一走 ``_infer_life_status``（含反事实守卫），
+    撤销与 BUG#15 同期遗留的**裸 ``_DEATH_KEYWORDS`` 枚举**——它会命中
+    「重伤，几乎死了，被救回」里的「死了」，把合法死里逃生误报成死亡，
+    继而让 check 对着一本完全正常的书打「台账生死状态自相矛盾」的 error（假阳性）。
+    「deceased 兜底取最晚露面章」补上 is_deceased 前置，避免活人无端返回 last_seen_ch。
     """
     if not isinstance(char_data, dict):
         return ""
@@ -208,20 +329,21 @@ def get_death_chapter(char_data: Any) -> str:
     for a in char_data.get("arc_history", []):
         if not isinstance(a, dict):
             continue
-        s_out = str(a.get("status_out", "")).lower()
-        if any(k in s_out for k in _DEATH_KEYWORDS):
+        if _infer_life_status(str(a.get("status_out", "")).strip()) == "deceased":
             hits.append(str(a.get("chapter", "")))
     if hits:
         return max(hits, key=_ch_order)
 
-    # 未命中语义关键词但已登记为 deceased（如通过 life_status 显式声明）：
+    # 未命中死亡语义但已登记为 deceased（如通过 life_status 显式声明）：
     # 取「最后露面章」与「弧光轨迹最晚一章」中较晚者，避免把死亡当章误判成复活。
-    cands = [str(char_data.get("last_seen_ch", "") or "")]
-    for a in char_data.get("arc_history", []):
-        if isinstance(a, dict) and a.get("chapter"):
-            cands.append(str(a["chapter"]))
-    cands = [c for c in cands if c]
-    return max(cands, key=_ch_order) if cands else ""
+    if is_deceased(char_data):
+        cands = [str(char_data.get("last_seen_ch", "") or "")]
+        for a in char_data.get("arc_history", []):
+            if isinstance(a, dict) and a.get("chapter"):
+                cands.append(str(a["chapter"]))
+        cands = [c for c in cands if c]
+        return max(cands, key=_ch_order) if cands else ""
+    return ""
 
 
 def _ensure_dir(p: Path) -> Path:
@@ -303,6 +425,12 @@ def _save_json(p: Path, data: Any) -> None:
             f.flush()
             os.fsync(f.fileno())
         os.replace(tmp_path, p)
+        # v4.3.3 FIND-SYNC：累计「事务写盘」次数——哨兵自己的创建/删除不计入
+        # （哨兵是事务边界的标记，不是台账数据；若计入，哨兵清掉时计数会虚增，
+        # 掩盖「零业务写盘」的阻断场景）。哨兵文件仅在 sync 事务窗口内由
+        # write_sync_sentinel/clear_sync_sentinel 写删。
+        if p.name != _SYNC_SENTINEL_NAME:
+            _SAVE_COUNTER["n"] += 1
     except Exception:
         try:
             os.unlink(tmp_path)
@@ -474,7 +602,11 @@ class StateManager:
                     continue
                 if etype in ("person", "character"):
                     if eid not in persons_db:
-                        persons_db[eid] = {
+                        # v4.4.0 FIND-L：schema 契约字段透传——作者在细纲显式声明的
+                        # tier_rank/realm/faction/aliases/need/lie/life_status… 一律落账，
+                        # 未声明的才走产品默认。旧版硬编码 role/tier_name 等十余字段并
+                        # 把 life_status 恒置 "alive"（开篇死者静默复活，见 log/FINDINGS）。
+                        _prec: Dict[str, Any] = {
                             "id": eid,
                             "name": ename or eid,
                             "role": ne.get("role", "supporting"),
@@ -490,10 +622,32 @@ class StateManager:
                             "life_status": "alive",
                             "arc_history": [],
                         }
+                        _paste_declared(_prec, ne, _PERSON_FM_FIELDS)
+                        # 生死契约走 L1 归一化（deceased/dead/死亡/阵亡…），未命中才落原值
+                        _ne_life = str(ne.get("life_status", "") or "").strip()
+                        if _ne_life:
+                            _prec["life_status"] = _LIFE_STATUS_NORM.get(_ne_life.lower(), _ne_life)
+                        persons_db[eid] = _prec
                         new_ent_count += 1
+                    else:
+                        # v4.4.0 FIND-P：实体已建档时不再静默跳过——中期演化（境界突破、
+                        # 势力易主、道具易主、伤势变化）正是长篇一致性最核心的「状态变化」，
+                        # 旧版 `if eid not in db` 把作者对既有实体的字段更新整条丢弃。
+                        # 原地只更新**显式声明过**的字段，未声明字段保持既有值不回滚。
+                        _eprec = persons_db[eid]
+                        if not _entity_update_guard(_eprec, ch_id):
+                            continue  # 旧章重放，比「上次演化章」更早，不回退字段
+                        if ename:
+                            _eprec["name"] = ename
+                        _paste_declared(_eprec, ne, _PERSON_FM_FIELDS)
+                        _ne_life = str(ne.get("life_status", "") or "").strip()
+                        if _ne_life:
+                            _eprec["life_status"] = _LIFE_STATUS_NORM.get(_ne_life.lower(), _ne_life)
+                        _mark_updated(_eprec, ch_id)
+                        # 同章重入账/补建档不改变「最近现身」（FIND-Q 单调守卫在 present 循环另行处理）
                 elif etype in ("item", "weapon", "tool"):
                     if eid not in items_db:
-                        items_db[eid] = {
+                        _irec: Dict[str, Any] = {
                             "id": eid,
                             "name": ename or eid,
                             "holder": ne.get("holder", cfg.get("protagonist", "主角")),
@@ -507,10 +661,26 @@ class StateManager:
                             "last_seen_ch": ch_id,
                             "transfer_history": [],
                         }
+                        _paste_declared(_irec, ne, _ITEM_FM_FIELDS)
+                        items_db[eid] = _irec
                         new_ent_count += 1
+                    else:
+                        # v4.4.0 FIND-P：道具已建档时，原地更新**档案字段**（无独立 delta
+                        # 通道的字段：tier_name/max_charges/condition/cost_per_use 等）。
+                        # holder/charges/status/durability 是「有状态字段」，已有专门的
+                        # state_deltas.items 通道（holder_change / charges_delta / status /
+                        # durability），若在此一并覆盖会破坏 --force 重放的累计幂等
+                        # （BUG#1 回归实证：重放把扣减后的 charges 重置回初值）。
+                        _eirec = items_db[eid]
+                        if not _entity_update_guard(_eirec, ch_id):
+                            continue  # 旧章重放不回退
+                        if ename:
+                            _eirec["name"] = ename
+                        _paste_declared(_eirec, ne, _ITEM_FM_FIELDS)
+                        _mark_updated(_eirec, ch_id)
                 elif etype in ("place", "location"):
                     if eid not in places_db:
-                        places_db[eid] = {
+                        _plrec: Dict[str, Any] = {
                             "id": eid,
                             "name": ename or eid,
                             "danger_level": ne.get("danger_level", "基础安全区"),
@@ -520,16 +690,42 @@ class StateManager:
                             "established_ch": ch_id,
                             "visited_chapters": [ch_id],
                         }
+                        _paste_declared(_plrec, ne, _PLACE_FM_FIELDS)
+                        places_db[eid] = _plrec
                         new_ent_count += 1
+                    else:
+                        # v4.4.0 FIND-P：地点已建档时，原地更新显式声明的字段。
+                        _eplrec = places_db[eid]
+                        if not _entity_update_guard(_eplrec, ch_id):
+                            continue  # 旧章重放不回退
+                        if ename:
+                            _eplrec["name"] = ename
+                        _paste_declared(_eplrec, ne, _PLACE_FM_FIELDS)
+                        if "danger_level" in ne and ne["danger_level"] is not None:
+                            _eplrec["danger_level"] = ne["danger_level"]
+                        if "environment_rules" in ne and ne["environment_rules"] is not None:
+                            _eplrec["environment_rules"] = ne["environment_rules"]
+                        _mark_updated(_eplrec, ch_id)
                 elif etype in ("faction", "organization"):
                     if eid not in factions_db:
-                        factions_db[eid] = {
+                        _frec: Dict[str, Any] = {
                             "id": eid,
                             "name": ename or eid,
                             "summary": ne.get("summary", ""),
                             "established_ch": ch_id,
                         }
+                        _paste_declared(_frec, ne, _FACTION_FM_FIELDS)
+                        factions_db[eid] = _frec
                         new_ent_count += 1
+                    else:
+                        # v4.4.0 FIND-P：势力已建档时，原地更新显式声明的字段（领袖更替等）。
+                        _efrec = factions_db[eid]
+                        if not _entity_update_guard(_efrec, ch_id):
+                            continue  # 旧章重放不回退
+                        if ename:
+                            _efrec["name"] = ename
+                        _paste_declared(_efrec, ne, _FACTION_FM_FIELDS)
+                        _mark_updated(_efrec, ch_id)
             # v4.3.2 缺陷#18（P0 · 阻断章仍污染台账）：旧版在此立即落盘 new_entities，
             # 而事务预检（死者登场 / 充能透支）在下方第 2 节才执行 —— 一旦预检 raise，
             # 本章的新人物/新道具/新地点/新势力已经写进台账且无人回滚。
@@ -723,7 +919,22 @@ class StateManager:
                 p_data["vulnerability"] = c["vulnerability"]
             if c.get("status_in"):
                 p_data["condition"] = c["status_in"]
-            p_data["last_seen_ch"] = ch_id
+            # v4.4.0 FIND-L：present_characters 同样按 schema 白名单透传显式声明的
+            # 契约字段——旧版只认 name/role/want/fear/quirk/taboo/latent_mood/
+            # physiological_leak/emotional_temp/vulnerability/status_in 共 11 个，
+            # realm/tier_rank/faction/aliases/need/lie/attitude… 写了也白写。
+            _paste_declared(p_data, c, _PERSON_FM_FIELDS)
+            # 生死契约：present_characters 若显式 life_status，走 L1 归一化落账
+            # （与 character_status 通道同一真值函数，避免双入口双结论）。
+            _pc_life = str(c.get("life_status", "") or "").strip()
+            if _pc_life:
+                p_data["life_status"] = _LIFE_STATUS_NORM.get(_pc_life.lower(), _pc_life)
+            # v4.4.0 FIND-Q：last_seen_ch 单调不倒退。--force 重放旧章时，若把
+            # 「最近现身」直接改成旧章号，会把角色的最后登场时刻回拨，污染
+            # 时间线推理（trace 登场履历、死亡章兜底、后续因果校验都依赖它）。
+            _prev_lsc = str(p_data.get("last_seen_ch", "") or "")
+            if not _prev_lsc or _chapter_num(ch_id) >= _chapter_num(_prev_lsc):
+                p_data["last_seen_ch"] = ch_id
 
             # 维护角色心理与弧光演进轨迹 (arc_history，幂等去重)
             _s_out_raw = char_status_deltas.get(cid, "") if isinstance(char_status_deltas, dict) else ""
@@ -767,6 +978,17 @@ class StateManager:
                         _inf2 = _infer_life_status(cond_text)
                         if _inf2:
                             persons_db[target_pid]["life_status"] = _inf2
+                        elif any(_k in cond_text for _k in _DEATH_KEYWORDS):
+                            # v4.4.0 FIND-L3：显式 life_status 拼写非法 + 文本命中死亡词表
+                            # 又被反事实守卫拦下（几乎死了/装死…）——引擎判定未死亡，
+                            # 但作者写了显式契约意图，必须提示修复拼写。
+                            warnings.append(
+                                f"第 {ch_id} 章角色 [{cid}] 的生死契约「{explicit_life}」不是法定枚举值，"
+                                f"且描述「{cond_text}」命中死亡字面却陷入反事实/未遂语境，引擎不能据此判定死亡。\n"
+                                f"      💡 方案：若确系死亡，请显式声明 "
+                                f'{cid}: {{life_status: "deceased", condition: "{cond_text}"}}；'
+                                f"或修正 life_status 为 alive/deceased/missing 之一。"
+                            )
                 else:
                     s_desc = str(s_val).strip()
                     persons_db[target_pid]["condition"] = s_desc
@@ -777,6 +999,16 @@ class StateManager:
                     _inferred = _infer_life_status(s_desc)
                     if _inferred:
                         persons_db[target_pid]["life_status"] = _inferred
+                    elif any(_k in s_desc for _k in _DEATH_KEYWORDS):
+                        # v4.4.0 FIND-L3：命中死亡词表但被反事实守卫拦下（几乎死了/装死/
+                        # 以为死了…）——这是合法的「死里逃生」，不落 life_status，
+                        # 但给作者一句可食用的提示，避免他以为引擎漏判。
+                        warnings.append(
+                            f"第 {ch_id} 章角色 [{cid}] 的状态「{s_desc}」含死亡字面但命中反事实/未遂语境（几乎/差点/装死/假死…），"
+                            f"引擎判定为**未死亡**。\n"
+                            f"      💡 方案：若实为死亡反转，请显式声明字典形态 "
+                            f'{cid}: {{life_status: "deceased", condition: "{s_desc}"}}；若确为死里逃生可忽略。'
+                        )
 
         _save_json(self.persons_file, persons_db)
 
@@ -845,7 +1077,10 @@ class StateManager:
                     if new_charges >= 0:
                         irecord["charges"] = new_charges
 
-                irecord["last_seen_ch"] = ch_id
+                # v4.4.0 FIND-Q：道具 last_seen_ch 单调不倒退（--force 重放旧章不回拨）。
+                _iprev_lsc = str(irecord.get("last_seen_ch", "") or "")
+                if not _iprev_lsc or _chapter_num(ch_id) >= _chapter_num(_iprev_lsc):
+                    irecord["last_seen_ch"] = ch_id
                 if "transfer_history" not in irecord:
                     irecord["transfer_history"] = []
                 # v4.2 幂等数据层：同章流转记录替换而非追加（--force 重放不翻倍）
@@ -961,6 +1196,10 @@ class StateManager:
                     lrecord["tier"] = str(fd["tier"]).upper().strip()
                 if fd.get("target_ch"):
                     lrecord["target_ch"] = str(fd["target_ch"]).strip()
+                # v4.4.0 FIND-L：evidence 是 schema/synopsis/audit 承诺的「原文证据切片」，
+                # 旧版声明了却从未落账（trace 报告永远拿不到证据，悬空契约字段）。
+                if fd.get("evidence"):
+                    lrecord["evidence"] = str(fd["evidence"]).strip()
 
                 lines_db[fid] = lrecord
 
@@ -1031,15 +1270,23 @@ class StateManager:
                 if d_action == "record":
                     # v4.2 幂等数据层：同 id 恩怨替换而非追加（--force 重放不翻倍）
                     debts_db = [d for d in debts_db if d.get("id") != d_id]
-                    debts_db.append({
+                    # v4.4.0 FIND-L：status 显式声明透传。旧版恒为 "unpaid"，作者
+                    # 首章就声明 status: settled 的「前史已清账」被静默改判为未了结。
+                    _d_status = str(dd.get("status", "unpaid") or "unpaid").strip().lower()
+                    _d_status_norm = {"settled": "settled", "paid": "settled", "resolved": "settled",
+                                      "unpaid": "unpaid", "open": "unpaid"}.get(_d_status, "unpaid")
+                    _d_item: Dict[str, Any] = {
                         "id": d_id,
                         "source_char": d_source,
                         "target_char": d_target,
                         "type": d_type,
                         "desc": d_desc,
-                        "status": "unpaid",
+                        "status": _d_status_norm,
                         "created_ch": ch_id,
-                    })
+                    }
+                    if _d_status_norm == "settled":
+                        _d_item["settled_ch"] = ch_id
+                    debts_db.append(_d_item)
                 elif d_action in ("settle", "resolve"):
                     for d_item in debts_db:
                         if (d_item.get("target_char") == d_target or d_item.get("id") == d_id) and d_item.get("status") == "unpaid":
@@ -1090,6 +1337,19 @@ class StateManager:
                 if rd.get("affinity_delta") is not None:
                     try:
                         curr_rel["affinity"] = max(-100, min(100, curr_rel.get("affinity", 0) + int(rd["affinity_delta"])))
+                    except (ValueError, TypeError):
+                        pass
+                elif rd.get("affinity") is not None:
+                    # v4.4.0 FIND-L：显式 affinity 是绝对覆盖语义（与 tension 对等），
+                    # 旧版只在 affinity_delta 分支处理，写 affinity 被静默丢弃。
+                    try:
+                        curr_rel["affinity"] = max(-100, min(100, int(rd["affinity"])))
+                    except (ValueError, TypeError):
+                        pass
+                if rd.get("trust") is not None:
+                    # v4.4.0 FIND-L：信任度显式声明落账（schema/synopsis 承诺字段）
+                    try:
+                        curr_rel["trust"] = max(0, min(100, int(rd["trust"])))
                     except (ValueError, TypeError):
                         pass
                 if rd.get("tension") is not None:
@@ -1235,7 +1495,9 @@ class StateManager:
                     "chapters": [],
                     "history": [],
                 })
-                co_item["last_seen_ch"] = ch_id
+                # v4.4.0 FIND-Q：共现矩阵 last_seen_ch 单调不倒退（--force 重放旧章不回拨）。
+                if _chapter_num(ch_id) >= _chapter_num(str(co_item.get("last_seen_ch", "") or "")):
+                    co_item["last_seen_ch"] = ch_id
                 # v4.1 幂等修复：本章已在册则不重复计数/追加历史（旧版重复 sync 会翻倍虚增）
                 already_synced = ch_id in co_item.setdefault("chapters", [])
                 if not already_synced:

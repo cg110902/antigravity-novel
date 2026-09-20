@@ -1,0 +1,99 @@
+{
+  "chapter_id": "ch_011",
+  "frontmatter": {
+    "chapter_id": "ch_011",
+    "volume_id": "vol_01",
+    "title": "灯下对峙（转）",
+    "chapter_type": "爆发",
+    "timeline": "灯历戌寅年·十月十八·戌时",
+    "location": "灯火司·正堂",
+    "narrative_spine": {
+      "thread": "主线·巫灯余响案",
+      "volume_phase": "阶段三：转（ch_009~ch_012）",
+      "macro_goal": "陆离乔装混入灯火司正堂，与萧烜隔灯对峙；萧烜不再装糊涂，第一次面提陆离妹妹下落"
+    },
+    "present_characters": [
+      {
+        "id": "p_001",
+        "name": "陆离",
+        "role": "protagonist",
+        "want": "当面验证萧烜就是十年前那个袖手的年轻灯使",
+        "fear": "话不投机，自己横尸灯火司正堂",
+        "status_in": "完好·乔装隐忍"
+      },
+      {
+        "id": "p_002",
+        "name": "萧烜",
+        "role": "antagonist",
+        "want": "收网——引陆离现身，把十年前的旧账也一并在今晚了结",
+        "fear": "陆离若真带着灯阁佐证而来，则自己反受制",
+        "status_in": "完好·气定神闲"
+      }
+    ],
+    "epistemology": {
+      "known": {
+        "p_001": [
+          "面前人就是十年前坊门口那个年轻灯使",
+          "萧烜执掌灯油底账，与洛家暗通"
+        ],
+        "p_002": [
+          "陆离是十年前漏网的那个少年，真灯语者",
+          "陆离妹妹的命灯是当年当着他的面被灭的"
+        ]
+      },
+      "blind_spots": {
+        "p_001": [
+          "萧烜手里攥着妹妹下落，却不会轻易给他"
+        ],
+        "p_002": [
+          "陆离已得灯阁巡查使相助，握有灯母残页"
+        ]
+      }
+    },
+    "foreshadowing_deltas": [
+      {
+        "id": "GUN-001",
+        "name": "灯中妹妹的亡音",
+        "action": "reveal",
+        "desc": "对峙最烈处，萧烜一句「你妹妹的下落，我替你烧在灯油里了」引燃陆离耳畔亡音，十年执念几乎溢出来"
+      },
+      {
+        "id": "KNO-001",
+        "name": "萧烜的知情差",
+        "action": "reveal",
+        "desc": "萧烜亲口承认早知陆离是真灯语者，也早知他妹妹不在人世——十年来他始终注视陆离，只待今日"
+      }
+    ],
+    "state_deltas": {
+      "character_status": {
+        "p_001": "完好·与萧烜当面撕破脸"
+      },
+      "debts": [
+        {
+          "source": "p_001",
+          "target": "萧烜",
+          "type": "grudge",
+          "desc": "萧烜当面以妹妹下落相激，血仇坐实",
+          "action": "record"
+        }
+      ]
+    },
+    "relation_deltas": [
+      {
+        "source": "p_001",
+        "target": "p_002",
+        "tension": "90",
+        "dynamic": "撕破脸·刀在鞘中",
+        "subtext": "两人隔着一炉火，都在等对方先动"
+      }
+    ],
+    "new_entities": [],
+    "locked_facts": [
+      {
+        "id": "LOCK-006",
+        "fact": "灯历戌寅年十月十八戌时，陆离与萧烜于灯火司正堂当面对峙；萧烜亲口承认早知陆离真灯语者身份，并以陆离妹妹下落相激",
+        "domain": "plot"
+      }
+    ]
+  }
+}
