@@ -184,3 +184,110 @@ vol_01 整卷封存后 `cruise --vol vol_01 --once` → exit 0 + 卷末自动刹
    第四轮已用新旧引擎差分证明与本轮无关，仍按原样保留。
 5. **退出码契约不动**：巡航真矛盾刹车仍是 exit 1（业务阻断），不因「不要动辄报错」而改成 0——
    作者要的是**别把可自愈的账面瑕疵当阻断**，不是要引擎对真矛盾装看不见。
+
+---
+
+## 附录 A · 逐处改动清单（从已提交的 HEAD 机器提取，非手抄）
+
+> 提取方式：`git show HEAD:<文件>` 后按 `FIND-CT69~CT75` 标记逐行定位。
+> 每处都带编号注释落盘，便于日后 `grep -rn "FIND-CT7" engine/` 一次性回溯全部改动点。
+
+| 项 | 文件 | HEAD 行号 | 该处做了什么 |
+|---|---|---|---|
+| CT69 | `engine/ops.py` | 524 | unknown_lines = []   # FIND-CT69：生死不明/失踪的悬念人物（可登场，严禁坐实生死） |
+| CT69 | `engine/ops.py` | 534 | FIND-CT69：unknown/missing 既不进黑名单也不算普通在世，单独立悬念账 |
+| CT69 | `engine/state.py` | 225 | FIND-CT69（作者需求）：新增第四态 unknown =「生死不知」。 |
+| CT69 | `engine/state.py` | 342 | FIND-CT69：先判「生死未确认」再判死亡词——「生死不明」里含「不明」不含死亡词， |
+| CT70 | `engine/README.md` | 16 | | `probes.py` | 确定性物理事实探针 | 纯确定性物理/数据探针；阻断级仅 2：空正文(0字)/确认级认知泄露；其余  |
+| CT70 | `engine/README.md` | 39 | 8. **引擎不做文学判断（FIND-CT70 · 作者裁定）**：字数区间、对白占比、章型连排"疲劳"等一切审美/体裁裁量**不得 |
+| CT70 | `engine/check.py` | 857 | FIND-CT70（作者裁定 · 引擎退出文学性判断）：原「正文体量遥测」 |
+| CT70 | `engine/cockpit.py` | 62 | FIND-CT70（作者裁定 · 引擎退出文学性判断）：原「🟡 节奏黄牌 + 建议下一章安排 |
+| CT70 | `engine/config.py` | 24 | FIND-CT70（作者裁定 · 引擎退出文学性判断）：本项**只是作者的体量规划值**， |
+| CT70 | `engine/config.py` | 28 | 原 dialogue_ratio（对白行占比 25%~55%）已于 FIND-CT70 整项退役：对白配比属 |
+| CT70 | `engine/config.py` | 43 | "words_per_chapter": "每章正文体量**规划值** [min, max]：只供大纲 target_words 与 |
+| CT70 | `engine/probes.py` | 437 | FIND-CT70（作者裁定 · 引擎退出文学性判断）：原 `probe_dialogue_ratio`（对白行占比 |
+| CT70 | `engine/probes.py` | 707 | FIND-CT70（作者裁定 · 引擎退出文学性判断）：字数只保留**事实计量**与「空正文」 |
+| CT70 | `engine/probes.py` | 740 | FIND-CT70：level 只剩 ok / empty 两档（empty 是数据完整性问题， |
+| CT71 | `.agents/skills/evolution/SKILL.md` | 88 | - **定级现状（FIND-CT71/72）**：手改台账后跑 `check`，幽灵 ID 引用、伏笔缺 `planted_ch`/ |
+| CT71 | `.agents/skills/librarian/SKILL.md` | 54 | > 该节现按**两级**输出，分流处置完全不同（FIND-CT71 定级松绑）： |
+| CT71 | `engine/README.md` | 13 | | `cruise.py` | 无人值守巡航批次编排 | 计划钳制 min(N+K,M) 且单批 ≤`cruise_max_chap |
+| CT71 | `engine/README.md` | 17 | | `check.py` | 全书体检（16 表巡检） | 未填槽位闸门（warning 清单，Stage 0C 验收依据）；sta |
+| CT71 | `engine/README.md` | 40 | 9. **两级定级 + 自愈留痕（FIND-CT71/72/73 · 公理二落地）**： |
+| CT71 | `engine/check.py` | 105 | """台账内部交叉引用自洽体检（v4.3.2 缺陷#20 / #24 · FIND-CT71 分级重构）。 |
+| CT71 | `engine/check.py` | 114 | FIND-CT71（作者裁定 · 判据不要太死板）：旧版把 a~j 十项交叉校验的**全部**结论 |
+| CT71 | `engine/ops.py` | 2067 | FIND-CT71：只有真矛盾（error 级）才走 Level 2 上报链；账面瑕疵列作提醒， |
+| CT72 | `engine/README.md` | 21 | | `id_tracker.py` | ID 发号/清册/追踪/完整性 | 全表 + beats 双扫描防撞号。**FIND-CT7 |
+| CT72 | `engine/id_tracker.py` | 837 | FIND-CT72（作者裁定 · 判据不要太死板 + 增强自愈）：ID 类问题的**定级重排**。 |
+| CT72 | `engine/id_tracker.py` | 869 | FIND-CT72 前为 error——但既然引擎自己能扫掉，就没必要拦住整条流水线）； |
+| CT72 | `engine/id_tracker.py` | 1176 | FIND-CT72：凡是引擎自己能修的提醒项，统一挂一条 🩹 自愈指引， |
+| CT73 | `engine/README.md` | 14 | | `state.py` | 八表持久化与细纲增量合账 + **自愈层** | **原子写盘**（tempfile+os.repla |
+| CT73 | `engine/check.py` | 377 | FIND-CT73：凡是 sync 能自己修好的提醒项，统一挂一条 🩹 指引—— |
+| CT73 | `engine/check.py` | 673 | FIND-CT73：区间表不再在 check 侧复制一份——直接 import state.NUMERIC_FIELD_BOUNDS |
+| CT73 | `engine/cli.py` | 589 | FIND-CT73（公理二 · 自愈留痕）：引擎自己修好的脏数据逐条公示， |
+| CT73 | `engine/cruise.py` | 143 | FIND-CT73：自愈动作在无人值守日志里必须可见（🩹xN），否则引擎"悄悄把表改好了" |
+| CT73 | `engine/cruise.py` | 289 | FIND-CT73：批次报告带上自愈条目，无人值守跑完能一眼看出引擎改过什么 |
+| CT73 | `engine/state.py` | 618 | FIND-CT73（公理二 · 自愈层）：脏数据在**写盘前**就地修正，且每一步都留痕 |
+| CT73 | `engine/state.py` | 800 | """改名自愈（FIND-CT73 H3）：旧名**降级为别名保留**，绝不无声蒸发。 |
+| CT73 | `engine/state.py` | 1219 | FIND-CT73（公理二 · 自愈层）：本次入账过程中引擎自己动手修好的每一处， |
+| CT73 | `engine/state.py` | 1757 | FIND-CT73 H4：物理 ID 必须规范——键是「P001/p001」这类笔误就规范化， |
+| CT73 | `engine/state.py` | 2510 | 10.9 FIND-CT73（公理二 · 自愈层）：全表收尾自愈一遍过（幂等）—— |
+| CT73 | `engine/state.py` | 2529 | FIND-CT73：🩹 自愈动作清单（引擎自己修好的脏数据，逐条可追溯） |
+| CT74 | `engine/README.md` | 17 | | `check.py` | 全书体检（16 表巡检） | 未填槽位闸门（warning 清单，Stage 0C 验收依据）；sta |
+| CT74 | `engine/README.md` | 44 | - **假自愈是比漏报更严重的缺陷**：干净数据重放必须零自愈动作（回归靶点 C-27），同类提醒 ≥3 条要折叠成一行（C 段 + |
+| CT74 | `engine/check.py` | 58 | """同类提醒折叠（FIND-CT74 · 作者裁定：无人值守不要刷屏）。 |
+| CT74 | `engine/check.py` | 928 | FIND-CT74：同类提醒折叠后再交付（不改判、不丢信息，只压重复文案） |
+| CT75 | `engine/README.md` | 13 | | `cruise.py` | 无人值守巡航批次编排 | 计划钳制 min(N+K,M) 且单批 ≤`cruise_max_chap |
+| CT75 | `engine/cli.py` | 616 | FIND-CT75（无人值守友好）：巡航报告旧版被 `[:1500]` 硬截断—— |
+
+**合计 42 行带编号标记**（表内 44 条＝「项 × 行」组合，个别行同时标注两项，如 `FIND-CT71/72`）；不含未打标记的配套改动（`_LIFE_STATUS_NORM` 同义词表、`LIFE_STATUS_LABELS`、`Tuple` 导入、四处 `if ename: rec["name"]=ename` 改写等）。
+
+### 本轮引擎侧改动量（`git show --stat HEAD -- engine/ templates/ .agents/`）
+
+```
+.agents/skills/auditor/SKILL.md      |   1 +
+ .agents/skills/dehydrator/SKILL.md   |   2 +-
+ .agents/skills/evolution/SKILL.md    |   4 +-
+ .agents/skills/librarian/SKILL.md    |  17 +-
+ .agents/skills/screenwriter/SKILL.md |   8 +-
+ .gitignore                           |   7 +
+ engine/README.md                     |  20 +-
+ engine/check.py                      | 191 +++++---
+ engine/cli.py                        |  39 +-
+ engine/cockpit.py                    |  11 +-
+ engine/config.py                     |  12 +-
+ engine/cruise.py                     |   9 +-
+ engine/id_tracker.py                 | 111 ++++-
+ engine/ops.py                        | 371 ++++++++++++---
+ engine/pack.py                       | 121 ++++-
+ engine/probes.py                     |  78 +---
+ engine/state.py                      | 846 ++++++++++++++++++++++++++++++++++-
+ templates/README.md                  |   4 +-
+ templates/beats.md                   |  10 +
+ 19 files changed, 1617 insertions(+), 245 deletions(-)
+```
+
+## 附录 B · 你可以自己复核的 6 条命令
+
+```bash
+# 1) 改动是否已提交、是否已推到 PR 分支
+git log --oneline -2 && git ls-remote origin arena/01a0bd9b-antigravity-novel
+
+# 2) 本轮 7 项的全部落点（44 处带编号标记）
+grep -rn "FIND-CT69\|FIND-CT70\|FIND-CT71\|FIND-CT72\|FIND-CT73\|FIND-CT74\|FIND-CT75" engine/ templates/ .agents/
+
+# 3) 该删的是否真删了（三个都应输出 0）
+grep -c "def probe_dialogue_ratio" engine/probes.py
+grep -c '"dialogue_ratio"' engine/config.py
+grep -c "sync_low_words" engine/ops.py
+
+# 4) unknown 四态是否通电
+python -c "from engine.state import _infer_life_status as I, life_status_label as L;\
+print(I('坠入护城河，生死不明'), L('生死不知'))"        # ⇒ unknown 生死不明
+
+# 5) 自愈层是否真的会动手（拿脏数据基座 field-lab 的副本跑一次）
+cp -r workspace/field-lab /tmp/fx && python studio.py sync ch_017 --force -w /tmp/fx | sed -n '/🩹/,$p'
+
+# 6) 全量回归（电池 136 项 + SKILL 面审计 110 项）
+python .testlab/tools/long_lab_battery.py | tail -3
+python .testlab/tools/skill_surface_audit.py | tail -3
+```
