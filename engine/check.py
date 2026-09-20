@@ -541,6 +541,63 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
                         if not s.get("fatalities_and_entities", {}).get("passed", True):
                             errors.append(f"正文发生未登记角色阵亡: {s['fatalities_and_entities']['detail']}。\n      💡 方案：请在细纲 locked_facts、state_deltas 或 log/audit/{chapter_id}.md 第 3 节中显式登记该死亡事实，杜绝死者幽灵复活！")
                     # 提醒级汇总
+                    # BUG#42：体量偏离在体检阶段即提示，不必等 sync 入账后才告知。
+                    _wlv = s["words"].get("level", "ok")
+                    if _wlv in ("severe_short", "short", "long"):
+                        _tip = ("请确认是否为有意短章；若正文被截断请补全后重新 finalize"
+                                if _wlv != "long" else "请确认是否为有意长章，或考虑拆分")
+                        warnings.append(f"正文体量遥测: {s['words']['detail']}。\n      💡 方案：{_tip}。")
+                    # v4.3.3 BUG#44：审计报告第 3 节的涌现事实（[阵亡]/[新登场]/[道具变动]）
+                    # 由 `proposal auto` 负责吸收并回写细纲 new_entities/state_deltas，
+                    # sync 只读细纲。若跳过 proposal auto 直接 sync，审计登记的角色死亡
+                    # 会静默丢失且全程零提示——手册称为「严重审计失职」的防线形同虚设。
+                    # 此处比对：审计报告有涌现事实、而细纲尚未承载对应声明时提醒。
+                    if audit_txt:
+                        try:
+                            _emg = []
+                            for _rl in audit_txt.splitlines():
+                                _l = re.sub(r"^[-*+]\s*", "", _rl.strip())
+                                # 标签可写作组合形式（如模板默认的 [阵亡/死亡]），故按"标签内含关键词"匹配
+                                _mt = re.match(r"^\[(.*?)\]|^【(.*?)】", _l)
+                                _tg = ((_mt.group(1) or _mt.group(2)) if _mt else "") or ""
+                                _m = _mt if any(_k in _tg for _k in (
+                                    "阵亡", "死亡", "牺牲", "新登场", "新实体", "新角色",
+                                    "新人物", "道具", "物品", "装备")) else None
+                                if _m and not any(_ph in _l for _ph in
+                                                  ("待修改原句", "待填写角色名", "待填写新角色名", "待填写道具名", "待填写")):
+                                    _emg.append(_l[:60])
+                            if _emg:
+                                _prop = workspace / "state" / "inbox" / f"proposal_{chapter_id}.json"
+                                # 判据须按「具体实体名」比对，而非「细纲是否有任何声明」——
+                                # 细纲通常本就含主角 character_status，宽判据会永远误判为已消化。
+                                _fm_ne = fm.get("new_entities") or []
+                                _fm_sd = fm.get("state_deltas") or {}
+                                _fm_blob = json.dumps(
+                                    {"ne": _fm_ne if isinstance(_fm_ne, list) else [],
+                                     "sd": _fm_sd if isinstance(_fm_sd, dict) else {}},
+                                    ensure_ascii=False,
+                                )
+                                _undigested = []
+                                for _el in _emg:
+                                    # 从「名称: X」「角色: X」「道具: X」中取实体名
+                                    _nm = re.search(r"(?:名称|角色|道具|物品|装备)\s*[:：]\s*([^｜|，,。;；]+)", _el)
+                                    _nm_s = _nm.group(1).strip() if _nm else ""
+                                    if _nm_s and _nm_s not in _fm_blob:
+                                        _undigested.append(_el)
+                                if _undigested and not _prop.exists():
+                                    _emg = _undigested
+                                    warnings.append(
+                                        f"审计涌现事实未消化: log/audit/{chapter_id}.md 第 3 节登记了 {len(_emg)} 条涌现事实"
+                                        f"（如 {_emg[0]}），但细纲未见对应声明且未生成状态提案。这些事实不会入账。\n"
+                                        f"      💡 方案：请先运行 `python studio.py proposal auto {chapter_id} --write --force`"
+                                        f" 将涌现事实回写细纲，再执行 sync。"
+                                    )
+                        except Exception:
+                            pass
+
+                    # BUG#43：对白占比遥测（dehydrator 手册第 5 节规定 25%~55%）
+                    if not s.get("dialogue_ratio", {}).get("passed", True):
+                        warnings.append(f"对白占比遥测: {s['dialogue_ratio']['detail']}。\n      💡 方案：对白与叙述配比失衡会影响阅读节奏，请 Stage 3A 调稿时留意（非阻断，体裁性偏离可忽略）。")
                     if s["epistemology"].get("suspected_count"):
                         warnings.append(f"认知盲区疑似命中 ×{s['epistemology']['suspected_count']}（非阻断，请 Auditor 复核）: {s['epistemology']['suspected']}")
                     if not s["grounding"]["passed"]:

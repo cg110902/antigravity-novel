@@ -692,6 +692,55 @@ locked_facts: []
 
         # BUG#38 (P2)：地点按细纲 location 字面建号，无同名归并。
         # 「顺天府正堂」与「顺天府·正堂」仅差间隔号即被登记为两个 loc_ID。
+        # BUG#44：审计报告第 3 节涌现事实由 proposal auto 吸收；跳过该步直接 sync
+        # 会让登记的角色死亡静默丢失，check 此前零提示。
+        _ad = ws / "log" / "audit"
+        _ad.mkdir(parents=True, exist_ok=True)
+        _af = _ad / "ch_002.md"
+        _af.write_text(
+            "---\nlogic: 1\n---\n\n## 三、 正文涌现事实与实体变更\n\n"
+            "- [阵亡/死亡] 角色: 柒玖零甲乙丙 ｜ 说明: 用于 BUG#44 验证\n",
+            encoding="utf-8")
+        _pf44 = ws / "state" / "inbox" / "proposal_ch_002.json"
+        _pf44_bak = _pf44.read_text(encoding="utf-8") if _pf44.exists() else None
+        if _pf44.exists():
+            _pf44.unlink()
+        rc = run(ws, "check", "ch_002")
+        check("BUG#44 未消化的审计涌现事实被提醒",
+              "审计涌现事实未消化" in rc.stdout, rc.stdout[:200])
+        r_pa = run(ws, "proposal", "auto", "ch_002", "--write", "--force")
+        if r_pa.returncode == 0:
+            rc = run(ws, "check", "ch_002")
+            check("BUG#44 跑过 proposal auto 后提醒消除",
+                  "审计涌现事实未消化" not in rc.stdout, rc.stdout[:200])
+        _af.unlink()
+        if _pf44_bak is not None:
+            _pf44.write_text(_pf44_bak, encoding="utf-8")
+
+        # BUG#42/#43：探针单元级验证（config 从收而不用 → 真正生效）
+        from engine.probes import probe_dialogue_ratio as _pdr, run_all_probes as _rap
+        _short = "# 标题\n\n只有一句话。\n"
+        _r42 = _rap(_short, {"present_characters": []}, persons_db={},
+                    config={"words_per_chapter": [900, 1600]})
+        check("BUG#42 字数遥测按 config 分级(severe_short)",
+              _r42["summary"]["words"].get("level") == "severe_short",
+              str(_r42["summary"]["words"].get("level")))
+        _r42b = _rap("# T\n\n" + "字" * 1200, {"present_characters": []}, persons_db={},
+                     config={"words_per_chapter": [900, 1600]})
+        check("BUG#42 区间内字数不误报",
+              _r42b["summary"]["words"].get("level") == "ok",
+              str(_r42b["summary"]["words"].get("level")))
+        _dlg_hi = "# T\n\n" + "\n\n".join(['"一句台词。"'] * 8 + ["他站着。"])
+        check("BUG#43 高对白占比被识别", not _pdr(_dlg_hi)["passed"] and _pdr(_dlg_hi)["ratio"] > 55,
+              str(_pdr(_dlg_hi)["ratio"]))
+        _dlg_lo = "# T\n\n" + "\n\n".join(["他走过去，推开门。"] * 9 + ['"嗯。"'])
+        check("BUG#43 低对白占比被识别", not _pdr(_dlg_lo)["passed"] and _pdr(_dlg_lo)["ratio"] < 25,
+              str(_pdr(_dlg_lo)["ratio"]))
+        _dlg_ok = "# T\n\n" + "\n\n".join(['"台词。"'] * 4 + ["他站着看了很久。"] * 6)
+        check("BUG#43 区间内对白不误报", _pdr(_dlg_ok)["passed"], str(_pdr(_dlg_ok)["ratio"]))
+        check("BUG#43 自定义区间可配置",
+              _pdr(_dlg_hi, config={"dialogue_ratio": [10, 95]})["passed"])
+
         # BUG#41 (P2)：export 的「前情提要」旧版列的是本卷章节梗概，
         # 等于在卷首剧透本卷全部反转；语义应为回顾前序卷。
         r = run(ws, "export")
