@@ -58,6 +58,257 @@ def _strip_frontmatter(text: str) -> str:
     return m.group(1) if m else text
 
 
+# ============================================================================
+# 固定替换词表（lexicon · Stage 5 finalize 确定性 1:1 替换）
+# ============================================================================
+# 设计依据（作者裁定）：有一类用词错误是**无条件确定**的——无论什么语境，
+# 「钢针」在该书都该是「银针」、「猪肝色」都该是「青紫色」。这类修正属于作者
+# 事先定好的死规则，既不需要 LLM 逐章判断，也不该依赖 Auditor 每章重抄一遍
+# （漏抄即静默失效，正是本引擎最忌讳的失败模式）。
+#
+# 与 Auditor 配方的职责边界（判据：**换个语境还是不是同一个改法**）：
+#   - `log/audit/ch_XXX.md` 配方：**需要判断**的逐章修补，由 Stage 4A LLM 产出；
+#   - `lexicon.json` 词表：**无需判断**的全书死规则，由作者产出。
+#
+# 为何不违反「引擎不做文学判断」（README 不变量 8）：
+#   词表**不是引擎的审美裁决**，而是**作者逐字给定的确定性映射**。引擎只做
+#   字符串搬运，不新增、不推断、不评分——判断权 100% 留在作者手里。
+
+_LEXICON_SECTION = "lexicon"
+# 轮换段：值为**列表**，同一原词按出现次序依次取用不同替换词（制造多样性）
+_LEXICON_ROTATE_SECTION = "rotate"
+# 保护段：值为**字符串列表**，这些词组整体豁免替换，绝不改动其中任何字
+_LEXICON_PROTECT_SECTION = "protect"
+
+
+def _lexicon_paths(workspace: Path) -> List[Path]:
+    """词表候选路径（低优先级 → 高优先级）：全局基线 → 本书覆盖。
+
+    两层设计动机：
+    - **全局基线**（仓库 `templates/lexicon.json`）：跨书通用死规则，如「猪肝色→青紫色」
+      这类与题材无关的用词纠正。所有书共享一份，改一处受益。
+    - **本书覆盖**（`<workspace>/lexicon.json`）：本书专有规则，并可按需**停用**基线条目
+      （写法：把值写成与原词相同，见 `_load_lexicon`）。
+
+    注意：**基线不因本书文件缺失而失效**——删掉本书 `lexicon.json` 只是"本书无额外规则"，
+    基线规则照常生效。这是刻意的：基线是作者设定的全局资产，不该被单本书的删除动作连带取消。
+    """
+    return [
+        Path(__file__).resolve().parent.parent / "templates" / "lexicon.json",
+        Path(workspace) / "lexicon.json",
+    ]
+
+
+def _validate_lexicon_entry(path: Path, section_name: str, src: Any, dst: Any) -> None:
+    """校验单条规则；非法即业务阻断（绝不静默跳过）。"""
+    if not isinstance(src, str) or not src.strip():
+        raise BusinessError(
+            f"固定词表 {path.name} 的 `{section_name}` 段含空的原词（键）。",
+            solution="原词必须是非空字符串——空键会让正则在任意位置命中并插入文本。",
+        )
+    if section_name == _LEXICON_ROTATE_SECTION:
+        if not isinstance(dst, list) or not dst:
+            raise BusinessError(
+                f"固定词表 {path.name} 的 `{section_name}` 段中「{src}」应为**非空列表**（候选替换词），"
+                f"实际为 {type(dst).__name__}。",
+                solution=f'轮换写法："rotate": {{"{src}": ["候选一", "候选二", "候选三"]}}',
+            )
+        if not all(isinstance(x, str) and x.strip() for x in dst):
+            raise BusinessError(
+                f"固定词表 {path.name} 的 `{section_name}` 段中「{src}」的候选词必须全为非空字符串，实际为 {dst!r}。",
+                solution=f'轮换写法："rotate": {{"{src}": ["候选一", "候选二"]}}',
+            )
+        if len(set(dst)) == 1 and dst[0] == src:
+            raise BusinessError(
+                f"固定词表 {path.name} 的 `{section_name}` 段中「{src}」的候选词与自身相同，等同无效规则。",
+                solution="若要停用该词，请从 rotate 段移除；若要删除该词，请写入 lexicon 段并设值为空字符串。",
+            )
+    elif section_name == _LEXICON_PROTECT_SECTION:
+        # protect 是列表：["安安静静", "年纪轻轻", "静悄悄"]
+        if not isinstance(dst, list) or not dst:
+            raise BusinessError(
+                f"固定词表 {path.name} 的 `{section_name}` 段中「{src}」应为**非空列表**（受保护的词组），"
+                f"实际为 {type(dst).__name__}。",
+                solution=f'保护写法："protect": {{"固定词组": ["安安静静", "年纪轻轻"]}}',
+            )
+        if not all(isinstance(x, str) and x.strip() for x in dst):
+            raise BusinessError(
+                f"固定词表 {path.name} 的 `{section_name}` 段中「{src}」的受保护词组必须全为非空字符串，实际为 {dst!r}。",
+                solution='保护写法："protect": {"固定词组": ["安安静静", "年纪轻轻"]}',
+            )
+    else:
+        if not isinstance(dst, str):
+            raise BusinessError(
+                f"固定词表 {path.name} 中「{src}」的替换值应为字符串，实际为 {type(dst).__name__}。",
+                solution=f'正确写法："lexicon": {{"{src}": "替换后的词"}}；'
+                         f'若要轮换多个候选，请写入 "rotate" 段并用列表。',
+            )
+
+
+def _load_lexicon(workspace: Path) -> Tuple[Dict[str, Any], List[str], List[str]]:
+    """载入并合并固定词表（`lexicon` 定值段 + `rotate` 轮换段 + `protect` 保护段）。
+
+    返回 (合并后规则表, 生效来源文件列表, 受保护词组列表)。
+    规则值：`str` = 定值替换（含空串＝删除）；`list` = 轮换候选。
+
+    **文件缺失是合法状态**（该功能未启用，或旧工程尚未建表），返回空表即可；
+    但**文件存在而格式损坏必须硬阻断**——静默跳过等于词表悄悄不生效，
+    那正是本引擎反复拒绝的「修了个寂寞」失败模式。
+    """
+    merged: Dict[str, Any] = {}
+    sources: List[str] = []
+    protect: List[str] = []
+    for path in _lexicon_paths(workspace):
+        if not path.exists():
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8-sig"))
+        except json.JSONDecodeError as e:
+            raise BusinessError(
+                f"固定词表 {path.name} 格式损坏（{e}）。",
+                solution=f"请修复 {path} 为合法 JSON；若暂不需要词表替换，可直接删除该文件。",
+            ) from e
+        except OSError as e:
+            raise BusinessError(
+                f"固定词表 {path.name} 不可读（{e}）。",
+                solution=f"请检查 {path} 的文件权限与磁盘状态。",
+            ) from e
+
+        if not isinstance(data, dict):
+            raise BusinessError(
+                f"固定词表 {path.name} 顶层应为对象，实际为 {type(data).__name__}。",
+                solution='正确结构：{"schema": "novel-studio.lexicon/v1", "lexicon": {"原词": "替换词"},'
+                         ' "rotate": {"原词": ["候选一", "候选二"]}}',
+            )
+
+        for section_name in (_LEXICON_SECTION, _LEXICON_ROTATE_SECTION, _LEXICON_PROTECT_SECTION):
+            section = data.get(section_name)
+            if section is None:
+                continue                  # 合法：该段缺席（只带元信息、或只用另一段）
+            if not isinstance(section, dict):
+                raise BusinessError(
+                    f"固定词表 {path.name} 的 `{section_name}` 段应为对象，实际为 {type(section).__name__}。",
+                    solution=f'正确结构：{{"{section_name}": {{"原词": "替换词"}}}}',
+                )
+
+            for src, dst in section.items():
+                if str(src).startswith("_"):
+                    continue              # `_comment` 等说明键不是规则
+                _validate_lexicon_entry(path, section_name, src, dst)
+                if section_name == _LEXICON_PROTECT_SECTION:
+                    # 保护词的键只是分组名，真正生效的是列表内容
+                    protect.extend(dst)
+                    continue
+                if section_name == _LEXICON_ROTATE_SECTION:
+                    merged[src] = list(dst)
+                    continue
+                if src == dst:
+                    # 恒等映射 = 本书显式停用该条基线规则（覆盖层的"删除"语义）。
+                    # 合并是 dict.update，无法真正 pop 掉下层键，故以恒等式表意：
+                    # 既不替换、也不计数，效果等同未收录。
+                    merged.pop(src, None)
+                    continue
+                merged[src] = dst
+        sources.append(str(path))
+
+    return merged, sources, protect
+
+
+def _pick_rotation(candidates: List[str], chapter_key: str, src: str, idx: int) -> str:
+    """为第 idx 次出现的 `src` 选择轮换候选（确定性 · 跨章稳定）。
+
+    **为何不用 `random`**：引擎的核心承诺是「同一输入永远得到同一输出」。
+    若用随机数，同一章重跑会得到不同文本，幂等性与可复现性同时破产，
+    作者也无法通过重跑复现昨天的稿子。故用确定性哈希取模。
+
+    **为何把 `chapter_key` 拌进种子**：否则每章都从候选表的第 0 项开始，
+    章章都是「转眼…转眼…转眼」——那只是把单章内的重复换成了跨章的重复，
+    多样性问题从横向变成了纵向。拌入章号后，不同章的起点错开。
+
+    **为何把 `src` 拌进种子**：同一章内多个不同原词各自独立轮换，互不干扰。
+    """
+    seed = hashlib.md5(f"{chapter_key}|{src}".encode("utf-8")).hexdigest()
+    offset = int(seed[:8], 16) % len(candidates)
+    return candidates[(offset + idx) % len(candidates)]
+
+
+def _apply_lexicon(
+    prose: str,
+    rules: Dict[str, Any],
+    chapter_key: str = "",
+    protect: Optional[List[str]] = None,
+) -> Tuple[str, List[Dict[str, Any]]]:
+    """执行单遍确定性替换/轮换，返回 (新正文, 命中清单)。
+
+    四个关键语义（防止规则互相踩踏）：
+
+    1. **长词优先**：Python 正则择「最左最先」的分支，故把原词按长度降序排列，
+       保证「的瞬间」先于「瞬间」命中，「钢针盒」先于「钢针」——
+       这正是本例能安全删除「瞬间」而不破坏「话音落下的瞬间」的原因；
+    2. **保护词优先**：`protect` 中的词组整体豁免。删除类规则有个物理盲区——
+       待删词可能只是**更长固定词的一部分**（「安安静静」里的「静静」、
+       「年纪轻轻」里的「轻轻」、静悄悄里的悄悄），删掉会留下「安安」「年纪」。
+       这类问题**无法用通用规则自动识别**（左右邻字毫无规律），只能由作者
+       显式声明豁免。保护词比所有规则都长，故在正则分支中天然优先命中；
+    3. **单遍替换**：`re.sub` 不重扫刚插入的文本。故即使同时存在
+       「钢针→银针」与「银针→金针」，钢针也**只会变成银针，不会链式变金针**。
+       结果可预测，且可安全重复执行（**幂等**）；
+    4. **轮换按出现次序**（值为列表时）：第 n 次出现取候选表第 (offset+n) 项，
+       让同一个高频词在同一章内自然分散成多种表达——这是"多样性"的确定性实现。
+       静态 1:1 替换做不到这一点：把「瞬间」全换成「立刻」，只是让「立刻」
+       从 2 次涨到 35 次，**把瘾转移给了另一个词**（实测已验证）。
+    """
+    if not prose:
+        return prose, []
+
+    protect = [p for p in (protect or []) if p]
+    if not rules and not protect:
+        return prose, []
+
+    # 保护词与规则词一起参与最长优先匹配；保护词映射为"原样返回"。
+    # 用哨兵值区分"保护"与"规则"，避免与真实替换值冲突。
+    _KEEP = object()
+    table: Dict[str, Any] = dict(rules)
+    for p in protect:
+        table[p] = _KEEP
+
+    keys = sorted(table.keys(), key=len, reverse=True)
+    pattern = re.compile("|".join(re.escape(k) for k in keys))
+    counts: Dict[str, int] = {}
+    chosen: Dict[str, Dict[str, int]] = {}   # 轮换词 -> {实际用到的候选: 次数}
+
+    def _sub(match: "re.Match[str]") -> str:
+        word = match.group(0)
+        spec = table[word]
+        if spec is _KEEP:
+            return word                  # 受保护词组原样保留，且不计入命中
+        n = counts.get(word, 0)
+        counts[word] = n + 1
+        if isinstance(spec, list):
+            pick = _pick_rotation(spec, chapter_key, word, n)
+            bucket = chosen.setdefault(word, {})
+            bucket[pick] = bucket.get(pick, 0) + 1
+            return pick
+        return spec
+
+    new_prose = pattern.sub(_sub, prose)
+
+    hits: List[Dict[str, Any]] = []
+    for w, c in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])):
+        spec = rules[w]
+        entry: Dict[str, Any] = {"word": w, "count": c}
+        if isinstance(spec, list):
+            entry["mode"] = "rotate"
+            entry["candidates"] = spec
+            entry["to"] = "／".join(f"{k}×{v}" for k, v in
+                                    sorted(chosen.get(w, {}).items(), key=lambda kv: -kv[1]))
+        else:
+            entry["mode"] = "replace" if spec else "delete"
+            entry["to"] = spec
+        hits.append(entry)
+    return new_prose, hits
+
+
 def _chapter_num(chapter_id: str) -> int:
     m = re.search(r"(\d+)$", chapter_id)
     return int(m.group(1)) if m else 0
@@ -350,6 +601,38 @@ def init_workspace(workspace: Path, title: str, genre: str, protagonist: str,
         v_text = v_text.replace("{{slot:title|书名}}", title)
         (workspace / "outlines" / "vol_01" / "outline.md").write_text(v_text, encoding="utf-8")
 
+    # 4.5 播种固定替换词表（已存在不覆盖：作者的词表是手工资产，绝不能被 init 抹掉）
+    #
+    # 刻意**只播种空骨架、不复制基线内容**：全局基线是独立的一层，finalize 时
+    # 自动叠加生效（见 `_lexicon_paths`）。若在这里把基线整份拷进本书，作者日后
+    # 修改基线将**对已建书无效**——旧副本会静默盖住新规则，正是本引擎最忌讳的
+    # 「修了个寂寞」。空骨架的作用只是让作者看得见、有地方写本书专有规则。
+    dest_lexicon = workspace / "lexicon.json"
+    if not dest_lexicon.exists():
+        _ensure_dir(workspace)
+        dest_lexicon.write_text(
+            json.dumps(
+                {
+                    "schema": "novel-studio.lexicon/v2",
+                    "_comment": "本书专有词表（覆盖全局基线 templates/lexicon.json）。"
+                                "模型固有毛病（瞬间／狠狠／文言腔等）已在全局基线，此处无需重抄。",
+                    "_notes": {
+                        "基线自动生效": "全局基线无需复制到这里。若要停用某条基线规则，"
+                                        "写 {\"原词\": \"原词\"} 即可。",
+                        "写法": "lexicon 段 = 定值替换（空串表示删除）；"
+                                "rotate 段 = 轮换候选列表（制造多样性）。",
+                        "收录标准": "只收「换成任何语境都不会错」的本题材专有词；"
+                                    "需看上下文的交给 Auditor 逐章配方。",
+                    },
+                    "lexicon": {},
+                    "rotate": {},
+                },
+                ensure_ascii=False,
+                indent=2,
+            ) + "\n",
+            encoding="utf-8",
+        )
+
     # 5. 初始化 state/
     ledger = StateLedger(workspace)
     curr_data = {
@@ -416,6 +699,227 @@ def init_workspace(workspace: Path, title: str, genre: str, protagonist: str,
     return {"title": title, "genre": genre, "protagonist": protagonist, "workspace": str(workspace)}
 
 
+def _retrieve_chapter_settings(
+    workspace: Path,
+    chapter_id: str,
+    title: str,
+    event: str,
+    cliff: str,
+    curr_state: Dict[str, Any],
+    ledger: StateLedger,
+    chapter_info: Optional[Dict[str, str]] = None,
+) -> str:
+    """定向精准打捞与本章强相关的特异机制、专属道具规则与战力标尺。
+
+    设计原则：
+    1. 种子词精准锚定：以本章标题、预排看点、断章、大纲实体规划、当前地点及随身物为搜索源；
+    2. 定向扫描：扫描 entities/（道具/地点/势力）、bible/05（特异机制）、bible/02（战力标尺）、state/locked.json；
+    3. 宁缺毋滥：未命中则返回明确兜底提示，绝不盲目硬塞无关长篇大论；
+    4. 高度精炼：每条提炼为 1~2 句核心规则/负面代价。
+    """
+    chapter_info = chapter_info or {}
+    entities_hint = chapter_info.get("entities", "")
+    lines_hint = chapter_info.get("lines", "")
+
+    # 1. 构造精准匹配文本池与实体名称归一化辅助
+    match_sources = [title, event, cliff, entities_hint, lines_hint]
+    combined_context = " ".join(s for s in match_sources if s)
+
+    # 常见虚词停用词（避免误匹配）
+    STOP_WORDS = frozenset((
+        "这个", "一个", "没有", "什么", "怎么", "如何", "可以", "出现",
+        "开始", "进行", "完成", "发现", "获得", "选择", "成为", "利用",
+        "核心", "机制", "系统", "世界", "游戏", "规则", "法则", "设定",
+        "逻辑", "原理", "状态", "属性", "影响", "效果", "表现", "策略",
+    ))
+
+    # 提取显著关键词（长度 2~4 的词元）
+    salient_tokens = set()
+    for src in match_sources:
+        if not src:
+            continue
+        for token in re.findall(r"[\u4e00-\u9fa5]{2,4}|[a-zA-Z0-9_]{2,}", src):
+            if token not in STOP_WORDS:
+                salient_tokens.add(token)
+
+    settings_lines: List[str] = []
+
+    # -------------------------------------------------------------------------
+    # 维度一：扫描 entities/ 实体卡（items, locations, factions）
+    # -------------------------------------------------------------------------
+    entities_dir = workspace / "entities"
+    if entities_dir.exists():
+        for card_path in sorted(entities_dir.glob("**/*.md")):
+            try:
+                txt = card_path.read_text(encoding="utf-8-sig", errors="replace")
+                fm, body = parse_frontmatter(txt)
+                ename = str(fm.get("name") or card_path.stem).strip()
+                eid = str(fm.get("id") or card_path.stem).strip()
+                if not ename:
+                    continue
+
+                # 词根提取（剥除常见修饰前后缀，如"灰质矿石" -> "灰质矿"，"生锈矿锄" -> "矿锄"）
+                clean_name = re.sub(r"^(生锈的?|粗糙的?|古老的?|废弃的?)", "", ename)
+                clean_name = re.sub(r"(石|器|牌|具)$", "", clean_name)
+
+                matched = False
+                # 判据 1: ID 显式出现在大纲实体规划中（如 it_002）
+                if eid and eid in entities_hint:
+                    matched = True
+                # 判据 2: 全称出现在上下文
+                elif ename in combined_context:
+                    matched = True
+                # 判据 3: 词根（>=2字）出现在上下文
+                elif len(clean_name) >= 2 and clean_name in combined_context:
+                    matched = True
+                # 判据 4: 上下文中的关键词包含实体词根
+                elif len(clean_name) >= 2 and any(clean_name in t for t in salient_tokens):
+                    matched = True
+
+                if matched:
+                    etype = fm.get("type", "entity")
+                    type_label = "道具" if "item" in etype else ("地点" if "location" in etype or "place" in etype else "实体")
+                    rule_parts = []
+                    if fm.get("durability") and fm.get("durability") != "完好":
+                        rule_parts.append(f"物理状态: {fm.get('durability')}")
+                    if fm.get("cost_per_use"):
+                        rule_parts.append(f"使用条件/代价: {fm.get('cost_per_use')}")
+
+                    # 从正文三、核心功能提取关键条目
+                    func_m = re.search(r"## 三、[^\n]*\n([\s\S]*?)(?=##|\Z)", body)
+                    if func_m:
+                        func_txt = func_m.group(1).strip()
+                        lines = [line.strip().lstrip("-* \t") for line in func_txt.splitlines() if line.strip() and not line.strip().startswith("#")]
+                        if lines:
+                            rule_parts.append(" ｜ ".join(lines[:2]))
+                    elif fm.get("sensory_anchor"):
+                        rule_parts.append(f"物象特征: {fm.get('sensory_anchor')}")
+
+                    if rule_parts:
+                        clean_rule = "；".join(rule_parts)
+                        if len(clean_rule) > 150:
+                            clean_rule = clean_rule[:148] + "…"
+                        settings_lines.append(f"   - [{type_label}·{ename}] {clean_rule}")
+            except Exception:
+                pass
+
+    # -------------------------------------------------------------------------
+    # 维度二：扫描 bible/05_special_mechanics.md（特异机制与代偿）
+    # -------------------------------------------------------------------------
+    spec_path = workspace / "bible" / "05_special_mechanics.md"
+    if spec_path.exists():
+        try:
+            stxt = spec_path.read_text(encoding="utf-8-sig", errors="replace")
+            # 匹配形如 ### 1. 核心机制一：【神源矿化共鸣与逆天加点】
+            sec_matches = re.findall(
+                r"(###?\s*(?:\d+[\.、])?\s*(?:核心机制[一二三四五六七八九十\d]*[:：])?\s*(?:【([^】]+)】|([^\n]+)))\n([\s\S]*?)(?=(?:###? |\Z))",
+                stxt,
+            )
+            for m_header, m_bracket, m_raw_title, m_content in sec_matches:
+                mech_title = (m_bracket or m_raw_title).strip("# \t\r\n")
+                # 提炼机制标题的 2-gram 关键词
+                mech_grams = [mech_title[i:i+2] for i in range(len(mech_title) - 1)]
+                mech_grams = [g for g in mech_grams if g not in STOP_WORDS]
+
+                hit = False
+                # 判据 1: 机制标题包含在上下文或标题中
+                if mech_title in combined_context:
+                    hit = True
+                # 判据 2: 上下文关键词与机制标题的 2-gram 发生重叠
+                elif any(g in combined_context for g in mech_grams):
+                    hit = True
+                elif any(g in t or t in g for g in mech_grams for t in salient_tokens if len(t) >= 2):
+                    hit = True
+
+                if hit:
+                    desc_parts = []
+                    for line in m_content.splitlines():
+                        line = line.strip()
+                        if any(k in line for k in ("机制原理", "核心逻辑", "生效机制", "前置条件", "代偿", "消耗")):
+                            cleaned_l = re.sub(r"^[-\*#\d\.\s]+", "", line).replace("**", "")
+                            desc_parts.append(cleaned_l)
+                    # 检查是否有代偿与消耗规则
+                    cost_m = re.search(r"高强度行动/突破的负荷反应[：:]\s*([^\n]+)", stxt)
+                    if cost_m and any("神源" in p or "灰质" in p for p in desc_parts):
+                        desc_parts.append(f"负荷代偿: {cost_m.group(1).strip()}")
+
+                    if desc_parts:
+                        summary = "；".join(desc_parts[:2])
+                        if len(summary) > 160:
+                            summary = summary[:158] + "…"
+                        settings_lines.append(f"   - [特异机制·{mech_title}] {summary}")
+        except Exception:
+            pass
+
+    # -------------------------------------------------------------------------
+    # 维度三：扫描 bible/02_power_system.md（当前主角战力破坏力标尺切片）
+    # -------------------------------------------------------------------------
+    power_path = workspace / "bible" / "02_power_system.md"
+    if power_path.exists():
+        try:
+            ptxt = power_path.read_text(encoding="utf-8-sig", errors="replace")
+            # 优先从 persons.json 提取主角当前境界
+            last_tier = curr_state.get("last_tier", "")
+            if not last_tier:
+                try:
+                    persons_data = ledger.get_persons()
+                    last_tier = persons_data.get("p_001", {}).get("tier_name", "")
+                except Exception:
+                    pass
+
+            if last_tier:
+                # 提炼境界核心标签，如 "凡胎矿工·觉醒境" -> "觉醒境" / "凡胎矿工"
+                tier_tags = [t for t in re.split(r"[·\s\-_/]+", last_tier) if t and t not in STOP_WORDS]
+                for tag in tier_tags:
+                    tier_m = re.search(rf"(###? [^\n]*{re.escape(tag)}[^\n]*\n[\s\S]*?)(?=(?:###? |\Z))", ptxt)
+                    if tier_m:
+                        block = tier_m.group(1)
+                        scale_lines = [
+                            l.strip().lstrip("-* \t") for l in block.splitlines()
+                            if any(k in l for k in ("破坏力", "标尺", "实物", "极限", "物理标尺"))
+                        ]
+                        if scale_lines:
+                            scale_desc = "；".join(scale_lines[:2])
+                            if len(scale_desc) > 140:
+                                scale_desc = scale_desc[:138] + "…"
+                            settings_lines.append(f"   - [战力标尺·{last_tier}] {scale_desc}")
+                            break
+        except Exception:
+            pass
+
+    # -------------------------------------------------------------------------
+    # 维度四：扫描 state/locked.json（既定事实精准匹配）
+    # -------------------------------------------------------------------------
+    try:
+        locked_file = getattr(ledger, "locked_file", workspace / "state" / "locked.json")
+        locked_facts = _load_json(locked_file, default=[])
+        for lf in locked_facts:
+            if isinstance(lf, str) and lf.strip():
+                # 仅当锁定事实中的实体名或关键词出现在本章标题或大纲时才注入
+                lf_tokens = [t for t in re.findall(r"[\u4e00-\u9fa5]{2,4}", lf) if t not in STOP_WORDS]
+                if any(t in combined_context for t in lf_tokens if len(t) >= 2):
+                    settings_lines.append(f"   - [既定事实] {lf.strip()}")
+    except Exception:
+        pass
+
+    # -------------------------------------------------------------------------
+    # 维度五：过滤去重与上限控制（最多保留 4 条最关键设定）
+    # -------------------------------------------------------------------------
+    deduped: List[str] = []
+    seen = set()
+    for item in settings_lines:
+        key = item.split("]")[0] if "]" in item else item[:15]
+        if key not in seen:
+            seen.add(key)
+            deduped.append(item)
+        if len(deduped) >= 4:
+            break
+
+    if deduped:
+        return "\n".join(deduped)
+    return "   - （本章无特殊特异机制或专属规则触发，遵循世界常规物理法则与前序设定平稳推进）"
+
+
 def get_beats_scaffold(workspace: Path, chapter_id: str, write_file: bool = True,
                        force: bool = False) -> Dict[str, Any]:
     """生成单章细纲任务卡脚手架 (beats new)。
@@ -480,38 +984,35 @@ def get_beats_scaffold(workspace: Path, chapter_id: str, write_file: bool = True
         scaffold = scaffold.replace("小说历纪年·时空时间", curr_state["last_timeline"])
 
     # --- 编剧机要参考简报 (Pre-computed Dossier) 自动打捞 ---
-    # 1. 提取上一章尾声 / 梗概 (接戏余温)
+    # 1. 提取上一章正文全文 (接戏动量)
     prev_tail = ""
     m_ch = re.search(r"(\d+)$", chapter_id)
     if m_ch:
         num = int(m_ch.group(1)) - 1
         if num > 0:
             prev_id = f"ch_{num:03d}"
-            synopsis_db = ledger.get_synopsis()
-            if prev_id in synopsis_db:
-                s_rec = synopsis_db[prev_id]
-                # v4.3 缺陷#C11：synopsis 真实键名是 dramatic_goal（state.py 写入），
-                # 旧版误读从不存在的 "summary" 键，简报【上一章核心进展】区块永远缺席
-                s_sum = s_rec.get("dramatic_goal") or s_rec.get("summary", "")
-                s_cliff = s_rec.get("cliffhanger", "")
-                parts = []
-                if s_sum:
-                    parts.append(f"【上一章核心进展】{s_sum}")
-                if s_cliff:
-                    parts.append(f"【上一章断章定格】{s_cliff}")
-                if parts:
-                    prev_tail = "\n   ".join(parts)
+            cands = [
+                workspace / "manuscript" / vol_id / "final" / f"{prev_id}.md",
+                workspace / "manuscript" / vol_id / "raw" / f"{prev_id}_v3.md",
+                workspace / "manuscript" / vol_id / "raw" / f"{prev_id}.md",
+            ]
+            for c in cands:
+                if c.exists():
+                    prev_tail = c.read_text(encoding="utf-8-sig", errors="replace").strip()
+                    break
             if not prev_tail:
-                cands = [
-                    workspace / "manuscript" / vol_id / "final" / f"{prev_id}.md",
-                    workspace / "manuscript" / vol_id / "raw" / f"{prev_id}_v3.md",
-                    workspace / "manuscript" / vol_id / "raw" / f"{prev_id}.md",
-                ]
-                for c in cands:
-                    if c.exists():
-                        ptxt = c.read_text(encoding="utf-8-sig", errors="replace").strip()
-                        prev_tail = "【上一章正文收尾】……" + (ptxt[-400:] if len(ptxt) > 400 else ptxt)
-                        break
+                synopsis_db = ledger.get_synopsis()
+                if prev_id in synopsis_db:
+                    s_rec = synopsis_db[prev_id]
+                    s_sum = s_rec.get("dramatic_goal") or s_rec.get("summary", "")
+                    s_cliff = s_rec.get("cliffhanger", "")
+                    parts = []
+                    if s_sum:
+                        parts.append(f"【上一章核心进展】{s_sum}")
+                    if s_cliff:
+                        parts.append(f"【上一章断章定格】{s_cliff}")
+                    if parts:
+                        prev_tail = "\n   ".join(parts)
     if not prev_tail:
         prev_tail = "（全书开篇首章，开门见山直接切入核心冲突或初始情境）"
 
@@ -547,7 +1048,7 @@ def get_beats_scaffold(workspace: Path, chapter_id: str, write_file: bool = True
         line += "）"
         char_lines.append(line)
 
-        # 提取最新离场心境与生理状态 (status_out)
+        # 提取最新离场心境与状态 (status_out)
         arc_hist = prec.get("arc_history") or []
         last_s_out = ""
         if arc_hist:
@@ -630,7 +1131,7 @@ def get_beats_scaffold(workspace: Path, chapter_id: str, write_file: bool = True
         _id_parts = []
         for _cat, _label in [("person", "人物"), ("item", "道具"), ("gun", "GUN"), ("kno", "KNO"),
                              ("mis", "MIS"), ("location", "地点"), ("faction", "势力"),
-                             ("debt", "恩怨"), ("lock", "锁定事实")]:
+                             ("debt", "恩怨"), ("lock", "锁定事实"), ("milestone", "里程碑")]:
             # v4.3.3 BUG#39：恩怨 ID 自 BUG#6 起改为按（章节+双方+类型）派生的
             # DEBT-AUTO-<sha1> 稳定幂等键，由引擎自动生成；速查表若仍报 DEBT-001，
             # 会诱导写手在细纲手填序号 ID，与台账实际格式两套并存。此处如实标注。
@@ -641,6 +1142,18 @@ def get_beats_scaffold(workspace: Path, chapter_id: str, write_file: bool = True
         id_cheat_block = "   - " + " ｜ ".join(_id_parts)
     except Exception:
         id_cheat_block = "   - （ID 速查生成失败，可运行 `python studio.py id next <类型>` 查询）"
+
+    # 4.6 本章关联法则与特异机制精准打捞
+    chapter_settings_block = _retrieve_chapter_settings(
+        workspace=workspace,
+        chapter_id=chapter_id,
+        title=title,
+        event=event,
+        cliff=cliff,
+        curr_state=curr_state,
+        ledger=ledger,
+        chapter_info=chapter_info,
+    )
 
     # 5. 编译 Markdown 编剧机要简报
     dossier_text = f"""<!-- ==============================================================================
@@ -655,7 +1168,10 @@ def get_beats_scaffold(workspace: Path, chapter_id: str, write_file: bool = True
 📍 【当前空间场景规则与感官物象】
 {loc_detail_block}
 
-🌊 【上一章收尾余温（接戏动量 · 严禁情节脱节）】
+⚙️ 【本章专属规则与机制设定（Engine 精准打捞 · 严禁违背）】
+{chapter_settings_block}
+
+🌊 【上一章正文全文（接戏动量 · 严禁情节脱节）】
    {prev_tail}
 
 🎒 【主角随身物资与关键装备一览 (Carried Inventory)】
@@ -664,7 +1180,7 @@ def get_beats_scaffold(workspace: Path, chapter_id: str, write_file: bool = True
 👥 【在场人物速查候选（无需翻看外部卡片）】
 {char_block}
 
-🎭 【候选角色前序离场心境与生理状态（接戏情绪台阶）】
+🎭 【候选角色前序离场心境与状态（接戏情绪台阶）】
 {mood_block}
 
 🚫 【已故/阵亡人物黑名单（严禁作为在场人登场！）】
@@ -1030,8 +1546,30 @@ def finalize_chapter(workspace: Path, chapter_id: str) -> Dict[str, Any]:
                 f"或多行三反引号块（TargetContent/ReplacementContent 各一块，中间可插入理由行）。"
             )
 
+    # ---- 固定词表（作者死规则 · 最后一道确定性替换）----------------------------
+    # 顺序刻意放在 Auditor 配方**之后**：配方是 LLM 逐章判断的产物，可能把
+    # 禁用词又写回 ReplacementContent（本书 ch_003 就发生过「刺鼻」被配方抄回
+    # 正文的事故）；词表是作者的死规则，必须拥有最终裁决权。
+    # 两者计数**完全分离**：配方回执的 "X/Y 应用" 语义不得被词表命中污染，
+    # 否则 recipe_zero_warning 的「有配方字样却零提取」判断会失真。
+    lexicon, lexicon_sources, lexicon_protect = _load_lexicon(workspace)
+    # chapter_id 作为轮换种子：同章重跑得到同一结果（幂等），不同章起点错开（跨章不重复）
+    prose, lexicon_hits = _apply_lexicon(prose, lexicon, chapter_key=chapter_id,
+                                        protect=lexicon_protect)
+
     final_file = manuscript_dir / "final" / f"{chapter_id}.md"
     _ensure_dir(final_file.parent)
+    # 「重建命中」vs「实际变更」是两个概念，必须分开：
+    # finalize 永远从 raw_v3 源稿重放全部配方与词表（保证 final 可由源稿完整重建），
+    # 故重复执行时**命中数照旧 >0，但产出字节完全相同**。旧版只报命中数，
+    # 作者会误以为"又改了 10 处"，实际文件纹丝未动 —— 回执必须说清是哪种。
+    _prev_text: Optional[str] = None
+    if final_file.exists():
+        try:
+            _prev_text = final_file.read_text(encoding="utf-8-sig")
+        except OSError:
+            _prev_text = None
+    _content_changed = (_prev_text is None) or (_prev_text != prose)
     final_file.write_text(prose, encoding="utf-8")
 
     return {
@@ -1043,6 +1581,12 @@ def finalize_chapter(workspace: Path, chapter_id: str) -> Dict[str, Any]:
         "recipes_missed": len(missed_targets),
         "missed_targets": missed_targets,
         "recipe_zero_warning": _recipe_zero_warning if audit_file.exists() else "",
+        "lexicon_hits": lexicon_hits,
+        "lexicon_total": sum(h["count"] for h in lexicon_hits),
+        "lexicon_sources": lexicon_sources,
+        "lexicon_rules": len(lexicon),
+        "content_changed": _content_changed,
+        "is_rebuild_only": (not _content_changed),
         "note": ("审计报告不存在，直接采用 v3 原文定稿" if not audit_file.exists()
                  else (f"配方 {replacements_count}/{recipes_total} 应用" if recipes_total else "审计报告中无配方，按原文定稿")),
     }
@@ -1535,7 +2079,7 @@ def sync_chapter(workspace: Path, chapter_id: str, force: bool = False, refresh:
     prev = sync_log.get(chapter_id)
     if refresh and prev:
         # v4.2 --refresh：纯文笔修订（beats/deltas 未变），只更新指纹不重复入账
-        # v4.3.2 缺陷#11：旧版只改 sha1，字数全线不更新 ⇒ 润色把 418 字扩到 976 字后，
+        # v4.3.2 缺陷#11：旧版只改 sha1，字数全线不更新 ⇒ 润色把 420 字扩到 976 字后，
         # sync_log / timeline / synopsis / project.total_published_words 仍停留在旧值，
         # cockpit 字数曲线、配额统计、export 统计集体失真（而字数恰恰是文笔修订最常变的量）。
         # 字数是正文的派生事实、不是细纲增量，刷新它不违反「不重复入账」的语义。

@@ -142,10 +142,12 @@ def _heartbeat(chapter_id: str, title: str, res: Dict[str, Any], sealed_total: i
     warn = "" if not res.get("warnings") else f" | ⚠️x{len(res['warnings'])}"
     # FIND-CT73：自愈动作在无人值守日志里必须可见（🩹xN），否则引擎"悄悄把表改好了"
     heal = "" if not res.get("healed") else f" | 🩹x{len(res['healed'])}"
+    # 固定词表命中同样必须可见：作者定好的死规则若静默生效/静默失效都无从察觉
+    lex = "" if not res.get("lexicon_applied") else f" | 📖x{res['lexicon_applied']}"
     return (
         f"🚢 [cruise] {datetime.now().strftime('%H:%M:%S')} {chapter_id} 《{title}》 {flag}"
         f" | {res.get('word_count', 0)}字 | check {res.get('check_errors', 0)}err"
-        f"{warn}{heal} | 累计 {sealed_total} 章"
+        f"{warn}{heal}{lex} | 累计 {sealed_total} 章"
     )
 
 
@@ -171,6 +173,8 @@ def supervise_once(workspace: Path, chapter_id: str, force: bool = False) -> Dic
     out["final_word_count"] = f_res.get("word_count", 0)
     out["check_errors"] = len(c_res.get("errors", []))
     out["recipe_applied"] = f_res.get("replacements_applied", 0)
+    # 固定词表命中数：无人值守时作者也能从心跳看出死规则是否真的生效
+    out["lexicon_applied"] = f_res.get("lexicon_total", 0)
     return out
 
 
@@ -270,7 +274,7 @@ def run_cruise(
                 say(f"🚢 [cruise] 🎗️ human_gate：已巡 {sealed_total - batch_start} 章，等待 .cruise_gate 哨兵文件 …")
                 while not gate.exists():
                     time.sleep(poll_seconds)
-                # v4.2.1 缺陷#18：哨兵用过即删——旧版不删除，同批次后续 gate 直通失效
+                # v4.2.1 缺陷#20：哨兵用过即删——旧版不删除，同批次后续 gate 直通失效
                 gate.unlink(missing_ok=True)
                 say("🚢 [cruise] 🎗️ 哨兵确认（已消费），继续巡航。")
 

@@ -24,12 +24,12 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # FIND-CT70（作者裁定 · 引擎退出文学性判断）：本项**只是作者的体量规划值**，
     # 供大纲 target_words 与写手提示词参考；引擎不据此判定、不告警、不拦截。
     # 唯一与字数有关的硬判定是「空正文拒绝封存」（数据完整性，非文学判断）。
-    "words_per_chapter": [1500, 2600],
-    # 原 dialogue_ratio（对白行占比 25%~55%）已于 FIND-CT70 整项退役：对白配比属
+    "words_per_chapter": [2000, 3000],
+    # 原 dialogue_ratio（对白行占比 20%~55%）已于 FIND-CT70 整项退役：对白配比属
     # 文学节奏判断，交由 Stage 3A/4A 语义评估，引擎不再设形式指标。
     # 旧 project.json 里若仍带该键，load_config 原样容忍、不参与任何计算。
     # 装配包 Token 预算上限
-    "token_cap": 15000,
+    "token_cap": 12000,
     # 细纲 state_deltas.ledger 未声明 pool 时使用的默认货币池名（全题材中性，可按书改为 灵石/人民币/积分…）
     "default_pool": "通用资金池",
     # 无人值守巡航单批次上限（章）
@@ -84,7 +84,7 @@ def load_config(workspace: Path) -> Dict[str, Any]:
         wpc = scope.get("words_per_chapter")
         if wpc is not None:
             # FIND-CT51（C-4·静默回落）：旧版 len!=2 或元素不可 int 化时
-            # `except: pass` 静默回落默认 [1500,2600]——作者的商业体量设定没生效
+            # `except: pass` 静默回落默认 [2000,3000]——作者的商业体量设定没生效
             # 却无任何提示，与 engine 段"损坏即硬失败"（_read_project/FIND-CT26）
             # 的策略不对称。统一：scope 段形态非法即业务阻断并指明修复路径。
             _bad_reason = ""
@@ -99,8 +99,8 @@ def load_config(workspace: Path) -> Dict[str, Any]:
                 raise BusinessError(
                     f"project.json 中 scope.words_per_chapter 格式非法（{_bad_reason}）。",
                     solution=(
-                        "请修正为 `\"words_per_chapter\": [1500, 2600]` 形态（单位：字），"
-                        "或运行 `python studio.py config set words_per_chapter \"[1500, 2600]\"`。"
+                        "请修正为 `\"words_per_chapter\": [2000, 3000]` 形态（单位：字），"
+                        "或运行 `python studio.py config set words_per_chapter \"[2000, 3000]\"`。"
                     ),
                 )
             cfg["words_per_chapter"] = [int(wpc[0]), int(wpc[1])]
@@ -111,7 +111,7 @@ def load_config(workspace: Path) -> Dict[str, Any]:
             if k in DEFAULT_CONFIG:
                 # FIND-CT26（config C-3·读写不对称）：写路径（set_config_value）有
                 # 类型对齐，读路径原样透传——手工编辑 project.json 写入
-                # "token_cap": "15000" 后，pack 的预算比较 str vs int 直接 TypeError
+                # "token_cap": "12000" 后，pack 的预算比较 str vs int 直接 TypeError
                 # → exit 4。读路径按 DEFAULT_CONFIG 类型做一次确定性 coerce，非法值
                 # 抛 BusinessError（exit 1）并指引 config set 修复，而非下游崩栈。
                 _def = DEFAULT_CONFIG[k]
@@ -171,8 +171,8 @@ def set_config_value(workspace: Path, key: str, value: Any) -> Dict[str, Any]:
             parsed = value
         if not isinstance(parsed, list):
             raise BusinessError(
-                f"配置项 '{key}' 格式错误: 应为列表（如 '[1500, 2600]' 或逗号分隔）",
-                solution=f"正确示例: python studio.py config set {key} \"[1500, 2600]\"",
+                f"配置项 '{key}' 格式错误: 应为列表（如 '[2000, 3000]' 或逗号分隔）",
+                solution=f"正确示例: python studio.py config set {key} \"[2000, 3000]\"",
             )
         value = parsed
 
@@ -222,7 +222,7 @@ def set_config_value(workspace: Path, key: str, value: Any) -> Dict[str, Any]:
             except (TypeError, ValueError):
                 raise BusinessError(
                     f"配置项 '{key}' 的列表元素类型错误: {_el!r} 无法解析为整数。",
-                    solution=f"正确示例: python studio.py config set {key} \"[1500, 2600]\"（元素须为整数）",
+                    solution=f"正确示例: python studio.py config set {key} \"[2000, 3000]\"（元素须为整数）",
                 )
         value = _conv
 

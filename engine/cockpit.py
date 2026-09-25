@@ -204,7 +204,7 @@ def render_cockpit(workspace: Path) -> str:
             aff_str = f"+{int(aff)}" if aff > 0 else str(int(aff))
             subtext = _s(r.get("unspoken_subtext"), "（未记录）")[:30]
             output += (f"\n   - 💘 [{r.get('dynamic_label', '情感对撞')}] `{r.get('pair')}` ｜ "
-                       f"温标: {aff_str} ｜ 张力: 🔥 {int(_num(r.get('tension'), 20))}/100 ｜ 机锋: “{subtext}…”")
+                       f"温标: {aff_str} ｜ 张力: 🔥 {int(_num(r.get('tension'), 20))}/100 ｜机锋 : “{subtext}…”")
     else:
         output += "\n   (在场各方情感基调平稳，暂无白热化)"
 

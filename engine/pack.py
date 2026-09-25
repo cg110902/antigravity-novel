@@ -2,7 +2,7 @@
 
 将细纲 (SSOT)、时空背景、在场人物全息档案、称谓矩阵、道具充能与世界公理
 深度装配为自完备的 pack.md，彻底解决大模型跨文件翻找与截断丢失问题。
-支持 15,000 Token 动态预算（配置项 token_cap）与优先级自适应修剪算法（四级修剪 + 🔴 超预算显式旗标）。
+支持 12,000 Token 动态预算（配置项 token_cap）与优先级自适应修剪算法（四级修剪 + 🔴 超预算显式旗标）。
 """
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ def _strip_engine_briefing(text: str) -> Tuple[str, int]:
     而 pack 的第二~八节会按**当前台账实时**重算同一批事实，两者同时进包有三个坏处：
     1. **过期矛盾**：beats new 与 pack 之间若发生过 Evolution 手术 / 快照回滚 / 补账，
        简报快照与实时装配会给出互相矛盾的事实，Drafter 无从裁决（其【绝对零命令】）；
-    2. **预算浪费**：简报常态 600~1000 Token，长篇每章白占 token_cap 的 5%~8%；
+    2. **预算浪费**：简报常态 1000~1500 Token，长篇每章白占 token_cap 的 5%~10%；
     3. **职责串味**：「下一可用物理 ID 速查」是发号契约，Drafter 无发号权限，
        看见只会被当噪声甚至误抄进正文。
     只剥离引擎自产的简报注释（按标记定位其所在 `<!-- -->` 区间），作者自己写的
@@ -102,7 +102,7 @@ def _render_pack_content(
 
 > ⚡ **【起草先锋 Drafter 唯一事实源 · 杜绝全书漫游】**
 > 本装配包已集成当章细纲、时空因果、在场人档案、称谓约束与世界红线。
-> 起手单次全读本文件即可直接提笔撰写 1500~2600 字初稿，严禁查阅外部散乱文件！
+> 起手单次全读本文件即可直接提笔撰写 2000~3000 字初稿，严禁查阅外部散乱文件！
 {budget_badge}
 
 ---
@@ -113,7 +113,7 @@ def _render_pack_content(
 
 ---
 
-## 🌊 二、 上一章末尾余温（接戏动量 · P1）
+## 🌊 二、 上一章正文全文（接戏动量 · P1）
 
 {prev_tail if prev_tail else "（全书第一章，开门见山直接切入冲突）"}
 
@@ -138,9 +138,9 @@ def _render_pack_content(
 {location_block}
 
 > 🎭 **【行文法则】**：
-> 1. **严禁抽象情绪形容词**：禁止直接写“感到心痛/难过/愤怒/五味杂陈/十分感动”，必须全量转化为**神经微反射与生理动作**（咽唾沫、指关节发白、背脊绷紧、避开对视、说话刻意用敬语拉远距离）；
+> 1. **严禁抽象情绪形容词**：禁止直接写“感到心痛/难过/愤怒/五味杂陈/十分感动”，必须全量转化为**神经微反射与动作**；
 > 2. **嘴硬体诚与情绪反冲（Emotional Dissonance）**：越在乎越要冷淡挑刺，越痛苦越要平静整理袖口，越恐惧话越密，嘴上说“随便你”，脚下一步不移；
-> 3. **对白三分字面七分机锋（Subtext）**：每一句对话必须带双层潜台词，表面是公事/挑衅，底下是试探、怨怼或试探爱意，绝不直抒胸臆！
+> 3. **对白三分字面（Subtext）**：每一句对话必须带双层潜台词，表面是公事/挑衅，底下是试探、怨怼或试探爱意，绝不直抒胸臆！
 
 ---
 
@@ -240,7 +240,7 @@ def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dic
         if n:
             slot_sources[label] = slot_sources.get(label, 0) + n
 
-    # 2. 提取上一章尾声 (P1)
+    # 2. 提取上一章正文全文 (P1)
     prev_tail = ""
     m = re.search(r"(\d+)$", chapter_id)
     if m:
@@ -255,7 +255,7 @@ def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dic
             for c in cands:
                 if c.exists():
                     ptxt = c.read_text(encoding="utf-8-sig", errors="replace").strip()
-                    prev_tail = ptxt[-1000:] if len(ptxt) > 1000 else ptxt
+                    prev_tail = ptxt
                     _note_slot(f"上一章正文 {prev_id}", prev_tail)
                     break
 
@@ -346,12 +346,12 @@ def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dic
         if arc_phase:
             dossier_block += f"- **人物弧光阶段 (Arc Phase)**：{arc_phase}\n"
         dossier_block += f"""- **入场隐性情绪荷载 (Latent Mood)**：{latent_mood if latent_mood else '带着前文事件的隐秘后劲入场'}
-- **生理应激微动作 (Physio Leak)**：{physio_leak if physio_leak else '不自觉小动作/视线回避/小动作泄露'}
+- **应激动作 (Physio Leak)**：{physio_leak if physio_leak else '不自觉小动作/视线回避/小动作泄露'}
 - **心理软肋 (Vulnerability)**：{vuln if vuln else '触碰必破防之软肋'}
 - **反常怪癖 (Quirk)**：{quirk if quirk else '活人生态反常点/神经质执念'}
 - **神经雷区 (Taboo)**：{taboo if taboo else '触碰必死之底线'}
 - **外观感知物象**：{sensory if sensory else '见细纲描写'}
-- **习惯微动作**：{micro if micro else '切身利益下生活化神态'}
+- **习惯动作**：{micro if micro else '切身利益下生活化神态'}
 """
         if arc_hist:
             last_arc = arc_hist[-1]
@@ -499,6 +499,15 @@ def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dic
             _tab = matched_place.get("environment_rules") or matched_place.get("rules_taboos") or ""
             taboos = "；".join(_tab) if isinstance(_tab, list) else str(_tab)
         summary = matched_place.get("summary", "") if matched_place else ""
+
+        # 细纲 scene_environment 兜底：若台账尚未补全物象/规则，优先采用细纲当章显式声明
+        _scene_env = frontmatter.get("scene_environment") if isinstance(frontmatter.get("scene_environment"), dict) else {}
+        if not sensory:
+            sensory = str(_scene_env.get("sensory_focus") or frontmatter.get("sensory_anchor") or "").strip()
+        if not taboos:
+            _tab_raw = _scene_env.get("environment_rules") or frontmatter.get("environment_rules") or []
+            taboos = "；".join(_tab_raw) if isinstance(_tab_raw, list) else str(_tab_raw)
+
         loc_desc = []
         if sensory:
             loc_desc.append(f"  - **感官物象**：{sensory}")
@@ -584,7 +593,7 @@ def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dic
     _note_slot("bible/06_deviations.md", dev_text)
 
     power_file = workspace / "bible" / "02_power_system.md"
-    power_text = power_file.read_text(encoding="utf-8-sig", errors="replace")[:1000] if power_file.exists() else "无"
+    power_text = power_file.read_text(encoding="utf-8-sig", errors="replace")[:1500] if power_file.exists() else "无"
     _note_slot("bible/02_power_system.md", power_text)
 
     # 7. 提取全书不可违逆既定事实 (Locked Facts · P0 铁律)
@@ -610,10 +619,10 @@ def build_pack(workspace: Path, chapter_id: str, write_file: bool = True) -> Dic
 
     # =========================================================================
     # 动态 Token 预算管理与自适应优先级修剪算法 (Dynamic Budget Manager)
-    # 预算上限：配置中心 token_cap（默认 15,000 Tokens）
+    # 预算上限：配置中心 token_cap（默认 12,000 Tokens）
     # P0 (细纲、禁令、事实) 绝对刚性保护；P2 率先重塑/压缩；P1 次级优化
     # =========================================================================
-    TOKEN_CAP = int(load_config(workspace).get("token_cap", 15000))
+    TOKEN_CAP = int(load_config(workspace).get("token_cap", 12000))
     is_pruned = False
     prune_stages: List[str] = []
 

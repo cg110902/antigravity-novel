@@ -1,7 +1,7 @@
 """Novel Studio 核心数据契约与数据模型定义 (engine/schema.py)。
 
 建立面向 30~50 万字长篇小说一致性的完整强类型数据模型：
-1. 人物表 (persons.json)：ID、姓名、别名、Want/Fear、位阶、伤势、处境、互称矩阵、微动作库
+1. 人物表 (persons.json)：ID、姓名、别名、Want/Fear、位阶、伤势、处境、互称矩阵、动作库
 2. 道具表 (items.json)：ID、名称、持有者(holder)、品阶、充能次数(charges)、消耗代价
 3. 势力表 (factions.json)：ID、名称、规模、领袖、总部、外交网络(diplomacy)
 4. 地点表 (places.json)：ID、名称、危险等级、空间法则、环境氛围
@@ -56,7 +56,7 @@ class CharacterRecord:
     taboo: str = ""  # 神经雷区/绝不可触碰之禁忌
     # 动态隐性情绪与情感底色
     latent_mood: str = ""  # 入场隐性情绪底色 (如: 被拒后的自尊刺痛/寄人篱下的隐忍戒备/爱恨交织的患得患失)
-    physiological_leak: str = ""  # 生理应激微动作 (如: 喉结微滚/掐紧掌心/避开对视/敬称拉开距离)
+    physiological_leak: str = ""  # 应激动作 (如: 喉结微滚/掐紧掌心/避开对视/敬称拉开距离)
     emotional_temp: int = 50  # 情绪压力/燃点 (0~100)
     vulnerability: str = ""  # 心理软肋/破防触发开关
     last_seen_ch: str = ""

@@ -866,8 +866,10 @@ def run_full_check(workspace: Path, chapter_id: Optional[str] = None) -> Dict[st
                     # 此处比对：审计报告有涌现事实、而细纲尚未承载对应声明时提醒。
                     if audit_txt:
                         try:
+                            # 彻底剥离 HTML 注释（<!-- ... -->），避免将审计报告模板中的格式说明与示例误判为真实正文事实
+                            _clean_audit_txt = re.sub(r"<!--[\s\S]*?-->", "", audit_txt)
                             _emg = []
-                            for _rl in audit_txt.splitlines():
+                            for _rl in _clean_audit_txt.splitlines():
                                 _l = re.sub(r"^[-*+]\s*", "", _rl.strip())
                                 # 标签可写作组合形式（如模板默认的 [阵亡/死亡]），故按"标签内含关键词"匹配
                                 _mt = re.match(r"^\[(.*?)\]|^【(.*?)】", _l)

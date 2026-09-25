@@ -8,6 +8,9 @@ tier_name: "{{slot:char_tier_name|当前实力层级/职级称号}}"
 power_benchmark: "{{slot:char_power_benchmark|核心破坏力与实物标尺}}"
 faction: "{{slot:char_faction|所属阵营/机构/势力}}"
 sensory_anchor: "{{slot:char_sensory_anchor|容貌体态与标志性物象}}"
+# stats: # 可选量化属性面板（游戏/玄幻数值/科幻战力等题材启用，非量化题材省略）
+#   combat_power: 120
+#   special_stat: 50
 status: active
 address_matrix:
   "{{slot:protagonist|主角名}}": "{{slot:addr_to_mc|对主角称呼}}"
@@ -78,7 +81,7 @@ schema_version: novel-studio.character/v2
 
 ---
 
-## 五、 习惯微动作与神态库（去脸谱化细节）
+## 五、 习惯动作与神态库（去脸谱化细节）
 
 - **专注/思考时**：{{slot:char_act_shy|自行设定（如：下意识转动指尖的笔、神情沉静专注）}}
 - **警觉/面对挑战时**：{{slot:char_act_alert|自行设定（如：坐直身姿、眼神变得锐利笃定）}}

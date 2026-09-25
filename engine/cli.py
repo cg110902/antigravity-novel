@@ -526,7 +526,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         elif args.command == "pack":
             p_res = build_pack(ws, args.chapter_id, write_file=args.write)
             if args.write:
-                print(f"📦 装配包已生成: {p_res['target_pack']} ({p_res['size_bytes']} 字节 ｜ 估算 Token: {p_res.get('estimated_tokens', 0)} / {load_config(ws).get('token_cap', 15000)} ｜ 状态: {p_res.get('status', '正常')})")
+                print(f"📦 装配包已生成: {p_res['target_pack']} ({p_res['size_bytes']} 字节 ｜ 估算 Token: {p_res.get('estimated_tokens', 0)} / {load_config(ws).get('token_cap', 12000)} ｜ 状态: {p_res.get('status', '正常')})")
                 if p_res.get("over_budget"):
                     print("   ⚠️ 装配包超出 token_cap 预算：Drafter 上下文可能被截断，建议拆分细纲或 `config set token_cap`。")
             else:
@@ -564,6 +564,21 @@ def main(argv: Optional[List[str]] = None) -> int:
                     print(f"      - {_frag}…{('（' + _conf + '）') if _conf else ''}")
             if f_res.get("recipe_zero_warning"):
                 print(f"   ⚠️ {f_res['recipe_zero_warning']}")
+            # 固定词表命中公示：作者定好的死规则必须可见，否则改没改看不出。
+            # is_rebuild_only 时说明本次是从源稿原样重建、final 字节未变，
+            # 免得作者看到"替换 10 处"却以为更新了内容。
+            if f_res.get("lexicon_total"):
+                _parts = []
+                for h in f_res["lexicon_hits"][:6]:
+                    if h.get("mode") == "rotate":
+                        _parts.append(f"{h['word']}⇒轮换({h['to']})")
+                    elif h.get("mode") == "delete":
+                        _parts.append(f"删{h['word']}×{h['count']}")
+                    else:
+                        _parts.append(f"{h['word']}→{h['to']}×{h['count']}")
+                _more = f" 等 {len(f_res['lexicon_hits'])} 条" if len(f_res["lexicon_hits"]) > 6 else ""
+                _suffix = "（源稿重建，final 无变化）" if f_res.get("is_rebuild_only") else ""
+                print(f"   📖 固定词表处理 {f_res['lexicon_total']} 处：{'、'.join(_parts)}{_more}{_suffix}")
             return 0
 
         elif args.command == "proposal":
@@ -613,7 +628,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             )
             # v4.3：等待超时同样视为阻断（此前只认 brake，超时会静默 exit 0）
             braked = any(r.get("status") in ("brake", "timeout") for r in report.get("results", []))
-            # FIND-CT75（无人值守友好）：巡航报告旧版被 `[:1500]` 硬截断——
+            # FIND-CT75（无人值守友好）：巡航报告旧版被 `[:2000]` 硬截断——
             # 半截 JSON 既 json.loads 不了，也看不出刹车原因与自愈动作，
             # 无人值守只能靠人眼猜（第四轮实测踩坑：报告尾部整段蒸发）。
             # 现全量落盘 log/cruise_report.json 供机器判读，控制台打印完整 JSON。

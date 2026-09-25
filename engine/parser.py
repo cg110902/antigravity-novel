@@ -388,7 +388,7 @@ def parse_mini_yaml(text: str) -> Dict[str, Any]:
                     break
                 if ":" in line:
                     k, v_str = _split_key_value(line)
-                    # FIND-CT18（parser P-3·多行文本静默蒸发）：YAML 块标量
+                    # FIND-CT20（parser P-3·多行文本静默蒸发）：YAML 块标量
                     # （`key: |` / `key: >`）旧版把 `|` 当标量值，后续多行内容
                     # 因无冒号被逐行静默丢弃——伏笔 desc/锁定 fact 的多行描述
                     # 整体消失且零告警。内置解析器明确不支持块标量，遇到即显式

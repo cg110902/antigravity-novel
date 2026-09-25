@@ -9,6 +9,9 @@ tier_name: "{{slot:antagonist_tier_name|当前实力层阶/反派职级称号}}"
 power_benchmark: "{{slot:antagonist_power_benchmark|反派破坏力/压迫感实物标尺}}"
 faction: "{{slot:antagonist_faction|所属敌对阵营/垄断组织/反派势力}}"
 sensory_anchor: "{{slot:antagonist_sensory_anchor|标志性阴冷物象/威严着装/压迫感气场记忆物象}}"
+# stats: # 可选量化属性面板（游戏/玄幻数值/科幻战力等题材启用，非量化题材省略）
+#   combat_power: 500
+#   special_stat: 200
 status: active
 address_matrix:
   "{{slot:protagonist|主角名}}": "{{slot:antagonist_addr_to_mc|对主角称呼（如：蔑称/正式称呼/讥讽称谓）}}"
@@ -78,9 +81,9 @@ schema_version: novel-studio.character/v2
 
 ---
 
-## 四、 习惯微动作与压迫感神态库（去脸谱化专属细节）
+## 四、 习惯动作与压迫感神态库（去脸谱化专属细节）
 
-<!-- 💡 赋予反派独特的生理反应与从容施压神态，拒绝无脑脸谱化反派： -->
+<!-- 💡 赋予反派独特的反应与从容施压神态，拒绝无脑脸谱化反派： -->
 
 - **从容施压/掌控全场时**：{{slot:antagonist_act_dominate|自行设定（如：漫不经心整理袖扣、语调轻缓却带着不容置疑的重压）}}
 - **虚伪温和/面具伪装时**：{{slot:antagonist_act_polite|自行设定（如：笑容温煦得体但眼角无半点波纹、举手投足极具风度）}}

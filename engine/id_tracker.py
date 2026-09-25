@@ -482,7 +482,7 @@ def trace_id(workspace: Path, target_id: str) -> Dict[str, Any]:
             if _pf.get("power_benchmark"):
                 lines.append(f"   - 战力标尺：{_pf['power_benchmark']}")
             if _pf.get("micro_actions"):
-                lines.append(f"   - 微动作库：{'、'.join(_pf['micro_actions'])}")
+                lines.append(f"   - 动作库：{'、'.join(_pf['micro_actions'])}")
             if _pf.get("dossier"):
                 lines.append(f"   - 档案：{_pf['dossier']}")
             lines += [
@@ -1052,7 +1052,7 @@ def check_id_integrity(workspace: Path, chapter_id: Optional[str] = None) -> Dic
                     )
 
             # 死者登场硬阻断 (Anti-Resurrection Guard · 时序因果校验)
-            # 仅当当章章节号晚于角色阵亡章节时阻断（在阵亡当章登场属于合法生理事实）
+            # 仅当当章章节号晚于角色阵亡章节时阻断（在阵亡当章登场属于合法事实）
             from engine.state import get_death_chapter
 
             def _ch_num(cid_str: str) -> int:

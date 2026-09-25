@@ -1095,10 +1095,14 @@ class StateManager:
         self.synopsis_file = self.state_dir / "synopsis.json"
         self.debts_file = self.state_dir / "debts.json"
         self.relations_file = self.state_dir / "relations.json"
+        self.milestones_file = self.state_dir / "milestones.json"
         self.co_occurrence_file = self.indices_dir / "co_occurrence.json"
         self.entity_timeline_file = self.indices_dir / "entity_timeline.json"
 
     # --- 读取接口 ---
+    def get_milestones(self) -> List[Dict[str, Any]]:
+        return _load_json(self.milestones_file, default=[])
+
     def get_co_occurrence(self) -> Dict[str, Any]:
         return _load_json(self.co_occurrence_file, default={})
 
@@ -1117,6 +1121,7 @@ class StateManager:
             "relations": self.get_relations(),
             "debts": self.get_debts(),
             "locked_facts": self.get_locked_facts(),
+            "milestones": self.get_milestones(),
             "synopsis": self.get_synopsis().get(chapter_id, {}),
         }
         dest = self.history_dir / f"{chapter_id}.json"
@@ -1440,7 +1445,7 @@ class StateManager:
                             apply_name_update(_efrec, ename, eid, "势力", healed)
                         _paste_declared(_efrec, ne, _FACTION_FM_FIELDS)
                         _mark_updated(_efrec, ch_id)
-            # v4.3.2 缺陷#18（P0 · 阻断章仍污染台账）：旧版在此立即落盘 new_entities，
+            # v4.3.2 缺陷#20（P0 · 阻断章仍污染台账）：旧版在此立即落盘 new_entities，
             # 而事务预检（死者登场 / 充能透支）在下方第 2 节才执行 —— 一旦预检 raise，
             # 本章的新人物/新道具/新地点/新势力已经写进台账且无人回滚。
             # 实测：cruise 在 ch_016 因充能透支刹车，p_017「守关人16」与 loc_016 仍被建档，
@@ -1647,7 +1652,7 @@ class StateManager:
             # 预检不通过：此刻尚未发生任何写盘，新实体随内存一并丢弃（零污染）。
             raise GuardError("\n".join(_fatal))
 
-        # 预检通过，方可落盘本章新实体（v4.3.2 缺陷#18）
+        # 预检通过，方可落盘本章新实体（v4.3.2 缺陷#20）
         for _pf, _pdb in _pending_entity_writes:
             _save_json(_pf, _pdb)
 
@@ -1929,6 +1934,11 @@ class StateManager:
         # 2.5 同步地点足迹与自动打捞建档
         if location_str:
             places_db = self.get_places()
+            _scene_env = frontmatter.get("scene_environment") if isinstance(frontmatter.get("scene_environment"), dict) else {}
+            _sensory = str(_scene_env.get("sensory_focus") or frontmatter.get("sensory_anchor") or "").strip()
+            _raw_rules = _scene_env.get("environment_rules") or frontmatter.get("environment_rules") or []
+            _env_rules = [_raw_rules] if isinstance(_raw_rules, str) else (list(_raw_rules) if isinstance(_raw_rules, list) else [])
+
             loc_match = re.search(r"(loc_\d+)", location_str)
             found_id = loc_match.group(1) if loc_match else None
             if not found_id:
@@ -1946,13 +1956,18 @@ class StateManager:
                     places_db[found_id].setdefault("visited_chapters", [])
                     if ch_id not in places_db[found_id]["visited_chapters"]:
                         places_db[found_id]["visited_chapters"].append(ch_id)
+                    # 增量自愈：若已有地点缺少物象或规则，且当前细纲提供了声明，自动补充
+                    if not places_db[found_id].get("sensory_anchor") and _sensory:
+                        places_db[found_id]["sensory_anchor"] = _sensory
+                    if not places_db[found_id].get("environment_rules") and _env_rules:
+                        places_db[found_id]["environment_rules"] = _env_rules
                 else:
                     places_db[found_id] = {
                         "id": found_id,
                         "name": location_str,
                         "danger_level": "普通",
-                        "sensory_anchor": "",
-                        "environment_rules": [],
+                        "sensory_anchor": _sensory,
+                        "environment_rules": _env_rules,
                         "summary": "",
                         "visited_chapters": [ch_id],
                     }
@@ -1964,8 +1979,8 @@ class StateManager:
                     "id": new_lid,
                     "name": location_str,
                     "danger_level": "普通",
-                    "sensory_anchor": "",
-                    "environment_rules": [],
+                    "sensory_anchor": _sensory,
+                    "environment_rules": _env_rules,
                     "summary": "",
                     "visited_chapters": [ch_id],
                 }
@@ -2280,6 +2295,47 @@ class StateManager:
                 curr_rel["history"] = rel_hist
                 rel_db[pair_key] = curr_rel
             _save_json(self.relations_file, rel_db)
+
+        raw_ms = (
+            frontmatter.get("milestone_deltas")
+            or (state_deltas.get("milestone_deltas") if isinstance(state_deltas, dict) else None)
+            or (state_deltas.get("milestones") if isinstance(state_deltas, dict) else None)
+        )
+        ms_deltas = [raw_ms] if isinstance(raw_ms, dict) else (raw_ms if isinstance(raw_ms, list) else [])
+        if ms_deltas:
+            ms_list = self.get_milestones()
+            ms_map = {m.get("id"): m for m in ms_list if isinstance(m, dict) and m.get("id")}
+            for md in ms_deltas:
+                if not isinstance(md, dict):
+                    continue
+                ms_id = str(md.get("id", "") or "").strip()
+                action = str(md.get("action", "advance") or "advance").strip().lower()
+                summary = str(md.get("summary", "") or "").strip()
+                if not ms_id:
+                    continue
+                if ms_id in ms_map:
+                    if action in ("achieve", "achieved", "达成", "完成"):
+                        ms_map[ms_id]["status"] = "achieved"
+                        ms_map[ms_id]["achieved_ch"] = ch_id
+                    elif action in ("advance", "progress", "推进"):
+                        ms_map[ms_id]["last_advanced_ch"] = ch_id
+                        if summary:
+                            ms_map[ms_id]["latest_progress"] = summary
+                else:
+                    new_ms = {
+                        "id": ms_id,
+                        "title": summary[:20] if summary else ms_id,
+                        "desc": summary,
+                        "status": "achieved" if action in ("achieve", "achieved", "达成", "完成") else "pending",
+                        "established_ch": ch_id,
+                    }
+                    if action in ("achieve", "achieved", "达成", "完成"):
+                        new_ms["achieved_ch"] = ch_id
+                    else:
+                        new_ms["last_advanced_ch"] = ch_id
+                    ms_list.append(new_ms)
+                    ms_map[ms_id] = new_ms
+            _save_json(self.milestones_file, ms_list)
 
         # 5. 登记法定锁定事实 (locked.json)
         raw_lfs = frontmatter.get("locked_facts")

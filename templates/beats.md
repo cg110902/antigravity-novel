@@ -1,109 +1,103 @@
 ---
 # ==============================================================================
-# 💡【细纲编制契约 · 轻量化 Frontmatter】
-# 🔴 核心必填：chapter_id, volume_id, title, present_characters (id+name+role), 断章刀口。
-# 🟢 状态增量与伏笔全为【按需声明】：有则声明入账，无则留空或缺省！
+# 💡【全题材通用编剧细纲契约 · Universal Beats Frontmatter】
+# 🔴 核心必填：chapter_id, volume_id, title, chapter_type, timeline, location,
+#             present_characters (id+name+role+want+fear+status_in), 断章刀口。
+# 🟢 动态增量【按需填报·无变动保持空列表[]】：foreshadowing_deltas, state_deltas,
+#                                         relation_deltas, new_entities, locked_facts。
+# 🌐 规范：一句话原则（字段 ≤ 15字），严禁小作文，动态增量按需按实申报。
 # ==============================================================================
 chapter_id: "{{slot:chapter_id|ch_XXX}}"
 volume_id: "{{slot:volume_id|vol_01}}"
 title: "{{slot:title|章节名}}"
 chapter_type: "{{slot:chapter_type|破局}}" # 节奏遥测: 破局/铺垫/过渡/爆发/回收/余韵
-timeline: "{{slot:timeline|小说历纪年·时空时间}}"
-location: "{{slot:location|核心场景名}}" # 场景名建议使用“主场景·微观现场”格式（如：黑石矿区·三号矿道），便于引擎自动对齐层级、提取空间规则与感官物象
+timeline: "{{slot:timeline|时空时间}}"
+location: "{{slot:location|核心场景名}}" # 推荐格式：“主场景·微观现场”（如：北灵城·楚宅灵堂）
 
-# 0. 航标锚定：本章在全书与本卷宏观版图中的定位
+# 0. 航标锚定：一句话核心目标
 narrative_spine:
   thread: "{{slot:thread|主线·核心冲突推进}}"
   volume_phase: "{{slot:volume_phase|阶段一：开局破局}}"
-  macro_goal: "{{slot:macro_goal|本阶段跨章核心战役目标}}"
+  macro_goal: "{{slot:macro_goal|本阶段跨章核心战役/剧情目标（≤25字）}}"
+  active_milestone: "{{slot:active_milestone|无}}"
 
-# 1. 在场人物追踪（极简结构）
+# 1. 场景微观物理规则与感官锚点（视觉/听觉/温度触感，严禁嗅觉）
+scene_environment:
+  sensory_focus: "{{slot:env_sensory|核心感官聚焦：视觉、听觉、温度触感（严禁嗅觉，≤30字）}}"
+  environment_rules:
+    - "{{slot:env_rule_1|空间物理规则或限制（如：灵堂禁武/宵禁封锁/阵法压制，≤20字）}}"
+
+# 2. 在场人物追踪（极简结构 · 严禁死者登场 · 每项 ≤ 15字）
 present_characters:
   - id: "{{slot:char_1_id|p_001}}"
     name: "{{slot:char_1_name|主角名}}"
     role: "protagonist"
-    want: "{{slot:char_1_want|本章核心利益诉求}}"
-    fear: "{{slot:char_1_fear|本章最忌惮暴露的底牌或软肋}}"
-    status_in: "{{slot:char_1_status_in|入场状态：如 完好/微伤/隐忍戒备}}"
+    want: "{{slot:char_1_want|本章即时利益诉求（≤15字）}}"
+    fear: "{{slot:char_1_fear|本章即时忌惮/软肋（≤15字）}}"
+    status_in: "{{slot:char_1_status_in|入场状态（≤15字）}}"
   - id: "{{slot:char_2_id|p_002}}"
-    name: "{{slot:char_2_name|核心对手/反派名}}"
-    role: "{{slot:char_2_role|antagonist}}"
-    want: "{{slot:char_2_want|本章核心算计/施压目的}}"
-    fear: "{{slot:char_2_fear|忌惮之处/死穴}}"
-    status_in: "{{slot:char_2_status_in|入场状态：如 盛气凌人/暗中试探}}"
+    name: "{{slot:char_2_name|核心对手或重要配角名}}"
+    role: "{{slot:char_2_role|antagonist}}" # antagonist(对手) | deuteragonist(副主) | supporting(重要配角)
+    want: "{{slot:char_2_want|本章核心算计/试探目的（≤15字）}}"
+    fear: "{{slot:char_2_fear|忌惮之处/死穴（≤15字）}}"
+    status_in: "{{slot:char_2_status_in|入场状态（≤15字）}}"
 
-# 2. 信息认知界限（谁知道什么，谁绝对不知道什么 · 严防角色全知天眼穿帮）
+# 3. 信息认知界限（防全知天眼穿帮 · 仅记录核心关键盲区）
 epistemology:
   known:
     "{{slot:char_1_id|p_001}}":
-      - "{{slot:char_1_knows|明确知晓的事实}}"
+      - "{{slot:char_1_knows|知晓的关键事实（≤20字）}}"
     "{{slot:char_2_id|p_002}}":
-      - "{{slot:char_2_knows|对方知晓的有限事实}}"
+      - "{{slot:char_2_knows|对方知晓的有限事实（≤20字）}}"
   blind_spots:
     "{{slot:char_2_id|p_002}}":
-      - "{{slot:char_2_blind|对方绝对不知道的秘密（严禁正文脱口而出）}}"
+      - "{{slot:char_2_blind|对方绝对不知晓的秘密（≤20字）}}"
 
-# 3. 伏笔与暗线生命周期（按需声明：plant 新埋 / reveal 推进 / resolve 闭环）
-foreshadowing_deltas:
-  - id: "{{slot:line_1_id|GUN-001}}"
-    name: "{{slot:line_1_name|伏笔名}}"
-    action: "{{slot:line_1_action|reveal}}" # plant(埋设) | reveal(推进) | resolve(回收)
-    desc: "{{slot:line_1_desc|线索特征与因果描述}}"
+# 4. 动态增量声明（按需填报：本章无变动保持空列表 []，严禁硬编；若有变动参考注释语法填实）
+foreshadowing_deltas: []
+# 伏笔参考语法:
+# - id: "GUN-001"
+#   name: "伏笔名"
+#   action: "reveal"  # plant(新埋) | reveal(推进) | resolve(回收闭环)
+#   desc: "线索特征与因果描述"
 
-# 4. 状态增量声明（出场状态变动、道具流转、资金流水、恩怨结成；由 Stage 5 sync 自动化确定性入账）
 state_deltas:
-  character_status:
-    "{{slot:char_1_id|p_001}}": "{{slot:char_1_status_out|出场状态：如 位阶突破 / 身体受创 / 心境升华}}"
-  # 选填：生死契约为四态，只有「死亡」必须显式声明；其余状态可留空（引擎不逼填、不报错）
-  #   alive 在世 ｜ deceased 阵亡（须同时写 locked_facts）｜ missing 失踪/下落不明 ｜ unknown 生死不明
-  #   missing / unknown 都**不是死亡**：不进已故黑名单、后续章节仍可登场；引擎会把该角色
-  #   列进编剧简报的「❓ 生死不明人物悬念账」，此后各章不得擅自坐实其生死，直到某章显式定论。
-  # 字典形态写法（需要显式改生死状态时才用；注释里的示例请勿照抄进正文块）：
-  #   character_status:
-  #     "p_008":
-  #       life_status: "unknown"          # 生死不明（坠崖/沉船/爆炸后未确认）
-  #       condition: "被击落护城河，生死不明（未确认死亡）"
-  #   中文同义写法（生死不知 / 生死未卜 / 失联 / 下落不明…）引擎会自动归一，无需死记枚举。
-  # 选填：道具流转、充能与状态损耗（无变动可省略或保留空）
-  # items:
-  #   - id: "it_001"
-  #     name: "道具名"
-  #     holder_change: "p_001 -> p_002"  # 持有者流转
-  #     charges_delta: -1                 # 充能消耗（负数为扣减，正数为充能）
-  #     status: "active"                  # active(活跃) | consumed(消耗) | destroyed(损毁) | lost(遗失)
-  #     durability: "完好"                # 耐久状态或损耗描述
-  # 选填：经济流水增减（无变动可省略）
-  # ledger:
-  #   pool: "通用资金池"
-  #   delta: "+500"                       # 增减数值（+收入 / -支出）
-  #   reason: "押运赏金入账"               # 选填：本笔事由（供资金池遥测与卷末对账溯源）
-  debts:
-    - source: "{{slot:debt_source|p_001}}"   # 结怨发起方（缺省自动按 p_001 主角记账）
-      target: "{{slot:debt_target|恩怨对象名}}"
-      type: "{{slot:debt_type|grudge}}" # grudge(仇怨) | favor(人情) | promise(誓约)
-      desc: "{{slot:debt_desc|具体过节或恩义内容}}"
-      action: "{{slot:debt_action|record}}" # record(新结成) | settle(彻底平账)
+  character_status: {}
+  # 状态参考: p_001: "筑基初期·状态更新" ｜ p_005: "deceased" (阵亡)
 
-# 5. 双向动态心理状态（张力指数 0~100）
-relation_deltas:
-  - source: "{{slot:char_1_id|p_001}}"
-    target: "{{slot:char_2_id|p_002}}"
-    tension: "{{slot:rel_tension|75}}"
-    dynamic: "{{slot:rel_dynamic|表面客套·暗中博弈}}"
-    subtext: "{{slot:rel_subtext|利益争端/未挑明的死结}}"
+  items: []
+  # 道具流转参考:
+  # - id: "it_001"
+  #   name: "道具名"
+  #   holder_change: "新持有者角色名"
 
-# 6. 新登场实体与不可逆事实锁定（选填：正文新涌现的人物/道具/地点可在此声明，或由 Stage 4A Auditor 提纯后自动回填）
-# new_entities:
-#   - id: "p_003"                       # 人物以 p_ 开头，道具 it_，地点 loc_，势力 fac_（缺省由引擎发号）
-#     type: "character"                 # character | item | place | faction
-#     name: "角色名"
-#     role: "supporting"                # supporting | antagonist | minor
-#     tier_name: "实力阶层/品阶"
-#     summary: "一句话身份或背景定位"
-#     sensory_anchor: "核心外貌特征或标志性物象"
+  debts: []
+  # 恩怨誓约参考:
+  # - source: "p_001"
+  #   target: "恩怨对象名"
+  #   type: "grudge"  # grudge(仇怨) | favor(人情) | promise(誓约) | blood_feud(血仇)
+  #   desc: "具体过节或誓约内容"
+  #   action: "record"  # record(新结成) | settle(彻底平账)
+
+relation_deltas: []
+# 人际关系参考:
+# - source: "p_001"
+#   target: "p_002"
+#   tension: "80"
+#   dynamic: "表面客套·暗中博弈"
+#   subtext: "利益争端/未挑明的死结"
+
 new_entities: []
-# locked_facts: 不可逆法定事实（如角色阵亡、宗门覆灭、立下誓约；一经锁定全书不可变造）
+# 新登场实体参考:
+# - id: "p_007"
+#   type: "person"
+#   name: "新有名配角名"
+#   summary: "身份背景与战力简介"
+
 locked_facts: []
+# 既成法定事实参考:
+# - id: "LOCK-004"
+#   desc: "本章确立的不可逆既成物理事实"
 ---
 
 {{slot:engine_briefing_dossier}}
@@ -112,41 +106,48 @@ locked_facts: []
 
 ---
 
-## 🎯 一、 核心戏剧目标与爽点
+## 🎯 一、 戏眼与有效增量（Spine & Delta）
 
-- **本章核心戏剧目标**：
-  {{slot:dramatic_goal|一句话写明当章核心事件与破局关键}}
-- **独家看点**：
-  {{slot:anti_cliche_twist|拒绝平铺直叙流水账}}
-- **绝对负向红线（Scene Taboos）**：
-  1. 【规则/战力禁忌】：{{slot:taboo_logic|不可打破的世界法则、战力实物标尺或客观限制}}
-  2. 【人设/动机禁忌】：{{slot:taboo_persona|在场角色绝不可出现的降智妥协、面瘫无脑或性格崩坏}}
-  3. 【叙事/套路禁忌】：{{slot:taboo_plot|绝不可落入的俗套陈词或生硬机械降神}}
+- **本章核心戏眼**：
+  {{slot:dramatic_goal|一句话矛盾对抗核心（≤25字）}}
+- **局势实质转变（不可逆增量）**：
+  - 核心实质动作：{{slot:dramatic_action|主角或对手采取的不可逆外部行动（≤25字）}}
+  - 局势实质转变：{{slot:situational_shift|外部环境、人际关系或危机状态的实质变化（≤25字）}}
+- **绝对负向写作围栏（写手必须恪守的红线）**：
+  1. 【规则/战力围栏】：{{slot:taboo_logic|不可打破的世界法则、战力实物标尺或客观限制}}
+  2. 【人设/动机围栏】：{{slot:taboo_persona|在场角色绝不可出现的降智妥协、面瘫无脑或油腻倒贴}}
+  3. 【叙事/防注水围栏】：严禁重复前情科普；恪守通用十条红线（禁嗅觉、禁省略号切幕、禁冷笑垄断等）。
 
 ---
 
-## 🎬 二、 核心场景脉络（建议 1~2 个核心大场景，拒绝碎片化流水账）
+## 🎬 二、 双幕动作阶梯（Action Ladder · 严禁写死长对白，只定攻防台阶）
 
-### 场景一（[视点人] 地点/事件 ）
-- 🎯 核心冲突与阻碍：自行设定
-- ⚔️ 对抗博弈与对白：自行设定
-- 💓 情绪流向与心理台阶：自行设定
-- 🌊 承上启下气口（如何自然引向下一场景或章末）：自行设定
+### 场景一：{{slot:scene_1_title|场景名}}
+- **空间与物理清场**：{{slot:scene_1_space|发生地点}}（全场物理清场，抽走多余道具拐杖，聚焦冲突）
+- **核心动作阶梯**：
+  - 阶梯一（起势/施压）：{{slot:scene_1_step1|动作与动机交锋第一步}}
+  - 阶梯二（对抗/交锋）：{{slot:scene_1_step2|局势升级与阻碍对撞}}
+  - 阶梯三（转折/代价）：{{slot:scene_1_step3|阶段性结果与转场承接}}
+- **对白核心（仅规划 1 组关键台词潜台词，其余由写手临场发挥）**：
+  - {{slot:scene_1_dialogue|关键对白潜台词要点}}
 
-### 场景二（可选 ｜ [视点人] 地点/事件 ）
-- 🎯 矛盾升级与破局代价：自行设定
-- ⚔️ 高光展现或意外变故：自行设定
-- 💓 情绪流向与心理台阶：自行设定
-- 🌊 承上启下气口（收束引向章末绝杀定格）：自行设定
+### 场景二：{{slot:scene_2_title|场景名}}
+- **空间与物理清场**：{{slot:scene_2_space|发生地点}}
+- **核心动作阶梯**：
+  - 阶梯一（升级/逼近）：{{slot:scene_2_step1|危机升级与正面交锋}}
+  - 阶梯二（破局/反制）：{{slot:scene_2_step2|主角破局手段或反击动作}}
+  - 阶梯三（停格定势）：{{slot:scene_2_step3|高潮定格切口}}
+- **对白核心（仅规划 1 组关键台词潜台词，其余由写手临场发挥）**：
+  - {{slot:scene_2_dialogue|关键对白潜台词要点}}
 
 ---
 
 ## 🪝 三、 章末定格·断章刀口（Cliffhanger · 拒绝抒情总结，停在动作瞬间）
 
-- **绝杀断章刀型（3 选 1）**：
-  - [ ] **【A: 动作骤停刀】**：关键动作、异响或危机悬在半空，答案就在下一秒；
-  - [ ] **【B: 认知反转刀】**：既定事实瞬间颠覆，撕开反常真相或致命底牌；
-  - [ ] **【C: 绝境倒计时刀】**：危机比预估提前降临，退路被瞬间切断；
+- **绝杀断章刀型**：
+  - [x] **【A: 动作骤停刀】**
+  - [ ] **【B: 认知反转刀】**
+  - [ ] **【C: 绝境倒计时刀】**
 
 - **物理定格画面**：
-  {{slot:cliffhanger|定格在何处具体悬念瞬间，让读者产生必点下一章的生理冲动}}
+  {{slot:cliffhanger|一句话停格画面}}

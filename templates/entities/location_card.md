@@ -5,7 +5,7 @@ type: place
 danger_tier: {{slot:location_danger_tier|1}}
 danger_level: "{{slot:location_danger_desc|日常生活场所/核心办公地/公共活动区/特殊场景}}"
 faction: "{{slot:location_faction|所属机构/管辖归属/中立区域}}"
-sensory_anchor: "{{slot:location_sensory_anchor|空间格局、采光、氛围与核心视觉物象}}"
+sensory_anchor: "{{slot:location_sensory_anchor|空间格局、采光、氛围与核心视觉物象（严禁写气味/嗅觉）}}"
 environment_rules:
   - "{{slot:location_rule_1|场所规则/出入准则1}}"
   - "{{slot:location_rule_2|环境特点/特殊氛围2}}"
@@ -39,8 +39,8 @@ schema_version: novel-studio.location/v2
 
 - **空间尺度与建筑/环境格局**：
   {{slot:location_layout|例如：挑高宽敞的落地窗大厅，阳光通透，木质长桌与绿植点缀 / 幽静素雅的庭院（自行设定）}}
-- **感官物象（光线、气味、温度、声效）**：
-  {{slot:location_sensory|淡淡的现磨咖啡香气、柔和轻缓的背景音乐、清爽宜人的空气温度（自行设定）}}
+- **感官物象（光线、温度、声效 · 严禁气味）**：
+  {{slot:location_sensory|柔和的自然采光与暖色灯影、清爽宜人的空气温度、轻缓的背景音乐（自行设定；严禁写入任何气味/嗅觉描写）}}
 - **核心标志性物象（Centerpiece Anchor）**：
   {{slot:location_sensory_anchor|靠窗边的一方静谧座位 / 大厅正中央的标志性设计（自行设定）}}
 

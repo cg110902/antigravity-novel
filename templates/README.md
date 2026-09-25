@@ -14,6 +14,7 @@
 ```text
 templates/
 ├── project.json                   # 引擎种子配置（scope 商业标尺 + engine 旋钮；词表类旋钮缺席时回落引擎内置全题材默认值，`config guide` 可查）
+├── lexicon.json                   # 固定词表（作者死规则：Stage 5 finalize 确定性替换/删除/轮换/保护，无需 LLM 判断）
 ├── beats.md                       # 单章细纲任务书模板（含主线航标绑定、在场人物弧阶段、负向禁忌红线、事件推演、交付契约）
 ├── bible/                         # 全书世界观与运转公理词典模块（Stage 0 深度筑基）
 │   ├── 01_world_axioms.md         # 世界底色、底层公理与运转机制（含金手指运转逻辑）
@@ -23,7 +24,7 @@ templates/
 │   ├── 05_special_mechanics.md    # 特殊机制、体质/血脉/职业谱系与代偿惩戒法则
 │   └── 06_deviations.md           # 本书偏离清单与核心创作红线（推翻传统套路声明）
 ├── characters/                    # 角色全息卡模板
-│   ├── protagonist.md             # 主角高维专属全息卡（含万古底蕴、心理四维、防冷脸微动作、绝对称谓矩阵）
+│   ├── protagonist.md             # 主角高维专属全息卡（含万古底蕴、心理四维、防冷脸动作、绝对称谓矩阵）
 │   ├── antagonist.md              # 核心反派/宿敌全息卡（扭曲心理四维、压迫表现标尺、爪牙走狗网络、称谓矩阵、溃败破局钥匙）
 │   └── character_card_standard.md # 标准重要配角/女主/关键搭档全息卡模板
 ├── entities/                      # 非人物类实体全息卡模板（彻底终结道具势力无卡裸奔顽疾）
@@ -41,7 +42,8 @@ templates/
 
 | 模板源文件 | `studio.py init` 目标路径 | 负责角色 | 核心功能与引擎联动 |
 |---|---|---|---|
-| `project.json` | `project.json` | 引擎自动 ➔ Stage 0A 填实 | **8 个顶层键**：`schema`/`title`/`genre`/`protagonist`/`scope`/`engine`/`current_status`/`created_at`。`scope` 存商业标尺（target_words/target_volumes/chapters_per_volume/words_per_chapter，作为写手指引而非硬性代码拦截）；`engine` 存引擎旋钮：`token_cap`/`cruise_max_chapters`/`cruise_human_gate`/`cruise_wait_timeout`/`default_pool`（v4.3.2 缺陷#26：原文所列 `style_*` 系 style 命令于 v4.2 退役后的文档残留，引擎中从不存在该旋钮，已删除）。彻底移除一切死板的字数容差、对白比例、排版限制与硬编码词表。全量旋钮清单与当前值：`config guide` |
+| `project.json` | `project.json` | 引擎自动 ➔ Stage 0A 填实 | **8 个顶层键**：`schema`/`title`/`genre`/`protagonist`/`scope`/`engine`/`current_status`/`created_at`。`scope` 存商业标尺（target_words/target_volumes/chapters_per_volume/words_per_chapter，作为写手指引而非硬性代码拦截）；`engine` 存引擎旋钮：`token_cap`/`cruise_max_chapters`/`cruise_human_gate`/`cruise_wait_timeout`/`default_pool`（v4.3.2 缺陷#26：原文所列 `style_*` 系 style 命令于 v4.2 退役后的文档残留，引擎中从不存在该旋钮，已删除）。彻底移除一切死板的字数容差、对白比例、排版限制与**引擎内硬编码词表**（注意区分：`lexicon.json` 是**作者维护的外部词表文件**，非引擎内置硬编码，不违反此原则）。全量旋钮清单与当前值：`config guide` |
+| `lexicon.json` | `lexicon.json` | 引擎自动播种**空骨架** ➔ 作者手工维护 | **固定词表**（v4.5.0 新增）：作者事先定好的死规则。三段——`lexicon`（**定值替换**，空串＝删除，如「猪肝色→青紫色」）、`rotate`（**轮换**，同一词按出现次序取不同候选以制造多样性）、`protect`（**保护**，固定词组整体豁免，如「安安静静」「年纪轻轻」）。由 Stage 5 `finalize` 在配方之后**确定性执行**，不做语境判断。长词优先、保护词优先、单遍不链式（幂等）；轮换起点由「章号+原词」哈希决定，同章重跑一致、跨章错开。**已存在不覆盖**——作者的词表是手工资产，`init` 绝不抹掉；且**只播种空骨架、不复制基线**（全局基线 `templates/lexicon.json` 自动叠加生效，复制进书会造成"改基线对旧书无效"）。格式损坏硬阻断（exit 1），文件缺失合法（功能未启用）。详见 `engine/README.md`「固定替换词表」节 |
 | `bible/01_world_axioms.md` | `bible/01_world_axioms.md` | Stage 0A (Architect-World) | 世界底层物理与逻辑公理，金手指运转机制 |
 | `bible/02_power_system.md` | `bible/02_power_system.md` | Stage 0A (Architect-World) | 力量/社会地位实物标尺，默认恒给 `pack` P0 时空胶囊 |
 | `bible/03_factions_geography.md` | `bible/03_factions_geography.md` | Stage 0A (Architect-World) | 地缘版图与势力利益冲突，默认恒给 `pack` P0 时空胶囊 |
@@ -98,6 +100,7 @@ templates/
      - `tier_name`: 境界/职级法定称号（如 `"通玄境后期"`、`"玄阶中品"`、`"A级"`）
      - `realm`: 修炼大境界划分（`str`）
      - `power_benchmark`: 破坏力与防御物理实物标尺（`str`）
+     - `stats`: 量化属性/能力面板（`dict[str, Any]`，如 `{"hp": "...", "mp": "...", "combat_power": 120}`，用于游戏/高武/异能/科幻等量化题材；非量化题材可省略）
    - 🩺 **生命与存在状态**：
      - `status`: 实体活跃状态（严格枚举：`active` 活跃, `retired` 隐退/沉睡）
      - `life_status`: 生命体生死状态（枚举：`alive` 在世, `deceased` 阵亡, `missing` 失踪/下落不明, `unknown` 生死不明）
@@ -128,12 +131,55 @@ templates/
      - `danger_level`: 危险评级文字说明（`str`，如“安全腹地/争端前线/绝地死境”，与 `danger_tier` 形成数值孪生）
      - `environment_rules`: 地理环境法则与准入门槛（`array[str]`）
    - 🎭 **感官物象、叙事元数据与称谓锁（防冷脸与防吃书）**：
-     - `sensory_anchor`: 标志性外观、穿戴、气味与视觉记忆物象（`str`）
-     - `micro_actions`: 标志性习惯微动作与神态库（`array[str]`）
+     - `sensory_anchor`: 标志性外观、穿戴与视觉记忆物象（`str`；**严禁气味/嗅觉**）
+     - `micro_actions`: 标志性习惯动作与神态库（`array[str]`）
      - `address_matrix`: 对特定实体的法定称谓映射（`{"目标名": "我称呼对方"}`）
      - `relations`: 与特定实体的动态张力网络（`[{"target": "角色名", "type": "rival", "desc": "宿敌"}]`）
      - `dossier`: 恩怨羁绊、历史过节与交互备忘（`str`）
      - `scope`: 所属分卷生命周期（如 `vol_01`；省略表示全书通用）
      - `golden_quote`: 首次高光定稿切片（100~200字物象细节；卡片级展示字段，引擎忽略）
      - `schema_version`: 卡片或实体规范版本（`str`，如 `novel-studio.character/v2`；卡片级元数据，引擎忽略）
- 
+
+---
+
+## 五、 底层台账全息架构与新书通电规范（State Tables Blueprint for New Books）
+
+在新书初始化后，由 **Stage 0B (`novel-architect-story`)** 对 `state/` 八表进行全息通电，并由 **Stage 0C (`novel-architect-inspector`)** 进行硬闸门核验。各表规范与核心要素如下：
+
+1. `state/persons.json`（角色全息台账）：
+   - 登记主角 `p_001`、反派 `p_002` 及首卷核心配角；
+   - 必须包含 `id`, `name`, `type: "person"`, `role`, `tier_rank`, `tier_name`, `power_benchmark`, `faction`, `status: "active"`, `card`；
+   - 若为量化题材（游戏/高武/数值异能），必须配置 `stats` 字典（如 `{"hp": "...", "combat_power": 100}`）。
+
+2. `state/places.json`（场景与空间台账）：
+   - 登记开局核心场景与首卷关键地标；
+   - **硬性规范**：除 `id`, `name`, `type: "place"`, `danger_tier`, `danger_level` 外，**必须完整同步 `sensory_anchor`（空间采光、核心视觉物象）与 `environment_rules`（环境准则/出入法则）**。严禁留空，确保 `studio.py check` 0 警告，并为 `pack.md` 场景时空胶囊提供高浓度感官锚点。**⚠️ `sensory_anchor` 严禁写入任何气味/嗅觉描写**——禁令①已彻底禁用嗅觉（Gemini 无法正确使用嗅觉感官），视觉、听觉、温度、触感不在禁用之列。
+
+3. `state/items.json`（核心道具与资产台账）：
+   - 登记主角初始道具、反派核心重器或关键信物；
+   - 必须包含 `id`, `name`, `type: "item"`, `holder`, `charges`, `max_charges`, `cost_per_use`, `durability`, `sensory_anchor`；
+   - 非计数型道具 `charges` 设为 `-1`；有磨损的道具必须明确 `durability`（如 `"98/100"` 或 `"成色良好"`）。
+
+4. `state/factions.json`（势力与组织台账）：
+   - 登记开局势力；包含 `id`, `name`, `type: "faction"`, `scale_tier`, `leader`, `headquarters`, `core_assets`, `diplomacy`。
+
+5. `state/current.json`（第一现场动态时空锚点）：
+   - 开局初始锚点：`chapter: 0`, `time`, `location`, `persons_present`, `atmosphere`, `mc_status`, `turn_count: 0`。
+
+6. `state/lines.json`（线索与伏笔雷达表）：
+   - 埋设首卷长线：`GUN-001`（危机倒计时/悬顶之剑）、`KNO-001`（致命信息差）、`MIS-001`（外界认知偏差）。
+
+7. `state/locked.json`（不可逆既定事实表）：
+   - 登记开局世界与主角不可逆事实 `LOCK-001`。
+
+8. `state/milestones.json`（战略里程碑台账）：
+   - 对应分卷大纲 `volume_outline.md` 中的【本卷战略里程碑排产】；
+   - 使用命令 `python studio.py milestone add --title "<标题>" --target-ch <章号> --desc "<描述>" -w "workspace/<书名>"` 添加，或由 Stage 0B 直接以 JSON 数组写入；
+   - 格式：`[ { "id": "ms_001", "title": "...", "desc": "...", "target_ch": 5, "scope": "vol_01", "status": "pending", "achieved_ch": null } ]`。
+
+9. `state/ledger.json`（经济与货币资产对账表）：
+   - 对应分卷大纲 `volume_outline.md` 中的【本卷经济与核心资源池预设】；
+   - 声明 `pools` 与 `pools_baseline`：`{ "pools": { "货币名": 初始值 }, "pools_baseline": { "货币名": 初始值 }, "history": [] }`。
+
+10. `state/debts.json`（人际恩怨与血仇对账表）：
+    - 登记开局未清算恩怨：`[ { "id": "DEBT-001", "type": "blood_debt", "source_char": "p_001", "target_char": "p_002", "desc": "...", "created_ch": 1, "status": "active" } ]`。
